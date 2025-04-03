@@ -18,4 +18,8 @@ docs/
 broadcast/*
 #leafs/TemporaryLeafs.json
 
+node_modules
+cache_hardhat
+artifacts
+
 
