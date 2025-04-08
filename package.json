@@ -5,10 +5,16 @@
   "main": "index.js",
   "scripts": {
     "compile": "hardhat compile",
-    "deploy:fuse": "hardhat run scripts/deploy-fuse-infrastructure.js --network fuse",
-    "grant:eth": "npx hardhat run scripts/grantRolesToFuseTeller.js --network mainnet"
+    "deployInfra:fuse": "hardhat run scripts/deploy-fuse-infrastructure.js --network fuse",
+    "grant:eth": "npx hardhat run scripts/grantRolesToFuseTeller.js --network mainnet",
+    "setTrusted:eth": "npx hardhat run scripts/setTrustedRemoteEth.js --network mainnet",
+    "setTrusted:fuse": "npx hardhat run scripts/setTrustedRemoteFuse.js --network fuse",
+    "deployRate:eth": "npx hardhat run scripts/deploy-rate-sender-eth.js --network mainnet",
+    "deployRate:fuse": "npx hardhat run scripts/deploy-rate-receiver-fuse.js --network fuse"
   },
   "dependencies": {
+    "@layerzerolabs/lz-evm-oapp-v2": "^3.0.84",
+    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.84",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "dotenv": "^16.0.3",
     "ethers": "^5.7.2",
