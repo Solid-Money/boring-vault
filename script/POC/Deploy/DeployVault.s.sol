@@ -3,7 +3,7 @@ pragma solidity ^0.8.21;
 
 import {BoringVault} from "src/base/BoringVault.sol";
 
-import {Script} from "forge-std/Script.sol";
+import {Script} from "@forge-std/Script.sol";
 import {console} from "@forge-std/Test.sol";
 
 /**

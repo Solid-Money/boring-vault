@@ -5,17 +5,29 @@
   "main": "index.js",
   "scripts": {
     "compile": "hardhat compile",
-    "generateMerkleRoot": "node scripts/generateMerkleRoot.js",
-    "generateMerkleMint": "node scripts/generateMerkleMint.js"
+    "deployFuseVault": "npx hardhat run scripts/deployFuseVault.js --network fuse",
+    "deployFuseAuthority": "npx hardhat run scripts/deployFuseAuthority.js --network fuse",
+    "deployFuseTeller": "npx hardhat run scripts/deployFuseTeller.js --network fuse",
+    "strategy": "node scripts/strategy.js",
+    "depositEthereumTeller": "node scripts/depositEthereumTeller.js",
+    "depositListener": "node scripts/depositListener.js",
+    "withdrawListener": "node scripts/withdrawListener.js",
+    "withdrawFuseTeller": "node scripts/withdrawFuseTeller.js"
   },
   "dependencies": {
     "@layerzerolabs/lz-evm-oapp-v2": "^3.0.84",
     "@layerzerolabs/lz-evm-protocol-v2": "^3.0.84",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@uniswap/sdk-core": "^7.7.2",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4",
+    "@uniswap/v3-sdk": "^3.25.2",
     "dotenv": "^16.0.3",
     "ethers": "^5.8.0",
     "hardhat-preprocessor": "^0.1.5",
-    "merkletreejs": "^0.5.1"
+    "jsbi": "^4.3.2",
+    "merkletreejs": "^0.5.1",
+    "uniswap": "^0.0.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-foundry": "^1.1.3",
