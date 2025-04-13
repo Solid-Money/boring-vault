@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.21;
 
-import {Script} from "@forge-std/Script.sol";
-import {console} from "@forge-std/Test.sol";
-
 contract FuseTeller {
     event Withdraw(address indexed caller, uint256 shares);
 
