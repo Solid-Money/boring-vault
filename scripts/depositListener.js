@@ -418,7 +418,7 @@ async function main() {
 
   // Update mode options to include 'manual' for manual deposit processing
   // TOGGLE MODE: Set to 'manual', 'listener', or 'test'
-  const MODE = 'manual' // Change this line to switch modes
+  const MODE = process.env.DEPOSIT_LISTENER_MODE
 
   if (MODE === 'manual') {
     // Process a manual deposit

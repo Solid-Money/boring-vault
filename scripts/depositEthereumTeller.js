@@ -40,6 +40,9 @@ async function depositEthToTeller(amount = '0.01') {
   console.log(`Will deposit ${amount} ETH (${amountWei.toString()} wei)`)
 
   try {
+    // Create WETH contract instance
+    const weth = new ethers.Contract(wethAddress, WETH_ABI, wallet)
+
     // Verify WETH balance
     const balance = await weth.balanceOf(address)
     console.log(`WETH balance: ${ethers.utils.formatEther(balance)} WETH`)
