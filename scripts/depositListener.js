@@ -98,22 +98,6 @@ const validateEnvironmentVariables = () => {
     )
     process.exit(1)
   }
-
-  // Log the values for debugging (except the private key)
-  console.log('Environment variables loaded:')
-  console.log(`  ETHEREUM_TELLER: ${process.env.ETHEREUM_TELLER}`)
-  console.log(`  VAULT_FUSE: ${process.env.VAULT_FUSE}`)
-  console.log(
-    `  UNISWAP_V3_POSITION (Token ID): ${process.env.UNISWAP_V3_POSITION}`
-  )
-  console.log(
-    `  UNISWAP_V3_POSITION_MANAGER (Contract): ${UNISWAP_V3_POSITION_MANAGER}`
-  )
-  console.log(`  MAINNET_RPC_URL: ${process.env.MAINNET_RPC_URL}`)
-  console.log(`  FUSE_RPC_URL: ${process.env.FUSE_RPC_URL}`)
-  console.log(
-    `  PRIVATE_KEY: ${process.env.PRIVATE_KEY ? '✓ (set)' : '✗ (not set)'}`
-  )
 }
 
 async function getEthUsdPrice() {
