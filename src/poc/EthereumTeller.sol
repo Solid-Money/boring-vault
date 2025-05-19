@@ -13,7 +13,7 @@ contract EthereumTeller {
 
     address public immutable weth;
     BoringVault public immutable vault;
-
+ 
     constructor(address _weth, BoringVault _vault) {
         require(_weth != address(0), "Invalid WETH address");
         require(address(_vault) != address(0), "Invalid vault address");
