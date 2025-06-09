@@ -1,10 +1,10 @@
 const { ethers } = require('hardhat')
 
-const vaultTokenName = 'Fuse USDC'
-const vaultTokenSymbol = 'fUSDC'
+const vaultTokenName = 'Solid USD'
+const vaultTokenSymbol = 'soUSD'
 const vaultTokenDecimals = 6
 
-const authorityAddress = '0x2a9bC971033926C929Fae645467f1C47002bfEb3'
+const authorityAddress = '0x9ba8969613F3Ea41dE962054A8Faa50ae54F5956'
 
 async function main() {
   console.log('Deploying BoringVault...')

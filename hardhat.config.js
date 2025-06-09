@@ -2,20 +2,35 @@ require('@nomiclabs/hardhat-ethers')
 require('@nomicfoundation/hardhat-foundry')
 require('dotenv').config()
 require('hardhat-preprocessor')
+require('@openzeppelin/hardhat-upgrades');
 const fs = require('fs')
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
+  // multiple versions 
   solidity: {
-    version: '0.8.21',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    compilers: [
+      {
+        version: '0.8.22',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
-    },
+      {
+        version: '0.8.21',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
+      },
+    ],
   },
   networks: {
     mainnet: {
