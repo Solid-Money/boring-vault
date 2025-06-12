@@ -1,13 +1,13 @@
 const { ethers } = require('hardhat')
 
-const vaultAddress = '0x3e2cD0AeF639CD72Aff864b85acD5c07E2c5e3FA'
-const accountantAddress = '0xC594ea2B28F5766eB66D101E0F59A958Feb9C0c5'
-const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+const vaultAddress = '0x75333830E7014e909535389a6E5b0C02aA62ca27'
+const accountantAddress = '0x47A5e832E1178726dd13AdD762774A704878AD98'
+const wethAddress = '0x0BE9e53fd7EDaC9F859882AfdDa116645287C629'
 const lzEndPointAddress = '0x1a44076050125825900e736c501f859c50fE728c'
-const delegateAddress = '0xC7eDF72b6B47A5337a6d40076E1c740FCFEfd885'
-const lzTokenAddress = '0x6985884C4392D348587B19cb9eAAf157F13271cd'
+const delegateAddress = '0x03709784c96aeaAa9Dd38Df14A23e996681b2C66'
+const lzTokenAddress = '0x0000000000000000000000000000000000000000'
 
-const authorityAddress = '0x2a9bC971033926C929Fae645467f1C47002bfEb3'
+const authorityAddress = '0x9ba8969613F3Ea41dE962054A8Faa50ae54F5956'
 
 async function main() {
   console.log('Deploying LayerZero Teller...')

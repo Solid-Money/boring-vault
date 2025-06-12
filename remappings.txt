@@ -6,3 +6,4 @@ ds-test/=lib/forge-std/lib/ds-test/src/
 @ccip/=lib/ccip/
 @oapp-auth/=lib/OAppAuth/src/
 lib/solidity-bytes-utils/=lib/OAppAuth/lib/solidity-bytes-utils/
+@oz/=lib/openzeppelin-contracts-upgradeable/contracts/
