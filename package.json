@@ -26,7 +26,7 @@
     "ethers": "^5.8.0",
     "hardhat-preprocessor": "^0.1.5",
     "jsbi": "^4.3.2",
-    "merkletreejs": "^0.5.1",
+    "merkletreejs": "^0.5.2",
     "uniswap": "^0.0.1"
   },
   "devDependencies": {

@@ -1,29 +1,31 @@
 const { ethers } = require('hardhat')
 
 // Addresses
-const oappAddress = '0xcBA3D8DC1DdE5fbD4c04cBbD5624Dc79D300963d'; // Replace with your OApp address
+const oappAddress = '0x220d4667AA06E0Aa39f62c601690848f2e48BC15'; // Replace with your OApp address
 const sendLibAddress = '0x2762409Baa1804D94D8c0bCFF8400B78Bf915D5B'; // Replace with your send message library address
 const lzEndPointAddress = '0x1a44076050125825900e736c501f859c50fE728c'
 
 // Configuration
 // UlnConfig controls verification threshold for incoming messages
-// Receive config enforces these settings have been applied to the DVNs and Executor
+// Send config enforces these settings have been applied to the DVNs and Executor
 // 0 values will be interpretted as defaults, so to apply NIL settings, use:
 // uint8 internal constant NIL_DVN_COUNT = type(uint8).max;
 // uint64 internal constant NIL_CONFIRMATIONS = type(uint64).max;
 const remoteEid = 30101; // Example EID, replace with the actual value
 const ulnConfig = {
-    confirmations: 32, // Example value, replace with actual
+    confirmations: 12, // Example value, replace with actual
     requiredDVNCount: 2, // Example value, replace with actual
     optionalDVNCount: 0, // Example value, replace with actual
     optionalDVNThreshold: 0, // Example value, replace with actual
-    requiredDVNs: ['0x589dedbd617e0cbcb916a9223f4d1300c294236b', '0xa59ba433ac34d2927232918ef5b2eaafcf130ba5'], // Replace with actual addresses, must be in alphabetical order
+    // requiredDVNs: ['0x589dedbd617e0cbcb916a9223f4d1300c294236b', '0xa59ba433ac34d2927232918ef5b2eaafcf130ba5'], // ETH
+    requiredDVNs: ['0x795f8325af292ff6e58249361d1954893be15aff', '0x809cde2afcf8627312e87a6a7bbffab3f8f347c7'], // FUSE
     optionalDVNs: [], // Replace with actual addresses, must be in alphabetical order
 };
 
 const executorConfig = {
     maxMessageSize: 10000, // Example value, replace with actual
-    executorAddress: '0xc905E74BEb8229E258c3C6E5bC0D6Cc54C534688', // Replace with the actual executor address
+    executorAddress: '0xc905E74BEb8229E258c3C6E5bC0D6Cc54C534688', // FUSE
+    // executorAddress: '0x173272739Bd7Aa6e4e214714048a9fE699453059', // ETH
 };
 
 async function main() {
