@@ -1,0 +1,138 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0x1570C021A34794C0e8cFa572883f1337894D7796",
+      "txHash": "0xf6483082cabc4c98b699d213c4162565493c3825d55f117010a1ae5140bd023f",
+      "kind": "uups"
+    },
+    {
+      "address": "0x57b99807DFF5894be367889B98D82017DA9a441a",
+      "txHash": "0x7ab00f69332fd9447a2e2d3bfd4bce494b2f41341d08b5e53dd3d995233330ff",
+      "kind": "uups"
+    },
+    {
+      "address": "0x7Af15A003de1937bD6CA60c70598DBaca2401e1E",
+      "txHash": "0x2f2ac19cbfd6dc15eabb185959a60217ebae94a22dea61410ae3740cb282edfa",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "f86a7325b7d4b2bb2e2fe97c6c4edbe6391a7dd4d2fbad809820f1879483db75": {
+      "address": "0x0864f63b2f657662D750CF56A0eE94935900bDaF",
+      "txHash": "0x60e0cf40ca917a86897e5292632b030eb74981475f81c2a301bc45e57d9f89ef",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "isSponsored",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:12"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol:24"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    },
+    "b9fd5c061c2765455f23215d66a8d0ebe167240321b831962f9599a54bfd8723": {
+      "address": "0x43418EeEABA9B4426f231C7ca080eFa8F5A3bE9a",
+      "txHash": "0x6546e10f70ca4f2ead0be50cb656265ad138c8efbb9af7921c4b5bc9f0d9ac78",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "isSponsored",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:12"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol:24"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

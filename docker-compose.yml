@@ -1,0 +1,12 @@
+services:
+  deposit-listener:
+    build: .
+    command: npm run depositListener
+    env_file: .env
+    restart: unless-stopped
+    networks:
+      - boring-vault
+
+networks:
+  boring-vault:
+    driver: bridge
