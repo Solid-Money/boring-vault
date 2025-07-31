@@ -119,7 +119,7 @@ contract SpectraIntegrationTest is Test, MerkleTreeHelper {
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        //_generateTestLeafs(leafs, manageTree); 
+        _generateTestLeafs(leafs, manageTree); 
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
@@ -134,8 +134,8 @@ contract SpectraIntegrationTest is Test, MerkleTreeHelper {
         address[] memory targets = new address[](4);
         targets[0] = getAddress(sourceChain, "GHO");
         targets[1] = getAddress(sourceChain, "stkGHO");
-        targets[2] = getAddress(sourceChain, "spectra_stkGHO"); //wrap
-        targets[3] = getAddress(sourceChain, "spectra_stkGHO"); //unwrap
+        targets[2] = getAddress(sourceChain, "spectra_stkGHO"); //wrap (IBT)
+        targets[3] = getAddress(sourceChain, "spectra_stkGHO"); //unwrap (IBT)
 
         bytes[] memory targetData = new bytes[](4);
         targetData[0] = abi.encodeWithSignature(
@@ -160,6 +160,66 @@ contract SpectraIntegrationTest is Test, MerkleTreeHelper {
         uint256[] memory values = new uint256[](4);
 
         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+        
+    }
+
+    function testSpectraIntegrationGHOToSwTokenToBuyPT() external {
+        deal(getAddress(sourceChain, "GHO"), address(boringVault), 100_000e18);
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](32);
+        _addSpectraLeafs(
+            leafs, 
+            getAddress(sourceChain, "spectra_stkGHO_Pool"),
+            getAddress(sourceChain, "spectra_stkGHO_PT"),
+            getAddress(sourceChain, "spectra_stkGHO_YT"),
+            getAddress(sourceChain, "spectra_stkGHO") //swToken
+        );
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+        _generateTestLeafs(leafs, manageTree); 
+
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        ManageLeaf[] memory manageLeafs = new ManageLeaf[](4);
+        manageLeafs[0] = leafs[23]; //approve GHO 
+        manageLeafs[1] = leafs[4]; //approve swToken for selling
+        manageLeafs[2] = leafs[24]; //deposit
+        manageLeafs[3] = leafs[20]; //exchange
+
+        bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+        address[] memory targets = new address[](4);
+        targets[0] = getAddress(sourceChain, "GHO");
+        targets[1] = getAddress(sourceChain, "spectra_stkGHO");
+        targets[2] = getAddress(sourceChain, "spectra_stkGHO"); //deposit (GHO -> swToken)
+        targets[3] = getAddress(sourceChain, "spectra_stkGHO_Pool"); //exchange (sell swToken for PT)
+
+        bytes[] memory targetData = new bytes[](4);
+        targetData[0] = abi.encodeWithSignature(
+            "approve(address,uint256)", getAddress(sourceChain, "spectra_stkGHO"), type(uint256).max
+        );
+        targetData[1] = abi.encodeWithSignature(
+            "approve(address,uint256)", getAddress(sourceChain, "spectra_stkGHO_Pool"), type(uint256).max
+        );
+        targetData[2] = abi.encodeWithSignature(
+            "deposit(uint256,address)", 100e18, address(boringVault)
+        );
+        targetData[3] =
+            abi.encodeWithSignature("exchange(uint256,uint256,uint256,uint256)", 0, 1, 50e18, 0);
+
+        address[] memory decodersAndSanitizers = new address[](4);
+        decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[2] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[3] = rawDataDecoderAndSanitizer;
+
+        uint256[] memory values = new uint256[](4);
+
+        manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+        
+        uint256 ptBalance = getERC20(sourceChain, "spectra_stkGHO_PT").balanceOf(address(boringVault));
+        assertGt(ptBalance, 0); 
         
     }
 

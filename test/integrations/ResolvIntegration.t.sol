@@ -120,11 +120,9 @@ contract ResolvIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](32);
         _addAllResolvLeafs(leafs);
 
-        //string memory filePath = "./TestTEST.json";
-
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        //_generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+        _generateTestLeafs(leafs, manageTree);
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 

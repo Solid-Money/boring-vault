@@ -27,9 +27,22 @@ import {MerklDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols
 import {KarakDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/KarakDecoderAndSanitizer.sol";
 import {UsualMoneyDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/UsualMoneyDecoderAndSanitizer.sol";
 import {MorphoRewardsDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/MorphoRewardsDecoderAndSanitizer.sol";
-import {TermFinanceDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/TermFinanceDecoderAndSanitizer.sol";
-import {SpectraDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/SpectraDecoderAndSanitizer.sol"; 
-import {ResolvDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ResolvDecoderAndSanitizer.sol"; 
+import {TermFinanceDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/TermFinanceDecoderAndSanitizer.sol";
+import {SpectraDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/SpectraDecoderAndSanitizer.sol";
+import {ResolvDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ResolvDecoderAndSanitizer.sol";
+import {LevelDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/LevelDecoderAndSanitizer.sol";
+import {OdosDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OdosDecoderAndSanitizer.sol";
+import {SyrupDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/SyrupDecoderAndSanitizer.sol";
+import {BalancerV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/BalancerV3DecoderAndSanitizer.sol";
+import {ElixirClaimingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/ElixirClaimingDecoderAndSanitizer.sol";
+import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/TellerDecoderAndSanitizer.sol";
+import {FluidDexDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/FluidDexDecoderAndSanitizer.sol";
+import {EulerEVKDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/EulerEVKDecoderAndSanitizer.sol";
+import {KingClaimingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/KingClaimingDecoderAndSanitizer.sol";
+import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
 
 contract EtherFiLiquidUsdDecoderAndSanitizer is
     UniswapV3DecoderAndSanitizer,
@@ -55,21 +68,50 @@ contract EtherFiLiquidUsdDecoderAndSanitizer is
     MorphoRewardsDecoderAndSanitizer,
     TermFinanceDecoderAndSanitizer,
     SpectraDecoderAndSanitizer,
-    ResolvDecoderAndSanitizer
+    ResolvDecoderAndSanitizer,
+    LevelDecoderAndSanitizer,
+    OdosDecoderAndSanitizer,
+    SyrupDecoderAndSanitizer,
+    BalancerV3DecoderAndSanitizer,
+    ElixirClaimingDecoderAndSanitizer,
+    TellerDecoderAndSanitizer,
+    FluidDexDecoderAndSanitizer,
+    EulerEVKDecoderAndSanitizer,
+    KingClaimingDecoderAndSanitizer,
+    OFTDecoderAndSanitizer
 {
-    constructor(address _uniswapV3NonFungiblePositionManager)
+    constructor(address _uniswapV3NonFungiblePositionManager, address _odosRouter)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
+        OdosDecoderAndSanitizer(_odosRouter)
     {}
 
     //============================== HANDLE FUNCTION COLLISIONS ===============================
     /**
-     * @notice BalancerV2, ERC4626, Spectra, and Curve all specify a `deposit(uint256,address)`,
+     * @notice Teller and Karak specify a `deposit(address,uint256,uint256)`,
+     *         all cases are handled the same way.
+     */
+    function deposit(address vaultOrAsset, uint256, uint256)
+        external
+        pure
+        override(TellerDecoderAndSanitizer, KarakDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        addressesFound = abi.encodePacked(vaultOrAsset);
+    }
+
+    /**
+     * @notice BalancerV2/3, ERC4626, Spectra, and Curve all specify a `deposit(uint256,address)`,
      *         all cases are handled the same way.
      */
     function deposit(uint256, address receiver)
         external
         pure
-        override(BalancerV2DecoderAndSanitizer, ERC4626DecoderAndSanitizer, CurveDecoderAndSanitizer)
+        override(
+            BalancerV3DecoderAndSanitizer,
+            BalancerV2DecoderAndSanitizer,
+            ERC4626DecoderAndSanitizer,
+            CurveDecoderAndSanitizer
+        )
         returns (bytes memory addressesFound)
     {
         addressesFound = abi.encodePacked(receiver);
@@ -79,7 +121,7 @@ contract EtherFiLiquidUsdDecoderAndSanitizer is
      * @notice Gearbox, Resolv both specify a `deposit(uint256)`,
      *         all cases are handled the same way.
      */
-    function deposit(uint256 /*amount*/)
+    function deposit(uint256 /*amount*/ )
         external
         pure
         override(GearboxDecoderAndSanitizer, ResolvDecoderAndSanitizer)
@@ -180,25 +222,25 @@ contract EtherFiLiquidUsdDecoderAndSanitizer is
      * @notice Spectra, and FluidFToken all specify a `redeem(uint256,address,address,uint256)`,
      *         all cases are handled the same way.
      */
-    function redeem(uint256,address a, address b, uint256)
+    function redeem(uint256, address a, address b, uint256)
         external
         pure
         override(SpectraDecoderAndSanitizer, FluidFTokenDecoderAndSanitizer, ResolvDecoderAndSanitizer)
         returns (bytes memory addressesFound)
     {
-        addressesFound = abi.encodePacked(a, b); 
+        addressesFound = abi.encodePacked(a, b);
     }
 
     /**
      * @notice Spectra, and FluidFToken all specify a `withdraw(uint256,address,address,uint256)`,
      *         all cases are handled the same way.
      */
-    function withdraw(uint256,address a, address b, uint256)
+    function withdraw(uint256, address a, address b, uint256)
         external
         pure
         override(SpectraDecoderAndSanitizer, FluidFTokenDecoderAndSanitizer)
         returns (bytes memory addressesFound)
     {
-        addressesFound = abi.encodePacked(a, b); 
+        addressesFound = abi.encodePacked(a, b);
     }
 }

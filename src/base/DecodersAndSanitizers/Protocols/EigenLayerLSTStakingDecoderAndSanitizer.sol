@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.21;
 
-import {BaseDecoderAndSanitizer, DecoderCustomTypes} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
 
-abstract contract EigenLayerLSTStakingDecoderAndSanitizer is BaseDecoderAndSanitizer {
+contract EigenLayerLSTStakingDecoderAndSanitizer {
     //============================== ERRORS ===============================
 
     error EigenLayerLSTStakingDecoderAndSanitizer__CanOnlyReceiveAsTokens();
@@ -37,6 +37,27 @@ abstract contract EigenLayerLSTStakingDecoderAndSanitizer is BaseDecoderAndSanit
         DecoderCustomTypes.Withdrawal[] calldata withdrawals,
         address[][] calldata tokens,
         uint256[] calldata, /*middlewareTimesIndexes*/
+        bool[] calldata receiveAsTokens
+    ) external pure virtual returns (bytes memory addressesFound) {
+        for (uint256 i = 0; i < withdrawals.length; i++) {
+            if (!receiveAsTokens[i]) revert EigenLayerLSTStakingDecoderAndSanitizer__CanOnlyReceiveAsTokens();
+
+            addressesFound = abi.encodePacked(
+                addressesFound, withdrawals[i].staker, withdrawals[i].delegatedTo, withdrawals[i].withdrawer
+            );
+            for (uint256 j = 0; j < withdrawals[i].strategies.length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, withdrawals[i].strategies[j]);
+            }
+            for (uint256 j = 0; j < tokens.length; j++) {
+                addressesFound = abi.encodePacked(addressesFound, tokens[i][j]);
+            }
+        }
+    }
+
+    /// @notice support the new ELIP version
+    function completeQueuedWithdrawals(
+        DecoderCustomTypes.Withdrawal[] calldata withdrawals,
+        address[][] calldata tokens,
         bool[] calldata receiveAsTokens
     ) external pure virtual returns (bytes memory addressesFound) {
         for (uint256 i = 0; i < withdrawals.length; i++) {

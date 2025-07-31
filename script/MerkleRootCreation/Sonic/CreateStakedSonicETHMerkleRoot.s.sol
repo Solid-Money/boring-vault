@@ -18,7 +18,7 @@ contract CreateStakedSonicETHMerkleRoot is Script, MerkleTreeHelper {
     address public boringVault = 0x455d5f11Fea33A8fa9D3e285930b478B6bF85265;
     address public managerAddress = 0xB77F31E02797724021F822181dff29F966A7B2cb;
     address public accountantAddress = 0x61bE1eC20dfE0197c27B80bA0f7fcdb1a6B236E2;
-    address public rawDataDecoderAndSanitizer = 0xf1BeC14BB66F5349Fe42C14fEb66BA1fa53F869b;
+    address public rawDataDecoderAndSanitizer = 0xE96762FD748EfdCF4156c64aBc39227529FaF021;
 
     function setUp() external {}
 
@@ -66,15 +66,43 @@ contract CreateStakedSonicETHMerkleRoot is Script, MerkleTreeHelper {
             leafs, getBytes32(sourceChain, "scETH_WETH_PoolId"), getAddress(sourceChain, "scETH_WETH_gauge")
         );
 
+
+        // ========================== Odos ==========================
+        
+        address[] memory tokens = new address[](9);   
+        SwapKind[] memory kind = new SwapKind[](9);
+        tokens[0] = getAddress(sourceChain, "WETH"); 
+        kind[0] = SwapKind.BuyAndSell;
+        tokens[1] = getAddress(sourceChain, "stS"); 
+        kind[1] = SwapKind.BuyAndSell;
+        tokens[2] = getAddress(sourceChain, "wS"); 
+        kind[2] = SwapKind.BuyAndSell;
+        tokens[3] = getAddress(sourceChain, "scETH"); 
+        kind[3] = SwapKind.BuyAndSell;
+        tokens[4] = getAddress(sourceChain, "BEETS"); 
+        kind[4] = SwapKind.Sell;
+        tokens[5] = getAddress(sourceChain, "CRV");
+        kind[5] = SwapKind.Sell;
+        tokens[6] = getAddress(sourceChain, "WETH");
+        kind[6] = SwapKind.Sell;
+        tokens[7] = getAddress(sourceChain, "SILO");
+        kind[7] = SwapKind.Sell;
+        tokens[8] = getAddress(sourceChain, "BEETSFRAGMENTSS1");
+        kind[8] = SwapKind.Sell;
+
+        _addOdosSwapLeafs(leafs, tokens, kind); 
+
         // ========================== Teller ==========================
         ERC20[] memory tellerAssets = new ERC20[](1);
         tellerAssets[0] = getERC20(sourceChain, "WETH");
-        _addTellerLeafs(leafs, getAddress(sourceChain, "scETHTeller"), tellerAssets, false);
+        _addTellerLeafs(leafs, getAddress(sourceChain, "scETHTeller"), tellerAssets, false, true);
 
         // ========================== Silo ==========================
-
-        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_S_ETH_config"));
-        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_ETH_wstkscETH_config"));
+        address[] memory incentivesControllers = new address[](2); 
+        incentivesControllers[0] = address(0);  
+        incentivesControllers[0] = address(0);   
+        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_S_ETH_config"), incentivesControllers);
+        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_ETH_wstkscETH_id26_config"), incentivesControllers);
 
         // ========================== Curve =========================
 
@@ -100,6 +128,12 @@ contract CreateStakedSonicETHMerkleRoot is Script, MerkleTreeHelper {
          // ========================== Native =========================
         _addNativeLeafs(leafs, getAddress(sourceChain, "wS"));
        
+        // ========================== Merkl =========================
+        ERC20[] memory tokensToClaim = new ERC20[](3); 
+        tokensToClaim[0] = getERC20(sourceChain, "rEUL"); 
+        tokensToClaim[1] = getERC20(sourceChain, "wS"); 
+        tokensToClaim[2] = getERC20(sourceChain, "BEETSFRAGMENTSS1"); 
+        _addMerklLeafs(leafs, getAddress(sourceChain, "merklDistributor"), getAddress(sourceChain, "dev1Address"), tokensToClaim); 
 
         // ========================== Verify =========================
 

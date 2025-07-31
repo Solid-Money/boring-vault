@@ -1,9 +1,7 @@
 /* SPDX-License-Identifier: UNLICENSED */
 pragma solidity ^0.8.0;
 
-import "../common/ITBContractDecoderAndSanitizer.sol";
-
-abstract contract KarakDecoderAndSanitizer is ITBContractDecoderAndSanitizer {
+contract KarakDecoderAndSanitizer {
     function updatePositionConfig(address _underlying, address _vault)
         external
         pure

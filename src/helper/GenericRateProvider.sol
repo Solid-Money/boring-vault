@@ -7,6 +7,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 contract GenericRateProvider is IRateProvider {
     using Address for address;
 
+    //============================== ERRORS ===============================
+    error GenericRateProvider__PriceCannotBeLtZero(); 
+
     //============================== IMMUTABLES ===============================
 
     /**
@@ -18,6 +21,12 @@ contract GenericRateProvider is IRateProvider {
      * @notice The selector to call on the target.
      */
     bytes4 public immutable selector;
+
+    /**
+     * @notice boolean indicating if we need to check for a signed return value.
+     * @dev if true, this indicates an int256 return value or similar signed number
+     */
+    bool public immutable signed; 
 
     /**
      * @notice Static arguments to pass to the target.
@@ -33,7 +42,7 @@ contract GenericRateProvider is IRateProvider {
 
     constructor(
         address _target,
-        bytes4 _selctor,
+        bytes4 _selector,
         bytes32 _staticArgument0,
         bytes32 _staticArgument1,
         bytes32 _staticArgument2,
@@ -41,10 +50,11 @@ contract GenericRateProvider is IRateProvider {
         bytes32 _staticArgument4,
         bytes32 _staticArgument5,
         bytes32 _staticArgument6,
-        bytes32 _staticArgument7
+        bytes32 _staticArgument7,
+        bool _signed
     ) {
         target = _target;
-        selector = _selctor;
+        selector = _selector;
         staticArgument0 = _staticArgument0;
         staticArgument1 = _staticArgument1;
         staticArgument2 = _staticArgument2;
@@ -53,6 +63,7 @@ contract GenericRateProvider is IRateProvider {
         staticArgument5 = _staticArgument5;
         staticArgument6 = _staticArgument6;
         staticArgument7 = _staticArgument7;
+        signed = _signed; 
 
         // Make sure getRate succeeds.
         getRate();
@@ -66,7 +77,7 @@ contract GenericRateProvider is IRateProvider {
      *      and calls will likely fail.
      * @dev If staticArgumentN is not used, it can be left as 0.
      */
-    function getRate() public view returns (uint256) {
+    function getRate() public virtual view returns (uint256) {
         bytes memory callData = abi.encodeWithSelector(
             selector,
             staticArgument0,
@@ -80,6 +91,16 @@ contract GenericRateProvider is IRateProvider {
         );
         bytes memory result = target.functionStaticCall(callData);
 
-        return abi.decode(result, (uint256));
+        if (signed) {
+            //if target func() returns an int, we get the result and then cast it to a uint256
+            int256 res = abi.decode(result, (int256)); 
+            if (res < 0) revert GenericRateProvider__PriceCannotBeLtZero(); 
+
+            return uint256(res); 
+        
+        } else {
+
+            return abi.decode(result, (uint256));
+        }
     }
 }

@@ -17,7 +17,7 @@ contract CreateStakedEthfiMerkleRootScript is Script, MerkleTreeHelper {
     using FixedPointMathLib for uint256;
 
     address public boringVault = 0x86B5780b606940Eb59A062aA85a07959518c0161;
-    address public managerAddress = 0xb623FaF559b414A1C7EF2d15f3260CA0Fd239431;
+    address public managerAddress = 0x66aae0ee1f68c658401c7d8D6E417202A99545d7;
     address public accountantAddress = 0x05A1552c5e18F5A0BB9571b5F2D6a4765ebdA32b;
     address public rawDataDecoderAndSanitizer = 0x52ED1F19592aE32580619Eb5BaA3f67530d99F5c;
 

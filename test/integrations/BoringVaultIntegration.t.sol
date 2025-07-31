@@ -51,7 +51,7 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
         superSymbioticTeller = TellerWithMultiAssetSupport(getAddress(sourceChain, "superSymbioticTeller"));
 
         rawDataDecoderAndSanitizer = address(
-            new EtherFiLiquidEthDecoderAndSanitizer(getAddress(sourceChain, "uniswapV3NonFungiblePositionManager"))
+            new EtherFiLiquidEthDecoderAndSanitizer(getAddress(sourceChain, "uniswapV3NonFungiblePositionManager"), address(0))
         );
 
         setAddress(false, sourceChain, "boringVault", address(liquidEth));
@@ -81,7 +81,7 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
         ERC20[] memory assets = new ERC20[](2);
         assets[0] = ERC20(getAddress(sourceChain, "WETH"));
         assets[1] = ERC20(getAddress(sourceChain, "WEETH"));
-        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, false);
+        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, false, true);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -95,8 +95,8 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory manageLeafs = new ManageLeaf[](4);
         manageLeafs[0] = leafs[0]; //approve weth
         manageLeafs[1] = leafs[1]; //bulk deposit weth
-        manageLeafs[2] = leafs[5]; //approve weeth
-        manageLeafs[3] = leafs[6]; //bulk deposit weeth
+        manageLeafs[2] = leafs[4]; //approve weeth
+        manageLeafs[3] = leafs[5]; //bulk deposit weeth
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
@@ -149,7 +149,7 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
 
         manageLeafs = new ManageLeaf[](2);
         manageLeafs[0] = leafs[2];
-        manageLeafs[1] = leafs[7];
+        manageLeafs[1] = leafs[6];
 
         manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
@@ -207,7 +207,7 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory assets = new ERC20[](1);
         assets[0] = ERC20(getAddress(sourceChain, "WETH"));
-        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, false);
+        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, false, true);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -263,7 +263,7 @@ contract BoringVaultIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory assets = new ERC20[](1);
         assets[0] = ERC20(getAddress(sourceChain, "WETH"));
-        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, false);
+        _addTellerLeafs(leafs, address(superSymbioticTeller), assets, true, true);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 

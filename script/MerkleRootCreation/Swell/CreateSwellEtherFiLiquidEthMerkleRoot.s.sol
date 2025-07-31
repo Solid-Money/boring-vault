@@ -19,7 +19,7 @@ contract CreateSwellEtherFiLiquidEthMerkleRoot is Script, MerkleTreeHelper {
     address public boringVault = 0xf0bb20865277aBd641a307eCe5Ee04E79073416C;
     address public managerAddress = 0xDEa7AF4a96A762c9d43A7eE02acecD20A3C6D8B6;
     address public accountantAddress = 0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198;
-    address public rawDataDecoderAndSanitizer = 0x568a4E08909aab6995979dB24B3cdaE00244CeB4;
+    address public rawDataDecoderAndSanitizer = 0xBFcCaEf3F198cabBdfd96d4EB0526A7FBFdFFDbA; 
 
     function setUp() external {}
 
@@ -37,14 +37,14 @@ contract CreateSwellEtherFiLiquidEthMerkleRoot is Script, MerkleTreeHelper {
         setAddress(false, swell, "accountantAddress", accountantAddress);
         setAddress(false, swell, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](32);
+        ManageLeaf[] memory leafs = new ManageLeaf[](64);
 
         // ========================== Native Wrapping ==========================
         _addNativeLeafs(leafs);
 
         // ========================== LayerZero ==========================
         _addLayerZeroLeafs(
-            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroMainnetEndpointId
+            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroMainnetEndpointId, getBytes32(sourceChain, "boringVault")
         );
 
         // ========================== Standard Bridge ==========================
@@ -61,13 +61,21 @@ contract CreateSwellEtherFiLiquidEthMerkleRoot is Script, MerkleTreeHelper {
             remoteTokens
         );
 
-        // // ========================== Euler ==========================
+        // ========================== Euler ==========================
+        {
         ERC4626[] memory depositVaults = new ERC4626[](2);
         depositVaults[0] = ERC4626(getAddress(sourceChain, "eulerWETH"));
         depositVaults[1] = ERC4626(getAddress(sourceChain, "eulerWEETH"));
+
         address[] memory subaccounts = new address[](1);
         subaccounts[0] = address(boringVault);
+
+        ERC4626[] memory borrowVaults = new ERC4626[](1); 
+        borrowVaults[0] = ERC4626(getAddress(sourceChain, "eulerWETH")); 
+
         _addEulerDepositLeafs(leafs, depositVaults, subaccounts);
+        _addEulerBorrowLeafs(leafs, borrowVaults, subaccounts);  
+        }
 
         // ========================== Merkl ==========================
         ERC20[] memory tokensToClaim = new ERC20[](1);
@@ -75,6 +83,28 @@ contract CreateSwellEtherFiLiquidEthMerkleRoot is Script, MerkleTreeHelper {
         _addMerklLeafs(
             leafs, getAddress(sourceChain, "merklDistributor"), getAddress(sourceChain, "dev1Address"), tokensToClaim
         );
+
+        // ========================== Velodrome ==========================
+        address[] memory token0 = new address[](1);
+        token0[0] = getAddress(sourceChain, "WETH");
+        address[] memory token1 = new address[](1);
+        token1[0] = getAddress(sourceChain, "WEETH");
+        address[] memory gauges = new address[](1);
+        gauges[0] = getAddress(sourceChain, "velodrome_weth_weeth_v3_gauge");
+        _addVelodromeV3Leafs(
+            leafs, token0, token1, getAddress(sourceChain, "velodromeNonFungiblePositionManager"), gauges
+        );
+
+        // ========================== Ambient ==========================
+        _addAmbientLPLeafs(leafs, getAddress(sourceChain, "WEETH"), getAddress(sourceChain, "ETH")); 
+        _addAmbientSwapLeafs(leafs, getAddress(sourceChain, "WEETH"), getAddress(sourceChain, "ETH")); //can remove if they don't want/need swapping between the two
+    
+        // Swaps
+        _addAmbientSwapLeafs(leafs, getAddress(sourceChain, "ETH"), getAddress(sourceChain, "SWELL")); 
+        _addAmbientSwapLeafs(leafs, getAddress(sourceChain, "SWELL"), getAddress(sourceChain, "ETH")); 
+
+        // ========================== wSwell Unwrapping ==========================
+        _addWSwellUnwrappingLeafs(leafs); 
 
         // ========================== Verify & Generate ==========================
 

@@ -17,6 +17,7 @@ import {
     CrossChainTellerWithGenericBridge
 } from "src/base/Roles/CrossChain/Bridges/CCIP/ChainlinkCCIPTeller.sol";
 import {LayerZeroTeller} from "src/base/Roles/CrossChain/Bridges/LayerZero/LayerZeroTeller.sol";
+import {LayerZeroTellerWithRateLimiting} from "src/base/Roles/CrossChain/Bridges/LayerZero/LayerZeroTellerWithRateLimiting.sol";
 import {AccountantWithRateProviders, IRateProvider} from "src/base/Roles/AccountantWithRateProviders.sol";
 import {AccountantWithFixedRate} from "src/base/Roles/AccountantWithFixedRate.sol";
 import {Deployer} from "src/helper/Deployer.sol";
@@ -181,7 +182,8 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
         Teller,
         TellerWithRemediation,
         TellerWithCcip,
-        TellerWithLayerZero
+        TellerWithLayerZero,
+        TellerWithLayerZeroRateLimiting
     }
 
     TellerKind internal tellerKind;
@@ -717,6 +719,36 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
                 _log(string.concat("LayerZero endpoint address: ", vm.toString(layerZeroEndpointAddress)), 4);
                 _log(string.concat("LayerZero token address: ", vm.toString(layerZeroTokenAddress)), 4);
             }
+            bool tellerWithLayerZeroRateLimiting =
+                vm.parseJsonBool(rawJson, ".tellerConfiguration.tellerParameters.kind.tellerWithLayerZeroRateLimiting");
+            if (tellerWithLayerZeroRateLimiting) {
+                if (tellerKindSet) {
+                    _log("Teller kind already set", 1);
+                }
+                creationCode = type(LayerZeroTellerWithRateLimiting).creationCode;
+                tellerKind = TellerKind.TellerWithLayerZeroRateLimiting;
+                // Read the endpoint and lztoken from the configuration file.
+                address layerZeroEndpointAddress =
+                    _handleAddressOrName(".tellerConfiguration.tellerParameters.layerZero.endpointAddressOrName");
+                address layerZeroTokenAddress =
+                    _handleAddressOrName(".tellerConfiguration.tellerParameters.layerZero.lzTokenAddressOrName");
+                constructorArgs = abi.encode(
+                    deploymentOwner,
+                    address(boringVault),
+                    address(accountant),
+                    nativeWrapperAddress,
+                    layerZeroEndpointAddress,
+                    deploymentOwner,
+                    layerZeroTokenAddress
+                );
+                tellerKindSet = true;
+                _log("Teller with LayerZero Rate Limiting deployment TX added", 3);
+                _log(string.concat("Boring vault address: ", vm.toString(address(boringVault))), 4);
+                _log(string.concat("Accountant address: ", vm.toString(address(accountant))), 4);
+                _log(string.concat("Native wrapper address: ", vm.toString(nativeWrapperAddress)), 4);
+                _log(string.concat("LayerZero endpoint address: ", vm.toString(layerZeroEndpointAddress)), 4);
+                _log(string.concat("LayerZero token address: ", vm.toString(layerZeroTokenAddress)), 4);
+            }
 
             _addTx(
                 address(deployer),
@@ -734,7 +766,9 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
         bool tellerWithCcip = vm.parseJsonBool(rawJson, ".tellerConfiguration.tellerParameters.kind.tellerWithCcip");
         bool tellerWithLayerZero =
             vm.parseJsonBool(rawJson, ".tellerConfiguration.tellerParameters.kind.tellerWithLayerZero");
-        if (tellerWithCcip || tellerWithLayerZero) {
+        bool tellerWithLayerZeroRateLimiting = 
+            vm.parseJsonBool(rawJson, ".tellerConfiguration.tellerParameters.kind.tellerWithLayerZeroRateLimiting");
+        if (tellerWithCcip || tellerWithLayerZero || tellerWithLayerZeroRateLimiting) {
             _log("Setting up cross chain teller", 3);
             if (tellerWithCcip) {
                 // Set CCIP chains.
@@ -757,7 +791,7 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
                         uint256(0)
                     );
                 }
-            } else if (tellerWithLayerZero) {
+            } else if (tellerWithLayerZero || tellerWithLayerZeroRateLimiting) {
                 // Set LayerZero chains.
                 bytes memory lzChainsRaw =
                     vm.parseJson(rawJson, ".tellerConfiguration.tellerParameters.layerZero.lzChains");
@@ -825,7 +859,9 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
         queueSolver = BoringSolver(deployedAddress);
         if (!isDeployed) {
             creationCode = type(BoringSolver).creationCode;
-            constructorArgs = abi.encode(deploymentOwner, address(0), address(queue));
+            // Read config to determine excessToSolverNonSelfSolve constructor argument.
+            bool excessToSolverNonSelfSolve = vm.parseJsonBool(rawJson, ".boringQueueConfiguration.excessToSolverNonSelfSolve");
+            constructorArgs = abi.encode(deploymentOwner, address(0), address(queue), excessToSolverNonSelfSolve);
             _log("Boring solver deployment TX added", 3);
             _log(string.concat("Boring queue address: ", vm.toString(address(queue))), 4);
             _addTx(
@@ -1117,7 +1153,7 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
                     OWNER_ROLE, address(teller), ChainlinkCCIPTeller.setChainGasLimit.selector
                 );
             }
-            if (tellerKind == TellerKind.TellerWithLayerZero) {
+            if (tellerKind == TellerKind.TellerWithLayerZero || tellerKind == TellerKind.TellerWithLayerZeroRateLimiting) {
                 _addRoleCapabilityIfNotPresent(OWNER_ROLE, address(teller), LayerZeroTeller.addChain.selector);
                 _addRoleCapabilityIfNotPresent(MULTISIG_ROLE, address(teller), LayerZeroTeller.removeChain.selector);
                 _addRoleCapabilityIfNotPresent(
@@ -1139,7 +1175,7 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
                 _setPublicCapabilityIfNotPresent(
                     address(teller), TellerWithMultiAssetSupport.depositWithPermit.selector
                 );
-                if (tellerKind == TellerKind.TellerWithCcip || tellerKind == TellerKind.TellerWithLayerZero) {
+                if (tellerKind == TellerKind.TellerWithCcip || tellerKind == TellerKind.TellerWithLayerZero || tellerKind == TellerKind.TellerWithLayerZeroRateLimiting) {
                     _setPublicCapabilityIfNotPresent(
                         address(teller), CrossChainTellerWithGenericBridge.depositAndBridge.selector
                     );
@@ -1526,6 +1562,8 @@ contract DeployArcticArchitectureWithConfigScript is Script, ChainValues {
                     vm.serializeAddress(coreContracts, "TellerWithCcip", address(teller));
                 } else if (tellerKind == TellerKind.TellerWithLayerZero) {
                     vm.serializeAddress(coreContracts, "TellerWithLayerZero", address(teller));
+                } else if (tellerKind == TellerKind.TellerWithLayerZeroRateLimiting) {
+                    vm.serializeAddress(coreContracts, "TellerWithLayerZeroRateLimiting", address(teller));
                 }
                 vm.serializeAddress(coreContracts, "BoringOnChainQueue", address(queue));
                 coreOutput = vm.serializeAddress(coreContracts, "QueueSolver", address(queueSolver));

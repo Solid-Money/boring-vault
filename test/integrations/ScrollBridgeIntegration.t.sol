@@ -14,7 +14,7 @@ import {
 } from "src/base/DecodersAndSanitizers/BridgingDecoderAndSanitizer.sol";
 import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
 import {RolesAuthority, Authority} from "@solmate/auth/authorities/RolesAuthority.sol";
-import {MerkleTreeHelper} from "test/resources/MerkleTreeHelper/MerkleTreeHelper.sol";
+import {MerkleTreeHelper, IScrollGateway} from "test/resources/MerkleTreeHelper/MerkleTreeHelper.sol";
 
 import {Test, stdStorage, StdStorage, stdError, console} from "@forge-std/Test.sol";
 
@@ -47,7 +47,8 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
 
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory localTokens;
-        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens);
+        address[] memory scrollGateways;
+        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -85,7 +86,8 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
 
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory localTokens;
-        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens);
+        address[] memory scrollGateways;
+        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -125,7 +127,8 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory localTokens = new ERC20[](1);
         localTokens[0] = getERC20(sourceChain, "DAI");
-        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens);
+        address[] memory scrollGateways = new address[](1);
+        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -169,7 +172,9 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory localTokens = new ERC20[](1);
         localTokens[0] = getERC20(sourceChain, "DAI");
-        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens);
+        address[] memory scrollGateways = new address[](1);
+        scrollGateways[0] = getAddress(scroll, "scrollDAIGateway");
+        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
         _generateTestLeafs(leafs, manageTree);
@@ -177,7 +182,7 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
-        manageLeafs[0] = leafs[4];
+        manageLeafs[0] = leafs[3];
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
@@ -199,82 +204,358 @@ contract ScrollBridgeIntegrationTest is Test, MerkleTreeHelper {
         assertEq(userDAIBalanceDelta, 1.999473102127521167e18, "User should have received ~2 DAI");
     }
 
-    // function testBridgingToMainnetETH() external {
-    //     setSourceChainName("scroll");
-    //     _createForkAndSetup("SCROLL_RPC_URL", 9022390);
-    //     setAddress(false, sourceChain, "boringVault", address(boringVault));
-    //     setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+    function testUSDCClaimingFromScrollERC20() external {
+        setSourceChainName("mainnet");
+        _createForkAndSetup("MAINNET_RPC_URL", 22780991);
+        setAddress(false, sourceChain, "boringVault", address(boringVault));
+        setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+        setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+        setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
 
-    //     deal(address(boringVault), 101e18);
+        address user = 0xEF4145D021948c751070AF15351Aa0b01BdAfBEE;
 
-    //     ManageLeaf[] memory leafs = new ManageLeaf[](8);
-    //     ERC20[] memory localTokens;
-    //     _addScrollNativeBridgeLeafs(leafs, "mainnet", localTokens);
+        ManageLeaf[] memory leafs = new ManageLeaf[](8);
+        ERC20[] memory localTokens = new ERC20[](1);
+        localTokens[0] = getERC20(sourceChain, "USDC");
+        address[] memory scrollGateways = new address[](1);
+        scrollGateways[0] = getAddress(scroll, "scrollUSDCGateway");
+        _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
 
-    //     bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+        _generateTestLeafs(leafs, manageTree);
 
-    //     manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
-    //     ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
-    //     manageLeafs[0] = leafs[0];
+        ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
+        manageLeafs[0] = leafs[3];
 
-    //     bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+        bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
-    //     address[] memory targets = new address[](1);
-    //     targets[0] = getAddress(sourceChain, "scrollMessenger");
+        address[] memory targets = new address[](1);
+        targets[0] = getAddress(sourceChain, "scrollMessenger");
 
-    //     bytes[] memory targetData = new bytes[](1);
-    //     targetData[0] =
-    //         abi.encodeWithSignature("sendMessage(address,uint256,bytes,uint256)", boringVault, 100e18, hex"", 0);
-    //     uint256[] memory values = new uint256[](1);
-    //     values[0] = 100e18;
-    //     address[] memory decodersAndSanitizers = new address[](1);
-    //     decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        bytes[] memory targetData = new bytes[](1);
+        targetData[0] =
+            hex"c311b6fc00000000000000000000000033b60d5dd260d453cac3782b0bdc01ce84672142000000000000000000000000f1af3b23de0a5ca3cab7261cb0061c0d779a5c7b0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003219800000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000001e000000000000000000000000000000000000000000000000000000000000000e484bd13b0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000006efdbff2a14a7c8e15944d1f4a48f9f95f663a4000000000000000000000000ef4145d021948c751070af15351aa0b01bdafbee000000000000000000000000ef4145d021948c751070af15351aa0b01bdafbee0000000000000000000000000000000000000000000000000000000253fcb4b500000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000058437000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002401ff000e8ccdfbb0afe695fda395cc98729f826afa6284fa010478e4e137e509dad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d3016984c1ff608cde0f7d977f391b1f7a220271293654d4d0f1a6d8263bf22668cb9d2cb1fac5cb138387c74baafb551856673236f8c29dd0851ad13cd4c27ad8a0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a19682c251962d2d1cb0f52945fee0a4fe868ea486af58e8579b45d4dfab9e3fe6e6c809a57c34d322d55935f9a9efc84f81eecf25bc8c35e40f94364ae73e66c291acefad4e508c098b9a7e1d8feb19955fb02ba9675585078710969d3440f5054e0f9dc3e7fe016e050eff260334f18a5d4fe391d82092319f5964f2e2eb7c1c3a5f8b13a49e282f609c317a833fb8d976d11517c571d1221a265d25af778ecf8923490c6ceeb450aecdc82e28293031d10c7d73bf85e57bf041a97360aa2c5d99c8774bd106f9565533a74747c899dec1b41ab5a6e034ba7304cd8cd6eeecfdcbe5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8beccda7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d2680e37d7f2fa290e1a7d0381af892ea27749b2d85e2434d99fa9422a19cbf33152e25d1e9ce7d1acb85caba116b8ea68633ca77967016b316f606f74d55061e0";
 
-    //     manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
-    // }
+        uint256[] memory values = new uint256[](1);
+        address[] memory decodersAndSanitizers = new address[](1);
+        decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
 
-    // function testBridgingToMainnetERC20() external {
-    //     setSourceChainName("scroll");
-    //     _createForkAndSetup("SCROLL_RPC_URL", 9022390);
-    //     setAddress(false, sourceChain, "boringVault", address(boringVault));
-    //     setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+        uint256 userUSDCBalanceDelta = localTokens[0].balanceOf(user);
+        manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+        userUSDCBalanceDelta = localTokens[0].balanceOf(user) - userUSDCBalanceDelta;
 
-    //     deal(getAddress(sourceChain, "DAI"), address(boringVault), 101e18);
-    //     deal(address(boringVault), 1e18);
+        assertEq(userUSDCBalanceDelta, 9999.004853e6, "User should have received ~10,000 DAI");
+    }
 
-    //     ManageLeaf[] memory leafs = new ManageLeaf[](8);
-    //     ERC20[] memory localTokens = new ERC20[](1);
-    //     localTokens[0] = getERC20(sourceChain, "DAI");
-    //     _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens);
+    function testBridgingToMainnetETH() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 9022390);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-    //     bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+         deal(address(boringVault), 101e18);
 
-    //     manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens;
+         address[] memory scrollGateways;
+         _addScrollNativeBridgeLeafs(leafs, "mainnet", localTokens, scrollGateways);
 
-    //     ManageLeaf[] memory manageLeafs = new ManageLeaf[](2);
-    //     manageLeafs[0] = leafs[0];
-    //     manageLeafs[1] = leafs[1];
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-    //     bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
-    //     address[] memory targets = new address[](2);
-    //     targets[0] = getAddress(sourceChain, "DAI");
-    //     targets[1] = getAddress(sourceChain, "scrollGatewayRouter");
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
+         manageLeafs[0] = leafs[0];
 
-    //     bytes[] memory targetData = new bytes[](2);
-    //     targetData[0] =
-    //         abi.encodeWithSignature("approve(address,uint256)", getAddress(sourceChain, "scrollGatewayRouter"), 100e18);
-    //     targetData[1] = abi.encodeWithSignature(
-    //         "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "DAI"), boringVault, 100e18, 0
-    //     );
-    //     uint256[] memory values = new uint256[](2);
-    //     address[] memory decodersAndSanitizers = new address[](2);
-    //     decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
-    //     decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
-    //     manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
-    // }
+         address[] memory targets = new address[](1);
+         targets[0] = getAddress(sourceChain, "scrollMessenger");
+
+         bytes[] memory targetData = new bytes[](1);
+         targetData[0] =
+             abi.encodeWithSignature("sendMessage(address,uint256,bytes,uint256)", boringVault, 100e18, hex"", 0);
+         uint256[] memory values = new uint256[](1);
+         values[0] = 100e18;
+         address[] memory decodersAndSanitizers = new address[](1);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 9022390);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "USDC"), address(boringVault), 101e6);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "USDC");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "mainnet", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        _generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](2);
+         manageLeafs[0] = leafs[1];
+         manageLeafs[1] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](2);
+         targets[0] = getAddress(sourceChain, "USDC");
+         targets[1] = getAddress(sourceChain, "scrollGatewayRouter");
+
+        address gateway = IScrollGateway(getAddress(sourceChain, "scrollGatewayRouter")).getERC20Gateway(address(localTokens[0])); 
+
+         bytes[] memory targetData = new bytes[](2);
+         targetData[0] =
+             abi.encodeWithSignature("approve(address,uint256)", gateway, 100e6);
+         targetData[1] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "USDC"), boringVault, 100e6, 0
+         );
+         uint256[] memory values = new uint256[](2);
+         address[] memory decodersAndSanitizers = new address[](2);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+         decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20NoApproveDAI() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 16394981);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "DAI"), address(boringVault), 101e18);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "DAI");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        //_generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
+         manageLeafs[0] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](1);
+         targets[0] = getAddress(sourceChain, "scrollGatewayRouter");
+
+         bytes[] memory targetData = new bytes[](1);
+         targetData[0] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "DAI"), boringVault, 100e18, 0
+         );
+         uint256[] memory values = new uint256[](1);
+         address[] memory decodersAndSanitizers = new address[](1);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20NoApproveUSDT() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 16394981);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "USDT"), address(boringVault), 101e18);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "USDT");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        //_generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
+         manageLeafs[0] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](1);
+         targets[0] = getAddress(sourceChain, "scrollGatewayRouter");
+
+         bytes[] memory targetData = new bytes[](1);
+         targetData[0] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "USDT"), boringVault, 100e18, 0
+         );
+         uint256[] memory values = new uint256[](1);
+         address[] memory decodersAndSanitizers = new address[](1);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20NoApproveUSDC() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 16394981);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "USDC"), address(boringVault), 101e6);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "USDC");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        //_generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](2);
+         manageLeafs[0] = leafs[1];
+         manageLeafs[1] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](2);
+         targets[0] = getAddress(sourceChain, "USDC");  
+         targets[1] = getAddress(sourceChain, "scrollGatewayRouter");
+
+         bytes[] memory targetData = new bytes[](2);
+        targetData[0] =
+            abi.encodeWithSignature("approve(address,uint256)",  0x33B60d5Dd260d453cAC3782b0bDC01ce84672142, 100e6);
+         targetData[1] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "USDC"), boringVault, 100e6, 0
+         );
+         uint256[] memory values = new uint256[](2);
+
+         address[] memory decodersAndSanitizers = new address[](2);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+         decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20NoApproveWBTC() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 16394981);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "WBTC"), address(boringVault), 1.1e8);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "WBTC");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        //_generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](1);
+         manageLeafs[0] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](1);
+         targets[0] = getAddress(sourceChain, "scrollGatewayRouter");
+
+         bytes[] memory targetData = new bytes[](1);
+         targetData[0] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "WBTC"), boringVault, 1e8, 0
+         );
+         uint256[] memory values = new uint256[](1);
+
+         address[] memory decodersAndSanitizers = new address[](1);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
+
+     function testBridgingToMainnetERC20NoApproveWETH() external {
+         setSourceChainName("scroll");
+         _createForkAndSetup("SCROLL_RPC_URL", 16394981);
+         setAddress(false, sourceChain, "boringVault", address(boringVault));
+         setAddress(false, sourceChain, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "accountantAddress", rawDataDecoderAndSanitizer);
+         setAddress(false, sourceChain, "managerAddress", rawDataDecoderAndSanitizer);
+
+         deal(getAddress(sourceChain, "WETH"), address(boringVault), 1.1e8);
+         deal(address(boringVault), 1e18);
+
+         ManageLeaf[] memory leafs = new ManageLeaf[](8);
+         ERC20[] memory localTokens = new ERC20[](1);
+         localTokens[0] = getERC20(sourceChain, "WETH");
+         address[] memory scrollGateways = new address[](1);
+         _addScrollNativeBridgeLeafs(leafs, "scroll", localTokens, scrollGateways);
+
+         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        //_generateTestLeafs(leafs, manageTree);
+
+         ManageLeaf[] memory manageLeafs = new ManageLeaf[](2);
+         manageLeafs[0] = leafs[1];
+         manageLeafs[1] = leafs[2];
+
+         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+         address[] memory targets = new address[](2);
+         targets[0] = getAddress(sourceChain, "WETH");
+         targets[1] = getAddress(sourceChain, "scrollGatewayRouter");
+
+         bytes[] memory targetData = new bytes[](2);
+        targetData[0] =
+            abi.encodeWithSignature("approve(address,uint256)", 0x7003E7B7186f0E6601203b99F7B8DECBfA391cf9, 100e18);
+         targetData[1] = abi.encodeWithSignature(
+             "withdrawERC20(address,address,uint256,uint256)", getAddress(sourceChain, "WETH"), boringVault, 1e8, 0
+         );
+         uint256[] memory values = new uint256[](2);
+
+         address[] memory decodersAndSanitizers = new address[](2);
+         decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+         decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+     }
 
     // ========================================= HELPER FUNCTIONS =========================================
 

@@ -18,7 +18,7 @@ contract CreateSonicETHMerkleRoot is Script, MerkleTreeHelper {
     address public boringVault = 0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812;
     address public managerAddress = 0x6830046d872604E92f9F95F225fF63f2300bc1e9;
     address public accountantAddress = 0x3a592F9Ea2463379c4154d03461A73c484993668;
-    address public rawDataDecoderAndSanitizer = 0xad67B9EdCD822FF39ad6b81860b98351F89dB40F;
+    address public rawDataDecoderAndSanitizer = 0x053a492062317086D643fa33A3323206Da9FF64D;
 
     function setUp() external {}
 
@@ -37,7 +37,7 @@ contract CreateSonicETHMerkleRoot is Script, MerkleTreeHelper {
         setAddress(false, sonicMainnet, "accountantAddress", accountantAddress);
         setAddress(false, sonicMainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](16);
+        ManageLeaf[] memory leafs = new ManageLeaf[](128);
 
         // ========================== SonicGateway ==========================
         address[] memory mainnetAssets = new address[](1);
@@ -51,6 +51,18 @@ contract CreateSonicETHMerkleRoot is Script, MerkleTreeHelper {
         feeAssets[0] = getERC20(sourceChain, "WETH");
         _addLeafsForFeeClaiming(leafs, getAddress(sourceChain, "accountantAddress"), feeAssets, true); //add yield claiming
 
+        // ========================== AaveV3 ==========================
+        ERC20[] memory supplyAssets = new ERC20[](1);
+        supplyAssets[0] = getERC20(sourceChain, "WETH");
+        ERC20[] memory borrowAssets = new ERC20[](0);
+        _addAaveV3Leafs(leafs, supplyAssets, borrowAssets);
+
+        // ========================== SiloV2 ==========================
+        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_S_ETH_config"));
+        _addSiloV2Leafs(leafs, getAddress(sourceChain, "silo_ETH_wstkscETH_config"));
+
+        // ========================== Verify ==========================
+        
         _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
 
         string memory filePath = "./leafs/Sonic/SonicETHStrategistLeafs.json";
