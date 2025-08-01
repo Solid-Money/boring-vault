@@ -12,12 +12,21 @@ import {AaveV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocol
 import {LidoDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/LidoDecoderAndSanitizer.sol";
 import {FluidFTokenDecoderAndSanitizer} from
     "src/base/DecodersAndSanitizers/Protocols/FluidFTokenDecoderAndSanitizer.sol";
-import {OFTDecoderAndSanitizer} from
-    "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
-import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/TellerDecoderAndSanitizer.sol"; 
+import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
+import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/TellerDecoderAndSanitizer.sol";
+import {OdosDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OdosDecoderAndSanitizer.sol";
+import {FluidDexDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/FluidDexDecoderAndSanitizer.sol";
+import {SonicGatewayDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/SonicGatewayDecoderAndSanitizer.sol";
+import {MorphoRewardsDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/MorphoRewardsDecoderAndSanitizer.sol";
+import {EulerEVKDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/EulerEVKDecoderAndSanitizer.sol";
+import {GearboxDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/GearboxDecoderAndSanitizer.sol";
+import {MerklDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/MerklDecoderAndSanitizer.sol";
+import {FluidRewardsClaimingDecoderAndSanitizer} from
+    "src/base/DecodersAndSanitizers/Protocols/FluidRewardsClaimingDecoderAndSanitizer.sol";
+import {CCTPDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/CCTPDecoderAndSanitizer.sol";
 
-
-contract SonicMainnetDecoderAndSanitizer is
+contract SonicEthMainnetDecoderAndSanitizer is
     UniswapV3DecoderAndSanitizer,
     ERC4626DecoderAndSanitizer,
     EtherFiDecoderAndSanitizer,
@@ -27,10 +36,20 @@ contract SonicMainnetDecoderAndSanitizer is
     LidoDecoderAndSanitizer,
     FluidFTokenDecoderAndSanitizer,
     OFTDecoderAndSanitizer,
-    TellerDecoderAndSanitizer
+    TellerDecoderAndSanitizer,
+    OdosDecoderAndSanitizer,
+    FluidDexDecoderAndSanitizer,
+    SonicGatewayDecoderAndSanitizer,
+    MorphoRewardsDecoderAndSanitizer,
+    EulerEVKDecoderAndSanitizer,
+    GearboxDecoderAndSanitizer,
+    MerklDecoderAndSanitizer,
+    FluidRewardsClaimingDecoderAndSanitizer,
+    CCTPDecoderAndSanitizer
 {
-    constructor(address _uniswapV3NonFungiblePositionManager)
+    constructor(address _uniswapV3NonFungiblePositionManager, address _odosRouter)
         UniswapV3DecoderAndSanitizer(_uniswapV3NonFungiblePositionManager)
+        OdosDecoderAndSanitizer(_odosRouter)
     {}
 
     //============================== HANDLE FUNCTION COLLISIONS ===============================
@@ -61,6 +80,16 @@ contract SonicMainnetDecoderAndSanitizer is
         external
         pure
         override(EtherFiDecoderAndSanitizer, LidoDecoderAndSanitizer)
+        returns (bytes memory addressesFound)
+    {
+        // Nothing to sanitize or return
+        return addressesFound;
+    }
+
+    function withdraw(uint256)
+        external
+        pure
+        override(NativeWrapperDecoderAndSanitizer, GearboxDecoderAndSanitizer)
         returns (bytes memory addressesFound)
     {
         // Nothing to sanitize or return

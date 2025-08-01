@@ -21,7 +21,8 @@ contract MerkleTreeCheckerTest is Test, MerkleTreeHelper {
 
         _startFork(rpcKey, blockNumber);
 
-        rawDataDecoderAndSanitizer = address(new LombardBtcDecoderAndSanitizer(address(0)));
+
+        rawDataDecoderAndSanitizer = address(new LombardBtcDecoderAndSanitizer(address(0), address(0), address(0)));
     }
 
     function testCheckingGoodTree() external {
@@ -183,7 +184,7 @@ contract MerkleTreeCheckerTest is Test, MerkleTreeHelper {
 
         ERC20[] memory tellerAssets = new ERC20[](1);
         tellerAssets[0] = getERC20(sourceChain, "WBTC");
-        _addTellerLeafs(leafs, 0xe19a43B1b8af6CeE71749Af2332627338B3242D1, tellerAssets, false);
+        _addTellerLeafs(leafs, 0xe19a43B1b8af6CeE71749Af2332627338B3242D1, tellerAssets, false, true);
 
         _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
     }

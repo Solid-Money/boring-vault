@@ -47,7 +47,7 @@ contract ElixirWithdrawIntegrationTest is Test, MerkleTreeHelper {
             new ManagerWithMerkleVerification(address(this), address(boringVault), getAddress(sourceChain, "vault"));
 
         rawDataDecoderAndSanitizer = address(
-            new EtherFiLiquidUsdDecoderAndSanitizer(getAddress(sourceChain, "uniswapV3NonFungiblePositionManager"))
+            new EtherFiLiquidUsdDecoderAndSanitizer(getAddress(sourceChain, "uniswapV3NonFungiblePositionManager"), address(0))
         );
 
         setAddress(false, sourceChain, "boringVault", address(boringVault));

@@ -121,16 +121,17 @@ contract UniswapV3SwapRouter02IntegrationTest is Test, MerkleTreeHelper {
         address[] memory token1 = new address[](1);
         token1[0] = getAddress(sourceChain, "USDC");
 
-        _addUniswapV3Leafs(leafs, token0, token1, false, true);
+        _addUniswapV3Leafs(leafs, token0, token1, false, true); //false == notswaponly, true == use swapRouter02
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
         _generateTestLeafs(leafs, manageTree);
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         ManageLeaf[] memory manageLeafs = new ManageLeaf[](2);
         manageLeafs[0] = leafs[1]; //tokens are sorted, so this is actually leaf 1, token1 becomes token0 during sort
-        manageLeafs[1] = leafs[9];
+        manageLeafs[1] = leafs[7];
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 

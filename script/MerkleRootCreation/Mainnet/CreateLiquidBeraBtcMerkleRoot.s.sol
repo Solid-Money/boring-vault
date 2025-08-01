@@ -18,7 +18,8 @@ contract CreateLiquidBeraBtcMerkleRoot is Script, MerkleTreeHelper {
     address public boringVault = 0xC673ef7791724f0dcca38adB47Fbb3AEF3DB6C80;
     address public managerAddress = 0x603064caAf2e76C414C5f7b6667D118322d311E6;
     address public accountantAddress = 0xF44BD12956a0a87c2C20113DdFe1537A442526B5;
-    address public rawDataDecoderAndSanitizer = 0xf7301C2A56510814B88b024d7066b6B62acC704D;
+    address public rawDataDecoderAndSanitizer = 0x41b7EeccC3FCc97cd17DF890b4A155d5325a9153;
+    
 
     function setUp() external {}
 
@@ -37,7 +38,7 @@ contract CreateLiquidBeraBtcMerkleRoot is Script, MerkleTreeHelper {
         setAddress(false, mainnet, "accountantAddress", accountantAddress);
         setAddress(false, mainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](64);
+        ManageLeaf[] memory leafs = new ManageLeaf[](128);
 
         // ========================== 1inch ==========================
         address[] memory assets = new address[](4);
@@ -52,14 +53,19 @@ contract CreateLiquidBeraBtcMerkleRoot is Script, MerkleTreeHelper {
         kind[3] = SwapKind.BuyAndSell;
         _addLeafsFor1InchGeneralSwapping(leafs, assets, kind);
 
-        // ========================== Teller ==========================
-        address eBTCTellerLZ = 0x6Ee3aaCcf9f2321E49063C4F8da775DdBd407268;
+        // ========================== Odos ==========================
+        _addOdosSwapLeafs(leafs, assets, kind);  
 
-        ERC20[] memory tellerAssets = new ERC20[](3);
-        tellerAssets[0] = getERC20(sourceChain, "WBTC");
-        tellerAssets[1] = getERC20(sourceChain, "LBTC");
-        tellerAssets[2] = getERC20(sourceChain, "cbBTC");
-        _addTellerLeafs(leafs, eBTCTellerLZ, tellerAssets, false);
+        // ========================== Teller ==========================
+        
+        {
+            address eBTCTellerLZ = 0x6Ee3aaCcf9f2321E49063C4F8da775DdBd407268;
+            ERC20[] memory tellerAssets = new ERC20[](3);
+            tellerAssets[0] = getERC20(sourceChain, "WBTC");
+            tellerAssets[1] = getERC20(sourceChain, "LBTC");
+            tellerAssets[2] = getERC20(sourceChain, "cbBTC");
+            _addTellerLeafs(leafs, eBTCTellerLZ, tellerAssets, false, true);
+        }
 
         // ========================== Royco ==========================
         {
@@ -69,8 +75,39 @@ contract CreateLiquidBeraBtcMerkleRoot is Script, MerkleTreeHelper {
 
             bytes32 lbtcMarketHash = 0xabf4b2f17bc32faf4c3295b1347f36d21ec5629128d465b5569e600bf8d46c4f;
             _addRoycoWeirollLeafs(leafs, getERC20(sourceChain, "LBTC"), lbtcMarketHash, roycoFrontEndFeeRecipientTemp);
+
         }
 
+        // ========================== Fee Claiming ==========================
+        { 
+        ERC20[] memory feeAssets = new ERC20[](4); 
+        feeAssets[0] = getERC20(sourceChain, "WBTC");
+        feeAssets[1] = getERC20(sourceChain, "LBTC");
+        feeAssets[2] = getERC20(sourceChain, "cbBTC");
+        feeAssets[3] = getERC20(sourceChain, "eBTC");
+        _addLeafsForFeeClaiming(leafs, getAddress(sourceChain, "accountantAddress"), feeAssets, true);  
+        }
+
+        // ========================== LayerZero ==========================
+        _addLayerZeroLeafs(leafs, getERC20(sourceChain, "WBTC"), getAddress(sourceChain, "WBTCOFTAdapter"), layerZeroBerachainEndpointId, getBytes32(sourceChain, "boringVault"));   
+        _addLayerZeroLeafs(leafs, getERC20(sourceChain, "LBTC"), getAddress(sourceChain, "LBTCOFTAdapter"), layerZeroBerachainEndpointId, getBytes32(sourceChain, "boringVault"));   
+
+        // ========================== Crosschain Teller ==========================
+        {
+        address eBTCTellerLZ = 0x6Ee3aaCcf9f2321E49063C4F8da775DdBd407268;
+
+        address[] memory depositAssets = new address[](3); 
+        depositAssets[0] = getAddress(sourceChain, "LBTC"); 
+        depositAssets[1] = getAddress(sourceChain, "WBTC"); 
+        depositAssets[2] = getAddress(sourceChain, "cbBTC"); 
+
+        address[] memory feeAssets = new address[](1); 
+        feeAssets[0] = getAddress(sourceChain, "ETH"); //pay bridge fee in ETH
+
+        _addCrossChainTellerLeafs(leafs, eBTCTellerLZ, depositAssets, feeAssets, abi.encode(layerZeroBerachainEndpointId));  
+        }
+    
+        // ========================== Verify ==========================
         _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
 
         string memory filePath = "./leafs/Mainnet/LiquidBeraBtcStrategistLeafs.json";

@@ -126,24 +126,22 @@ contract BoringOnChainQueueIntegration is Test, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](8);
         ERC20[] memory assets = new ERC20[](1);
         assets[0] = getERC20(sourceChain, "WBTC");
-        _addTellerLeafs(leafs, getAddress(sourceChain, "eBTCTeller"), assets, false);
-
+        _addTellerLeafs(leafs, getAddress(sourceChain, "eBTCTeller"), assets, false, true);
         _addWithdrawQueueLeafs(
             leafs, getAddress(sourceChain, "eBTCOnChainQueue"), getAddress(sourceChain, "eBTC"), assets
         );
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        string memory filePath = "./testTEST.json";
-        _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+        _generateTestLeafs(leafs, manageTree);
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         ManageLeaf[] memory manageLeafs = new ManageLeaf[](4);
         manageLeafs[0] = leafs[0]; //approve
         manageLeafs[1] = leafs[3]; //deposit
-        manageLeafs[2] = leafs[5]; //approve queue
-        manageLeafs[3] = leafs[6]; //withdraw w/ queue
+        manageLeafs[2] = leafs[4]; //approve queue
+        manageLeafs[3] = leafs[5]; //withdraw w/ queue
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
 
@@ -178,6 +176,174 @@ contract BoringOnChainQueueIntegration is Test, MerkleTreeHelper {
         uint256[] memory values = new uint256[](4);
 
         manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+    }
+
+    function testBoringOnChainQueueCancel() external {
+        //deal(getAddress(sourceChain, "eBTC"), address(boringVault), 1_000e18);
+        deal(getAddress(sourceChain, "WBTC"), address(boringVault), 100e8);
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](8);
+        ERC20[] memory assets = new ERC20[](1);
+        assets[0] = getERC20(sourceChain, "WBTC");
+        _addTellerLeafs(leafs, getAddress(sourceChain, "eBTCTeller"), assets, false, true);
+        _addWithdrawQueueLeafs(
+            leafs, getAddress(sourceChain, "eBTCOnChainQueue"), getAddress(sourceChain, "eBTC"), assets
+        );
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+        _generateTestLeafs(leafs, manageTree);
+
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        ManageLeaf[] memory manageLeafs = new ManageLeaf[](5);
+        manageLeafs[0] = leafs[0]; //approve
+        manageLeafs[1] = leafs[3]; //deposit
+        manageLeafs[2] = leafs[4]; //approve queue
+        manageLeafs[3] = leafs[5]; //withdraw w/ queue
+        manageLeafs[4] = leafs[6]; //cancel request
+
+        bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+        address[] memory targets = new address[](5);
+        targets[0] = getAddress(sourceChain, "WBTC");
+        targets[1] = getAddress(sourceChain, "eBTCTeller");
+        targets[2] = getAddress(sourceChain, "eBTC");
+        targets[3] = getAddress(sourceChain, "eBTCOnChainQueue");
+        targets[4] = getAddress(sourceChain, "eBTCOnChainQueue");
+
+        bytes[] memory targetData = new bytes[](5);
+        targetData[0] =
+            abi.encodeWithSignature("approve(address,uint256)", getAddress(sourceChain, "eBTC"), type(uint256).max);
+        targetData[1] =
+            abi.encodeWithSignature("deposit(address,uint256,uint256)", getAddress(sourceChain, "WBTC"), 100e8, 0);
+        targetData[2] = abi.encodeWithSignature(
+            "approve(address,uint256)", getAddress(sourceChain, "eBTCOnChainQueue"), type(uint256).max
+        );
+        targetData[3] = abi.encodeWithSignature(
+            "requestOnChainWithdraw(address,uint128,uint16,uint24)",
+            getAddress(sourceChain, "WBTC"),
+            uint128(9970000000),
+            uint16(100),
+            uint24(2592000)
+        );
+        
+        //uint96 nonce = vm.getNonce(address(boringVault));         
+
+        DecoderCustomTypes.OnChainWithdraw memory request = DecoderCustomTypes.OnChainWithdraw(
+            1,
+            address(boringVault),
+            getAddress(sourceChain, "WBTC"),
+            uint128(9970000000),
+            uint128(9870300000),
+            uint40(1736342615),
+            uint24(43200),
+            uint24(2592000)
+        ); 
+
+        targetData[4] = abi.encodeWithSignature(
+            "cancelOnChainWithdraw((uint96,address,address,uint128,uint128,uint40,uint24,uint24))",
+            request
+        );
+
+        address[] memory decodersAndSanitizers = new address[](5);
+        decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[2] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[3] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[4] = rawDataDecoderAndSanitizer;
+
+        uint256[] memory values = new uint256[](5);
+
+        manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+
+        uint256 eBTCSharesAmount = getERC20(sourceChain, "eBTC").balanceOf(address(boringVault)); 
+        assertEq(eBTCSharesAmount, 9970000000); 
+    }
+
+    function testBoringOnChainQueueReplace() external {
+        //deal(getAddress(sourceChain, "eBTC"), address(boringVault), 1_000e18);
+        deal(getAddress(sourceChain, "WBTC"), address(boringVault), 100e8);
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](8);
+        ERC20[] memory assets = new ERC20[](1);
+        assets[0] = getERC20(sourceChain, "WBTC");
+        _addTellerLeafs(leafs, getAddress(sourceChain, "eBTCTeller"), assets, false, true);
+        _addWithdrawQueueLeafs(
+            leafs, getAddress(sourceChain, "eBTCOnChainQueue"), getAddress(sourceChain, "eBTC"), assets
+        );
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+
+        _generateTestLeafs(leafs, manageTree);
+
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        ManageLeaf[] memory manageLeafs = new ManageLeaf[](5);
+        manageLeafs[0] = leafs[0]; //approve
+        manageLeafs[1] = leafs[3]; //deposit
+        manageLeafs[2] = leafs[4]; //approve queue
+        manageLeafs[3] = leafs[5]; //withdraw w/ queue
+        manageLeafs[4] = leafs[7]; //cancel request
+
+        bytes32[][] memory manageProofs = _getProofsUsingTree(manageLeafs, manageTree);
+
+        address[] memory targets = new address[](5);
+        targets[0] = getAddress(sourceChain, "WBTC");
+        targets[1] = getAddress(sourceChain, "eBTCTeller");
+        targets[2] = getAddress(sourceChain, "eBTC");
+        targets[3] = getAddress(sourceChain, "eBTCOnChainQueue");
+        targets[4] = getAddress(sourceChain, "eBTCOnChainQueue");
+
+        bytes[] memory targetData = new bytes[](5);
+        targetData[0] =
+            abi.encodeWithSignature("approve(address,uint256)", getAddress(sourceChain, "eBTC"), type(uint256).max);
+        targetData[1] =
+            abi.encodeWithSignature("deposit(address,uint256,uint256)", getAddress(sourceChain, "WBTC"), 100e8, 0);
+        targetData[2] = abi.encodeWithSignature(
+            "approve(address,uint256)", getAddress(sourceChain, "eBTCOnChainQueue"), type(uint256).max
+        );
+        targetData[3] = abi.encodeWithSignature(
+            "requestOnChainWithdraw(address,uint128,uint16,uint24)",
+            getAddress(sourceChain, "WBTC"),
+            uint128(9970000000),
+            uint16(100),
+            uint24(2592000)
+        );
+        
+        //uint96 nonce = vm.getNonce(address(boringVault));         
+
+        DecoderCustomTypes.OnChainWithdraw memory request = DecoderCustomTypes.OnChainWithdraw(
+            1,
+            address(boringVault),
+            getAddress(sourceChain, "WBTC"),
+            uint128(9970000000),
+            uint128(9870300000),
+            uint40(1736342615),
+            uint24(43200),
+            uint24(2592000)
+        ); 
+
+        targetData[4] = abi.encodeWithSignature(
+            "replaceOnChainWithdraw((uint96,address,address,uint128,uint128,uint40,uint24,uint24),uint16,uint24)",
+            request,
+            uint16(100),
+            uint24(2592000)
+        );
+
+        address[] memory decodersAndSanitizers = new address[](5);
+        decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[2] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[3] = rawDataDecoderAndSanitizer;
+        decodersAndSanitizers[4] = rawDataDecoderAndSanitizer;
+
+        uint256[] memory values = new uint256[](5);
+
+        manager.manageVaultWithMerkleVerification(manageProofs, decodersAndSanitizers, targets, targetData, values);
+
+        uint256 eBTCSharesAmount = getERC20(sourceChain, "eBTC").balanceOf(address(boringVault)); 
+        assertEq(eBTCSharesAmount, 0); 
     }
 
     // ========================================= HELPER FUNCTIONS =========================================

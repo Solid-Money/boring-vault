@@ -6,13 +6,18 @@ import {TellerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocol
 import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol";
 import {BalancerV2DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/BalancerV2DecoderAndSanitizer.sol";
 import {CurveDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/CurveDecoderAndSanitizer.sol";
+import {SiloDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/SiloDecoderAndSanitizer.sol"; 
+import {ERC4626DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ERC4626DecoderAndSanitizer.sol"; 
+import {LBTCBridgeDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/LBTCBridgeDecoderAndSanitizer.sol"; 
 
 contract SonicLBTCvSonicDecoderAndSanitizer is
     BaseDecoderAndSanitizer,
     TellerDecoderAndSanitizer,
     OFTDecoderAndSanitizer,
     BalancerV2DecoderAndSanitizer,
-    CurveDecoderAndSanitizer
+    CurveDecoderAndSanitizer,
+    SiloDecoderAndSanitizer,
+    LBTCBridgeDecoderAndSanitizer
 {
  /**
      * @notice BalancerV2 and Curve all specify a `deposit(uint256,address)`,
@@ -21,7 +26,7 @@ contract SonicLBTCvSonicDecoderAndSanitizer is
     function deposit(uint256, address receiver)
         external
         pure
-        override(BalancerV2DecoderAndSanitizer, CurveDecoderAndSanitizer)
+        override(BalancerV2DecoderAndSanitizer, CurveDecoderAndSanitizer, ERC4626DecoderAndSanitizer)
         returns (bytes memory addressesFound)
     {
         addressesFound = abi.encodePacked(receiver);

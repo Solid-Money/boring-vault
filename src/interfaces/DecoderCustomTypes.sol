@@ -390,7 +390,7 @@ contract DecoderCustomTypes {
         bytes merkleProof;
     }
 
-    // ========================================= Camelot V3 =========================================
+    // ========================================= Camelot V3 / Algebra V3  =========================================
 
     struct CamelotMintParams {
         address token0;
@@ -404,6 +404,23 @@ contract DecoderCustomTypes {
         address recipient;
         uint256 deadline;
     }
+
+    // ========================================= Algebra V4 =========================================
+    
+    struct AlgebraMintParams {
+        address token0;
+        address token1;
+        address deployer;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        address recipient;
+        uint256 deadline;
+    }
+
     // ========================================= Velodrome V3 =========================================
 
     struct VelodromeMintParams {
@@ -506,6 +523,165 @@ contract DecoderCustomTypes {
         address recipient;
         uint64 amount;
         uint256 nonce;
+    }
+
+    // ========================================= Odos ==================================
+    
+    struct swapTokenInfo {
+        address inputToken;
+        uint256 inputAmount;
+        address inputReceiver;
+        address outputToken;
+        uint256 outputQuote;
+        uint256 outputMin;
+        address outputReceiver;
+    }
+
+    struct swapTokenInfoOogaBooga {
+        address inputToken;
+        uint256 inputAmount;
+        address outputToken;
+        uint256 outputQuote;
+        uint256 outputMin;
+        address outputReceiver;
+    }
+    // ========================================= Level ==================================
+    
+    /// @dev for reference 
+    //enum OrderType {
+    //    MINT,
+    //    REDEEM
+    //}
+    
+    struct LevelOrder {
+        uint8 order_type;
+        address benefactor;
+        address beneficiary;
+        address collateral_asset;
+        uint256 collateral_amount;
+        uint256 lvlusd_amount;
+    }    
+
+    struct LevelOrderV2 {
+        address beneficiary;
+        address collateral_asset;
+        uint256 collateral_amount;
+        uint256 min_lvlusd_amount;
+    }
+
+    struct Route {
+        address[] addresses;
+        uint256[] ratios;
+    }
+
+
+    // ========================================= Royco ==================================
+    struct APOffer { // RecipeMarketHub
+        uint256 offerID;
+        bytes32 targetMarketHash;
+        address ap;
+        address fundingVault;
+        uint256 quantity;
+        uint256 expiry;
+        address[] incentivesRequested;
+        uint256[] incentiveAmountsRequested;
+    }
+    struct APOfferVault { // VaultMarketHub (renamed to avoid collision)
+        uint256 offerID;
+        address targetVault;
+        address ap;
+        address fundingVault;
+        uint256 expiry;
+        address[] incentivesRequested;
+        uint256[] incentivesRatesRequested;
+    }
+
+    struct Reward {
+        uint48 startEpoch;
+        uint48 endEpoch;
+        address token;
+        uint256 rewardRate;
+    }
+
+    // ========================================= Permit2 ==================================
+    
+    struct TokenSpenderPair {
+        address token; 
+        address spender;
+    }
+
+    // ========================================= OnChainQueue ==================================
+    
+    struct OnChainWithdraw {
+        uint96 nonce; // read from state, used to make it impossible for request Ids to be repeated.
+        address user; // msg.sender
+        address assetOut; // input sanitized
+        uint128 amountOfShares; // input transfered in
+        uint128 amountOfAssets; // derived from amountOfShares and price
+        uint40 creationTime; // time withdraw was made
+        uint24 secondsToMaturity; // in contract, from withdrawAsset?
+        uint24 secondsToDeadline; // in contract, from withdrawAsset? To get the deadline you take the creationTime add seconds to maturity, add the secondsToDeadline
+    }
+
+    // ========================================= Beraborrow ==================================
+    
+    struct OpenDenVaultParams {
+        address denManager;
+        address collVault;
+        uint256 _maxFeePercentage;
+        uint256 _debtAmount;
+        uint256 _collAssetToDeposit;
+        address _upperHint;
+        address _lowerHint;
+        uint256 _minSharesMinted;
+        uint256 _collIndex;
+        bytes _preDeposit;
+    }
+
+    struct AdjustDenVaultParams {
+        address denManager;
+        address collVault;
+        uint256 _maxFeePercentage;
+        uint256 _collAssetToDeposit;
+        uint256 _collWithdrawal;
+        uint256 _debtChange;
+        bool _isDebtIncrease;
+        address _upperHint;
+        address _lowerHint;
+        bool unwrap;
+        uint256 _minSharesMinted;
+        uint256 _minAssetsWithdrawn;
+        uint256 _collIndex;
+        bytes _preDeposit;
+    }
+
+     struct RedeemCollateralVaultParams {
+        address denManager;
+        address collVault;
+        uint256 _debtAmount;
+        address _firstRedemptionHint;
+        address _upperPartialRedemptionHint;
+        address _lowerPartialRedemptionHint;
+        uint256 _partialRedemptionHintNICR;
+        uint256 _maxIterations;
+        uint256 _maxFeePercentage;
+        uint256 _minSharesWithdrawn;
+        uint256 minAssetsWithdrawn;
+        uint256 collIndex;
+        bool unwrap;
+    }
+
+    struct AddCollParams {
+        address upperHint;
+        address lowerHint;
+        uint256 minSharesOut;
+        uint256 minCollVaultShares;
+    }
+
+    struct ExternalRebalanceParams {
+        address swapper;
+        bytes payload;
+        uint256 minRebalanceOut;
     }
 }
 

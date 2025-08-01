@@ -17,7 +17,7 @@ contract CreateSonicEthMerkleRoot is Script, MerkleTreeHelper {
     address public boringVault = 0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812;
     address public managerAddress = 0x6830046d872604E92f9F95F225fF63f2300bc1e9;
     address public accountantAddress = 0x3a592F9Ea2463379c4154d03461A73c484993668;
-    address public rawDataDecoderAndSanitizer = 0xcc97e08112FdF17044B6883B58Ace7db8efc015E;
+    address public rawDataDecoderAndSanitizer = 0x9E6279f66E6e7B91DaE93b2E9F08D9108833Ea28;
 
     function setUp() external {}
 
@@ -35,7 +35,7 @@ contract CreateSonicEthMerkleRoot is Script, MerkleTreeHelper {
         setAddress(false, mainnet, "accountantAddress", accountantAddress);
         setAddress(false, mainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](128);
+        ManageLeaf[] memory leafs = new ManageLeaf[](256);
 
         // ========================== Fee Claiming ==========================
         ERC20[] memory feeAssets = new ERC20[](3);
@@ -59,16 +59,21 @@ contract CreateSonicEthMerkleRoot is Script, MerkleTreeHelper {
         _addUniswapV3Leafs(leafs, token0, token1, true);
 
         // ========================== 1inch ==========================
-        address[] memory assets = new address[](3);
-        SwapKind[] memory kind = new SwapKind[](3);
+        address[] memory assets = new address[](4);
+        SwapKind[] memory kind = new SwapKind[](4);
         assets[0] = getAddress(sourceChain, "WETH");
         kind[0] = SwapKind.BuyAndSell;
         assets[1] = getAddress(sourceChain, "WEETH");
         kind[1] = SwapKind.BuyAndSell;
         assets[2] = getAddress(sourceChain, "WSTETH");
         kind[2] = SwapKind.BuyAndSell;
+        assets[3] = getAddress(sourceChain, "MORPHO");
+        kind[3] = SwapKind.Sell;
         _addLeafsFor1InchGeneralSwapping(leafs, assets, kind);
 
+        // ========================== Odos ==========================
+        _addOdosSwapLeafs(leafs, assets, kind); 
+            
         // ========================== Aave V3 ==========================
         // Core
         ERC20[] memory supplyAssets = new ERC20[](3);
@@ -90,6 +95,10 @@ contract CreateSonicEthMerkleRoot is Script, MerkleTreeHelper {
         _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "gauntletWETHPrime")));
         _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "gauntletWETHCore")));
         _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "mevCapitalwWeth")));
+        _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "steakhouseETH")));
+
+        // ========================== Morpho Rewards ==========================
+        _addMorphoRewardMerkleClaimerLeafs(leafs, getAddress(sourceChain, "universalRewardsDistributor")); 
 
         // ========================== Lido (stETH, wstETH) ==========================
         _addLidoLeafs(leafs);
@@ -97,11 +106,18 @@ contract CreateSonicEthMerkleRoot is Script, MerkleTreeHelper {
         // ========================== Etherfi (eETh, weETH) ==========================
         _addEtherFiLeafs(leafs);
 
+        // ========================== Native ==========================
+        _addNativeLeafs(leafs);
+
         // ========================== Sonic Gateway ==========================
         ERC20[] memory bridgeAssets = new ERC20[](1);
         bridgeAssets[0] = getERC20(sourceChain, "WETH");
         _addSonicGatewayLeafsEth(leafs, bridgeAssets);
 
+        // ========================== Gearbox ==========================
+        _addGearboxLeafs(leafs, ERC4626(getAddress(sourceChain, "dWETHV3")), getAddress(sourceChain, "sdWETHV3")); 
+        _addGearboxLeafs(leafs, ERC4626(getAddress(sourceChain, "dWSTETHV3")), address(0)); //no staking address for wstETH
+        
         // ========================== Verify & Generate ==========================
         _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
 

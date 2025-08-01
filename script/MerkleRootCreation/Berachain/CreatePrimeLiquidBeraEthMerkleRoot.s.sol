@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+ // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.21;
 
 import {FixedPointMathLib} from "@solmate/utils/FixedPointMathLib.sol";
@@ -17,8 +17,8 @@ contract CreatePrimeLiquidBeraEthMerkleRoot is Script, MerkleTreeHelper {
 
     address public boringVault = 0xB83742330443f7413DBD2aBdfc046dB0474a944e; 
     address public managerAddress = 0x58d32BCfa335B1EE9E25A291408409ceA890Be6b; 
-    address public accountantAddress = 0x0B24A469d7c155a588C8a4ee24020F9f27090B0d;
-    address public rawDataDecoderAndSanitizer = 0xEB56349683478f76c10535231347145D7E02BDEc;
+    address public accountantAddress = 0x55ee6E1ADF848a2Fc831B07564223396ef6258d4;
+    address public rawDataDecoderAndSanitizer = 0x661B04bF5C0D66F8D923fEC2FCD0C9b20C96c150;
 
     function setUp() external {}
 
@@ -68,6 +68,10 @@ contract CreatePrimeLiquidBeraEthMerkleRoot is Script, MerkleTreeHelper {
         _addDolomiteDepositLeafs(leafs, getAddress(sourceChain, "WETH"), false);          
         _addDolomiteDepositLeafs(leafs, getAddress(sourceChain, "WEETH"), false);          
 
+        // ========================== Dolomite Borrow ==========================
+        
+        _addDolomiteBorrowLeafs(leafs, getAddress(sourceChain, "WETH"));
+        _addDolomiteBorrowLeafs(leafs, getAddress(sourceChain, "WEETH"));
 
         // ========================== dTokens ==========================
         
@@ -84,6 +88,33 @@ contract CreatePrimeLiquidBeraEthMerkleRoot is Script, MerkleTreeHelper {
         // ========================== beraETH ==========================
         _addBeraETHLeafs(leafs); 
 
+        // ========================== Etherfi ==========================
+        _addWeETHLeafs(leafs, getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"));  
+
+        // ========================== Ooga Booga ==========================
+        address[] memory assets = new address[](5); 
+        SwapKind[] memory kind = new SwapKind[](5); 
+        assets[0] = getAddress(sourceChain, "iBGT"); 
+        kind[0] = SwapKind.Sell; 
+        assets[1] = getAddress(sourceChain, "WETH"); 
+        kind[1] = SwapKind.BuyAndSell; 
+        assets[2] = getAddress(sourceChain, "WEETH"); 
+        kind[2] = SwapKind.BuyAndSell; 
+        assets[3] = getAddress(sourceChain, "beraETH"); 
+        kind[3] = SwapKind.BuyAndSell; 
+        assets[4] = getAddress(sourceChain, "BGT"); //just in case
+        kind[4] = SwapKind.Sell; 
+        
+        _addOogaBoogaSwapLeafs(leafs, assets, kind); 
+
+        // ========================== Infrared ==========================
+        _addInfraredVaultLeafs(leafs, getAddress(sourceChain, "infrared_vault_weth_weeth")); 
+
+        // ========================== Fee Claiming ==========================
+        ERC20[] memory feeAssets = new ERC20[](2);
+        feeAssets[0] = getERC20(sourceChain, "WETH");
+        feeAssets[1] = getERC20(sourceChain, "WEETH");
+        _addLeafsForFeeClaiming(leafs, getAddress(sourceChain, "accountantAddress"), feeAssets, true);
 
         // ========================== Verify ==========================
         

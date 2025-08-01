@@ -111,26 +111,25 @@ contract UniswapV3IntegrationTest is Test, MerkleTreeHelper {
         deal(getAddress(sourceChain, "WETH"), address(boringVault), 1_000e18);
         deal(getAddress(sourceChain, "WEETH"), address(boringVault), 1_000e18);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        address[] memory token0 = new address[](1);
+        ManageLeaf[] memory leafs = new ManageLeaf[](32);
+        address[] memory token0 = new address[](2);
         token0[0] = getAddress(sourceChain, "WETH");
-        //token0[1] = getAddress(sourceChain, "RETH");
-        address[] memory token1 = new address[](1);
+        token0[1] = getAddress(sourceChain, "RETH");
+        address[] memory token1 = new address[](2);
         token1[0] = getAddress(sourceChain, "RETH");
-        //token1[1] = getAddress(sourceChain, "WEETH");
+        token1[1] = getAddress(sourceChain, "WEETH");
         _addUniswapV3Leafs(leafs, token0, token1, false, false);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
-        string memory filePath = "./TestTEST.json";
 
-        _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+        _generateTestLeafs(leafs, manageTree);
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         ManageLeaf[] memory manageLeafs = new ManageLeaf[](9);
         manageLeafs[0] = leafs[1]; //tokens are sorted, so this is actually leaf 1, token1 becomes token0 during sort
-        manageLeafs[1] = leafs[7];
-        manageLeafs[2] = leafs[2];
+        manageLeafs[1] = leafs[7]; //exactInput
+        manageLeafs[2] = leafs[2]; //approve nfpm to spend rETH
         manageLeafs[3] = leafs[9];
         manageLeafs[4] = leafs[10];
         manageLeafs[5] = leafs[11];
@@ -186,6 +185,8 @@ contract UniswapV3IntegrationTest is Test, MerkleTreeHelper {
             address(boringVault),
             block.timestamp
         );
+
+
         targetData[4] = abi.encodeWithSignature(
             "mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256))", mintParams
         );
@@ -218,6 +219,7 @@ contract UniswapV3IntegrationTest is Test, MerkleTreeHelper {
         decodersAndSanitizers[6] = rawDataDecoderAndSanitizer;
         decodersAndSanitizers[7] = rawDataDecoderAndSanitizer;
         decodersAndSanitizers[8] = rawDataDecoderAndSanitizer;
+
         manager.manageVaultWithMerkleVerification(
             manageProofs, decodersAndSanitizers, targets, targetData, new uint256[](9)
         );

@@ -10,6 +10,9 @@ import {UniswapV3SwapRouter02DecoderAndSanitizer} from "src/base/DecodersAndSani
 import {ERC4626DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ERC4626DecoderAndSanitizer.sol"; 
 import {EulerEVKDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/EulerEVKDecoderAndSanitizer.sol"; 
 import {NativeWrapperDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/NativeWrapperDecoderAndSanitizer.sol"; 
+import {OdosDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OdosDecoderAndSanitizer.sol"; 
+import {MerklDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/MerklDecoderAndSanitizer.sol"; 
+import {BalancerV3DecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/BalancerV3DecoderAndSanitizer.sol"; 
 
 
 contract StakedSonicDecoderAndSanitizer is
@@ -20,9 +23,15 @@ contract StakedSonicDecoderAndSanitizer is
     SiloDecoderAndSanitizer,
     UniswapV3SwapRouter02DecoderAndSanitizer,
     EulerEVKDecoderAndSanitizer,
-    NativeWrapperDecoderAndSanitizer
+    NativeWrapperDecoderAndSanitizer,
+    OdosDecoderAndSanitizer,
+    MerklDecoderAndSanitizer,
+    BalancerV3DecoderAndSanitizer
 {
-    constructor(address _nonFungiblePositionManager) UniswapV3SwapRouter02DecoderAndSanitizer(_nonFungiblePositionManager) {}
+    constructor(address _nonFungiblePositionManager, address _odosRouter) 
+        UniswapV3SwapRouter02DecoderAndSanitizer(_nonFungiblePositionManager) 
+        OdosDecoderAndSanitizer(_odosRouter)
+    {}
 
     /**
      * @notice BalancerV2 and Curve all specify a `deposit(uint256,address)`,
@@ -31,7 +40,7 @@ contract StakedSonicDecoderAndSanitizer is
     function deposit(uint256, address receiver)
         external
         pure
-        override(BalancerV2DecoderAndSanitizer, CurveDecoderAndSanitizer, ERC4626DecoderAndSanitizer)
+        override(BalancerV2DecoderAndSanitizer, CurveDecoderAndSanitizer, ERC4626DecoderAndSanitizer, BalancerV3DecoderAndSanitizer)
         returns (bytes memory addressesFound)
     {
         addressesFound = abi.encodePacked(receiver);

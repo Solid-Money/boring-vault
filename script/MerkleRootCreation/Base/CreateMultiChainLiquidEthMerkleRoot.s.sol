@@ -16,15 +16,15 @@ contract CreateMultiChainLiquidEthMerkleRootScript is Script, MerkleTreeHelper {
 
     //standard
     address public boringVault = 0xf0bb20865277aBd641a307eCe5Ee04E79073416C;
-    address public rawDataDecoderAndSanitizer = 0x568a4E08909aab6995979dB24B3cdaE00244CeB4;
+    address public rawDataDecoderAndSanitizer = 0x44F9F4bF2E4caA06Da685d1f8F9df0FeAD022D2E; 
     address public managerAddress = 0x227975088C28DBBb4b421c6d96781a53578f19a8;
     address public accountantAddress = 0x0d05D94a5F1E76C18fbeB7A13d17C8a314088198;
 
     //one offs
-    address public aerodromeDecoderAndSanitizer = 0x0cD9e50616efdc3a5598e4483e212fe127E08f3C;
-    address public itbDecoderAndSanitizer = 0xEEb53299Cb894968109dfa420D69f0C97c835211;
+    address public aerodromeDecoderAndSanitizer = 0xbBC56C19282BB3C115fE3B909edeA3dF5Cc296d5;
 
     //itb
+    address public itbDecoderAndSanitizer = 0xEEb53299Cb894968109dfa420D69f0C97c835211;
     address public itbGearboxProtocolPositionManager = 0xad5dB17b44506785931dbc49c8857482c3b4F622;
 
     function setUp() external {}
@@ -128,6 +128,25 @@ contract CreateMultiChainLiquidEthMerkleRootScript is Script, MerkleTreeHelper {
             leafs, collateralAssets, getAddress(sourceChain, "cWETHV3"), getAddress(sourceChain, "cometRewards")
         );
 
+        // ========================== Fluid Dex ==========================
+        {
+            uint256 dexType = 2000; 
+            ERC20[] memory supplyTokens = new ERC20[](2);    
+            supplyTokens[0] = getERC20(sourceChain, "ETH"); 
+            supplyTokens[1] = getERC20(sourceChain, "WEETH"); 
+
+            ERC20[] memory borrowTokens = new ERC20[](1);    
+            borrowTokens[0] = getERC20(sourceChain, "WSTETH"); 
+            _addFluidDexLeafs(
+                leafs,
+                getAddress(sourceChain, "weETH_ETHDex_wstETH"),
+                dexType,
+                supplyTokens,
+                borrowTokens,
+                true //add native ETH leaves
+            ); 
+        }
+
         // ========================== Fluid fToken ==========================
         _addFluidFTokenLeafs(leafs, getAddress(sourceChain, "fWETH"));
         _addFluidFTokenLeafs(leafs, getAddress(sourceChain, "fWSTETH"));
@@ -163,10 +182,10 @@ contract CreateMultiChainLiquidEthMerkleRootScript is Script, MerkleTreeHelper {
 
         // ========================== LayerZero ==========================
         _addLayerZeroLeafs(
-            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroMainnetEndpointId
+            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroMainnetEndpointId, getBytes32(sourceChain, "boringVault")
         );
         _addLayerZeroLeafs(
-            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroOptimismEndpointId
+            leafs, getERC20(sourceChain, "WEETH"), getAddress(sourceChain, "WEETH"), layerZeroOptimismEndpointId, getBytes32(sourceChain, "boringVault")
         );
 
         // ========================== Aerodrome ==========================
