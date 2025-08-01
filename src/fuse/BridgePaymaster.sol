@@ -6,6 +6,7 @@ import {Initializable} from "@oz/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@oz/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@oz/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract BridgePaymaster is
     Initializable,
@@ -13,6 +14,7 @@ contract BridgePaymaster is
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    using SafeERC20 for IERC20;
     /**
      * @notice Whether or not to sponsor transactions to contracts.
      */
@@ -25,13 +27,15 @@ contract BridgePaymaster is
     );
 
     error NotSponsored();
+    error SignatureMistatch();
     error CallFailed();
     error NativeTransferFailed();
     error ERC20TransferFailed();
     error InsufficientBalance();
     error ERC20ApproveFailed();
 
-    modifier onlySponsored(address _target, bytes4 _functionSig) {
+    modifier onlySponsored(address _target, bytes4 _functionSig,bytes calldata data) {
+        if(bytes4(data[0:4]) != _functionSig) revert SignatureMistatch();
         if (!isSponsored[_target][_functionSig]) revert NotSponsored();
         _;
     }
@@ -63,7 +67,7 @@ contract BridgePaymaster is
     )
         external
         nonReentrant
-        onlySponsored(target, functionSig)
+        onlySponsored(target, functionSig,data)
         returns (bytes memory)
     {
         if (value > address(this).balance) revert InsufficientBalance();
@@ -78,14 +82,7 @@ contract BridgePaymaster is
     }
 
     function rescueTokens(address token, address to) external onlyOwner {
-        (bool success, ) = token.call(
-            abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                to,
-                IERC20(token).balanceOf(address(this))
-            )
-        );
-        if (!success) revert ERC20TransferFailed();
+        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
     }
 
     function approveERC20(
@@ -93,9 +90,7 @@ contract BridgePaymaster is
         address spender,
         uint256 amount
     ) external onlyOwner {
-        (bool success, ) = token.call(
-            abi.encodeWithSelector(IERC20.approve.selector, spender, amount)
-        );
+        bool success = IERC20(token).approve(spender, amount);
         if (!success) revert ERC20ApproveFailed();
     }
 
