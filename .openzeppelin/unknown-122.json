@@ -15,6 +15,31 @@
       "address": "0x7Af15A003de1937bD6CA60c70598DBaca2401e1E",
       "txHash": "0x2f2ac19cbfd6dc15eabb185959a60217ebae94a22dea61410ae3740cb282edfa",
       "kind": "uups"
+    },
+    {
+      "address": "0xE046FC894Ec020501BA32fcA814a69B49c9Dac10",
+      "txHash": "0x198499642ef5884be617cf312c6238b2c36b366c6dd0304f1708dd8a6fa969c2",
+      "kind": "uups"
+    },
+    {
+      "address": "0x4d3d6f3C508788F0BBb629E74e6C6BB205eEc41d",
+      "txHash": "0x5004e02e9d33022129621e40918b9e3c81ae2cf01133660021186eabfe92d862",
+      "kind": "uups"
+    },
+    {
+      "address": "0x038D86DbD493284a7E1b37a19dad52a35a7070cd",
+      "txHash": "0xe4c7b857192b4b51cb492b64d30608972b972fbc49cd4fe1577be44a6fe00246",
+      "kind": "uups"
+    },
+    {
+      "address": "0x7993b7722b2ab7013536145429A98Bf11D426F13",
+      "txHash": "0x56f878505f6d3e9ff63884a7f703eafe48f4e39c21d5058fb79304ec730415ae",
+      "kind": "uups"
+    },
+    {
+      "address": "0x831Fa405B7669A97A63173ecC313dEf619d512c2",
+      "txHash": "0x103657dd806928de4083dbfe86d8567c97a001033f1ef87f9fdffc2b74fc77ae",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -109,6 +134,83 @@
           }
         },
         "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol:24"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
+    },
+    "3366ce536316fc8e1983876bc918eb4296604fe7f416a9d7fe9a94da0c9eb1d5": {
+      "address": "0x0A0910164937Be95479a6349D1CD13F7a89A6F93",
+      "txHash": "0x5ffe47323d0771a0bf8e4e11363347728d2706901d7d875abb73e1327a69d570",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "isSponsored",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_mapping(t_bytes4,t_bool))",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:21"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes4": {
+            "label": "bytes4",
+            "numberOfBytes": "4"
+          },
+          "t_mapping(t_address,t_mapping(t_bytes4,t_bool))": {
+            "label": "mapping(address => mapping(bytes4 => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes4,t_bool)": {
+            "label": "mapping(bytes4 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol:43"
+            }
+          ],
           "erc7201:openzeppelin.storage.Ownable": [
             {
               "contract": "OwnableUpgradeable",

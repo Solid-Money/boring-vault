@@ -1,7 +1,7 @@
 const { ethers } = require('hardhat')
 
 const balancerVault = '0xBA12222222228d8Ba445958a75a0704d566BF2C8'
-const vault = '0x3e2cD0AeF639CD72Aff864b85acD5c07E2c5e3FA'
+const vault = '0x75333830E7014e909535389a6E5b0C02aA62ca27'
 
 async function main() {
   const [deployer] = await ethers.getSigners()

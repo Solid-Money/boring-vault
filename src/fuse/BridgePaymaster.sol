@@ -34,12 +34,17 @@ contract BridgePaymaster is
     error InsufficientBalance();
     error ERC20ApproveFailed();
 
-    modifier onlySponsored(address _target, bytes4 _functionSig,bytes calldata data) {
-        if(bytes4(data[0:4]) != _functionSig) revert SignatureMistatch();
+    modifier onlySponsored(
+        address _target,
+        bytes4 _functionSig,
+        bytes calldata data
+    ) {
+        if (bytes4(data[0:4]) != _functionSig) revert SignatureMistatch();
         if (!isSponsored[_target][_functionSig]) revert NotSponsored();
         _;
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -67,7 +72,7 @@ contract BridgePaymaster is
     )
         external
         nonReentrant
-        onlySponsored(target, functionSig,data)
+        onlySponsored(target, functionSig, data)
         returns (bytes memory)
     {
         if (value > address(this).balance) revert InsufficientBalance();
