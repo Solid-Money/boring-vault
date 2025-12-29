@@ -5,10 +5,10 @@ const ownerAddress = '0x3B694d634981Ace4B64a27c48bffe19f1447779B'
 async function main() {
   console.log('Deploying RolesAuthority...')
   // Deploy RolesAuthority
-  const RolesAuthority = await ethers.getContractFactory('FuseRolesAuthority')
+  const RolesAuthority = await ethers.getContractFactory('src/fuse/FuseRolesAuthority.sol:FuseRolesAuthority')
   const authority = await RolesAuthority.deploy(
     ownerAddress,
-    ownerAddress
+    ethers.constants.AddressZero
   )
   await authority.deployed()
 

@@ -52,6 +52,11 @@ module.exports = {
       accounts: [process.env.PRIVATE_KEY],
       chainId: 122,
     },
+    base: {
+      url: process.env.BASE_RPC_URL,
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 8453,
+    },
   },
   paths: {
     sources: './src',

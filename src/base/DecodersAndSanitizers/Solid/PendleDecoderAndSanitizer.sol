@@ -2,11 +2,9 @@
 pragma solidity 0.8.21;
 
 import {PendleRouterDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/PendleRouterDecoderAndSanitizer.sol";
-import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {DecoderCustomTypes} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
-import {OFTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/OFTDecoderAndSanitizer.sol"; 
 
-contract SolidDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecoderAndSanitizer, OFTDecoderAndSanitizer {
+contract PendleDecoderAndSanitizer is PendleRouterDecoderAndSanitizer {
     function swapExactPtForToken(
         address user,
         address market,
@@ -52,7 +50,7 @@ contract SolidDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecode
         uint256,
         DecoderCustomTypes.TokenOutput calldata output,
         DecoderCustomTypes.LimitOrderData calldata limit
-    ) external pure virtual returns (bytes memory addressesFound){
+    ) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(
             receiver,
             market,
@@ -72,7 +70,7 @@ contract SolidDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecode
         uint256,
         uint256,
         DecoderCustomTypes.LimitOrderData calldata limit
-    ) external pure virtual returns (bytes memory addressesFound){
+    ) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(
             receiver,
             market,
@@ -86,7 +84,7 @@ contract SolidDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecode
         uint256,
         uint256,
         DecoderCustomTypes.TokenOutput calldata output
-    ) external pure virtual returns (bytes memory addressesFound){
+    ) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(
             receiver,
             market,
@@ -103,10 +101,7 @@ contract SolidDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecode
         uint256,
         uint256,
         uint256
-    ) external pure virtual returns (bytes memory addressesFound){
-        addressesFound = abi.encodePacked(
-            receiver,
-            market
-        );
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(receiver, market);
     }
 }
