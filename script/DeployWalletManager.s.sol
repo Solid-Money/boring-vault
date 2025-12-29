@@ -8,7 +8,8 @@ import {WalletManager} from "src/fuse/WalletManager/WalletManager.sol";
 contract DeployWalletManager is Script {
     // Nick's Factory address (exists on most chains)
     address constant SINGLETON_FACTORY = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
-        
+
+    address constant WALLET_FACTORY = 0xa5F884525Bd27035143185C5045B38bBF0AD81f8;
     function run() external {
         address initialOwner = vm.envAddress("INITIAL_OWNER");
         address operator = vm.envAddress("OPERATOR");
@@ -38,6 +39,12 @@ contract DeployWalletManager is Script {
         }
         console.log("Deployed WalletManager at:", deployed);
         require(deployed == predicted, "Address mismatch");
+
+        // call setWalletFactory
+        (success, data) = deployed.call(
+            abi.encodeWithSelector(WalletManager.setWalletFactory.selector, WALLET_FACTORY)
+        );
+        require(success, "Failed to set wallet factory");
         
         vm.stopBroadcast();
     }

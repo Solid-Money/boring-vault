@@ -2,21 +2,14 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.21;
 
-import {UUPSUpgradeable} from "@oz/proxy/utils/UUPSUpgradeable.sol";
-import {Initializable} from "@oz/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@oz/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@oz/utils/ReentrancyGuardUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWalletFactory} from "./interfaces/IWalletFactory.sol";
 import {ISimpleWallet} from "./interfaces/ISimpleWallet.sol";
 
-contract WalletManager is
-    Initializable,
-    OwnableUpgradeable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable
-{
+contract WalletManager is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     address public operator;
     address public walletFactory;
@@ -31,8 +24,8 @@ contract WalletManager is
     event LogError(string message);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    constructor(address initialOwner, address _operator) Ownable(initialOwner) {
+        operator = _operator;
     }
 
     modifier onlyOperator() {
@@ -41,16 +34,6 @@ contract WalletManager is
             "WalletManager: FORBIDDEN"
         );
         _;
-    }
-
-    function initialize(
-        address initialOwner,
-        address _operator
-    ) public initializer {
-        __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-        operator = _operator;
     }
 
     function setOperator(address _operator) public onlyOwner {
@@ -113,8 +96,4 @@ contract WalletManager is
     receive() external payable {}
 
     fallback() external payable {}
-
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {}
 }
