@@ -15086,6 +15086,51 @@ function _addTellerLeafsWithReferral(
         _addSLvlUSDWithdrawLeafs(leafs);
     }
 
+    // ============================================= EtherFi Debt Manager ==================================================
+    function _addEtherFiDebtManagerLeafs(ManageLeaf[] memory leafs) internal {
+        unchecked {
+            leafIndex++;
+        }
+
+        address etherFiDebtManager = getAddress(sourceChain, "etherFiDebtManager");
+        leafs[leafIndex] = ManageLeaf(
+            getAddress(sourceChain, "USDC"),
+            false,
+            "approve(address,uint256)",
+            new address[](1),
+            string.concat("Approve USDC to be spent by EtherFi Debt Manager"),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        leafs[leafIndex].argumentAddresses[0] = etherFiDebtManager;
+
+        unchecked {
+            leafIndex++;
+        }
+        leafs[leafIndex] = ManageLeaf(
+            etherFiDebtManager,
+            false,
+            "supply(address,address,uint256)",
+            new address[](2),
+            string.concat("Supply USDC to EtherFi Debt Manager"),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        leafs[leafIndex].argumentAddresses[0] = getAddress(sourceChain, "boringVault");
+        leafs[leafIndex].argumentAddresses[1] = getAddress(sourceChain, "USDC");
+
+        unchecked {
+            leafIndex++;
+        }
+        leafs[leafIndex] = ManageLeaf(
+            etherFiDebtManager,
+            false,
+            "withdrawBorrowToken(address,uint256)",
+            new address[](1),
+            string.concat("Withdraw USDC from EtherFi Debt Manager"),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        leafs[leafIndex].argumentAddresses[0] = getAddress(sourceChain, "USDC");
+    }
+
     // ============================================= WeETH ==================================================
 
     function _addWeETHLeafs(ManageLeaf[] memory leafs, address ETH, address referral) internal {

@@ -60,6 +60,9 @@ contract CreateMultiChainLiquidEthMerkleRootScript is Script, MerkleTreeHelper {
         // ===================== EtherFi ==========================
         _addWeETHLeafs(leafs, getAddress(sourceChain, "ETH"), getAddress(sourceChain, "boringVault"));
 
+        // ===================== EtherFi Debt Manager ==========================
+        _addEtherFiDebtManagerLeafs(leafs);
+
 
         // ========================== Standard Bridge ==========================
         ERC20[] memory localTokens = new ERC20[](0);
