@@ -7,11 +7,11 @@ pragma solidity 0.8.21;
 contract EtherFiDebtManagerDecoderAndSanitizer {
     //============================== ETHERFI DEBT MANAGER ===============================
 
-    function supply(address user, address borrowToken, uint256 amount)external pure virtual returns (bytes memory addressesFound) {
+    function supply(address user, address borrowToken, uint256 amount) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(user, borrowToken);
     }
 
-    function withdrawBorrowToken(address borrowToken, uint256 amount)external pure virtual returns (bytes memory addressesFound) {
+    function withdrawBorrowToken(address borrowToken, uint256 amount) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(borrowToken);
     }
 }
