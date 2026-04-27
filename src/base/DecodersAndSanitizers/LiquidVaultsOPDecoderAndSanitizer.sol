@@ -16,7 +16,8 @@ contract LiquidVaultsOPDecoderAndSanitizer is
     OFTDecoderAndSanitizer,
     CCTPDecoderAndSanitizer,
     StandardBridgeDecoderAndSanitizer,
-    TellerDecoderAndSanitizer
+    TellerDecoderAndSanitizer, 
+    EtherFiDebtManagerDecoderAndSanitizer
 {
    
 }
