@@ -94,8 +94,12 @@ contract M0Adapter is IAdapter {
         bytes32 expectedOrderId = abi.decode(context, (bytes32));
         (bytes32 decodedId, ) = abi.decode(cancelArgs[4:], (bytes32, DecoderCustomTypes.OrderData));
         if (decodedId != expectedOrderId) revert M0Adapter__OrderIdMismatch();
-        
-        return (orderBook, cancelArgs);
+
+        if (IM0OrderBook(orderBook).getOrder(expectedOrderId).status == IM0OrderBook.OrderStatus.Cancelled) {
+            return (orderBook, "");
+        } else {
+            return (orderBook, cancelArgs);
+        }
     }
 
     function filledAmount(ISwapperTypes.SwapConfig calldata /*swapConfig*/, address /*swapper*/, bytes calldata context)
@@ -112,4 +116,3 @@ contract M0Adapter is IAdapter {
         return "v1";
     }
 }
-

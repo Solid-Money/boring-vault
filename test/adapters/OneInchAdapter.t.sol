@@ -970,6 +970,32 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.cancelOrder(orderId, config, "");
     }
 
+    function testOneInchCancelAfterPartialFill() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest, uint256 orderId) =
+            _submitOneInchOrder(1e18, 2000e6);
+
+        address vault = getAddress(sourceChain, "boringVault");
+        uint256 vaultUsdcBefore = getERC20(sourceChain, "USDC").balanceOf(vault);
+
+        _simulateOneInchFill(4e17, 800e6, config, orderDigest);
+
+        assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 4e17);
+
+        uint256 vaultWethBefore = getERC20(sourceChain, "WETH").balanceOf(vault);
+        swapper.cancelOrder(orderId, config, "");
+
+        assertEq(getERC20(sourceChain, "WETH").balanceOf(vault) - vaultWethBefore, 1e18 - 4e17);
+        assertEq(getERC20(sourceChain, "USDC").balanceOf(vault) - vaultUsdcBefore, 800e6);
+        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
+        assertEq(swapper.pendingOrderPrincipal(getERC20(sourceChain, "WETH")), 0);
+        assertGt(swapper.getOrderRecord(orderId).cancelledAt, 0);
+    }
+
     function testOneInchLimitOrder_filledAmount() external {
         uint256 nonce = 0x234234234;
 

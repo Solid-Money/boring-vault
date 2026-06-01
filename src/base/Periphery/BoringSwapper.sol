@@ -213,10 +213,13 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
     }
 
     /// @notice Cancels a pending limit order, invalidates it on-chain, and refunds remaining tokens to the vault.
+    /// @dev cancelData can be any extra data OR can be a function. 
     function cancelOrder(uint256 orderId, ISwapperTypes.SwapConfig calldata swapConfig, bytes calldata cancelData) external requiresAuth nonReentrant {
         _cancelOrder(orderId, swapConfig, cancelData);
     }
-
+    
+    /// @notice Cancels the OLD orderId and increments `orders`, creating a new orderId. This is done for 
+    /// simplicity and reusability. The word `replace` here is a shorthand for canceling and creating a new order atomically.
     function replaceOrder(
         uint256 orderId,
         ISwapperTypes.SwapConfig calldata cancelConfig,
@@ -229,6 +232,11 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
 
         if (!_consumeRateLimit(key, newConfig.tokenRoute.tokenIn, info.inputAmount)) {
             revert BoringSwapper__RateLimitExceeded();
+        }
+
+        if (info.hook != address(0)) {
+            (bool success, ) = info.hook.call(info.hookData);
+            if (!success) revert BoringSwapper__HookFailed();
         }
 
         emit OrderSubmitted(newOrderId, key, info.inputAmount, address(newConfig.receiver));

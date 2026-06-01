@@ -248,7 +248,210 @@ contract M0AdapterTest is BaseTestIntegration {
         IM0OrderBook.Order memory order = IM0OrderBook(getAddress(sourceChain, "m0OrderBook")).getOrder(m0OrderId);
         assertEq(uint8(order.status), uint8(IM0OrderBook.OrderStatus.Cancelled)); //cast enums to uint8 for assert to work
     }
-    
+
+    // The order's recipient (or anyone, post-deadline) can cancel directly on the orderbook, which
+    // refunds the principal to the order's sender (the swapper) and leaves the swapper's local state
+    // stale. The swapper must still be able to run its own cancelOrder to forward that refund to the
+    // vault and clean up — without reverting on the now-redundant on-chain cancel.
+    function testM0OrderBook__CancelAfterExternalCancel() external {
+
+        ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
+            getERC20(sourceChain, "WETH"),
+            getERC20(sourceChain, "USDC")
+        );
+
+        bytes memory m0Data = abi.encode(
+            DecoderCustomTypes.OrderParams({
+                destChainId: uint32(block.chainid),
+                fillDeadline: uint32(block.timestamp + 3600),
+                tokenIn: getAddress(sourceChain, "WETH"),
+                tokenOut: getBytes32(sourceChain, "USDC"),
+                amountIn: 1000000000000000,
+                amountOut: 2200000,
+                recipient: address(boringVault).toBytes32(),
+                solver: address(0).toBytes32()
+            })
+        );
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: tokenRoute,
+            adapter: m0Adapter,
+            quoteAsset: getAddress(sourceChain, "USDC"),
+            swapData: m0Data,
+            slippageBps: 250,
+            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+        });
+
+        (bytes32[][] memory manageTree, Tx memory tx_, ManageLeaf[] memory leafs) = _setupLeavesAndState(config);
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        vm.recordLogs();
+        _submitManagerCall(manageProofs, tx_);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        bytes32 sig = keccak256(
+            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+        );
+
+        bytes32 m0OrderId;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == sig) {
+                (bytes32 orderId, , , , ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                m0OrderId = orderId;
+                break;
+            }
+        }
+
+        DecoderCustomTypes.OrderData memory orderData = IM0OrderBook(getAddress(sourceChain, "m0OrderBook")).getOrderData(m0OrderId);
+
+        bytes memory cancelFunctionAndArgs = abi.encodeWithSignature(
+            "cancelOrder(bytes32,(uint16,bytes32,uint64,uint32,uint32,uint64,uint64,bytes32,bytes32,uint128,uint128,bytes32,bytes32))",
+            m0OrderId,
+            orderData
+        );
+
+        // Recipient (the vault) cancels directly on the orderbook. M0 refunds the principal to the
+        // sender (the swapper) and marks the order Cancelled.
+        vm.prank(address(boringVault));
+        (bool externalCancelOk,) = getAddress(sourceChain, "m0OrderBook").call(cancelFunctionAndArgs);
+        assertTrue(externalCancelOk);
+        assertEq(
+            uint8(IM0OrderBook(getAddress(sourceChain, "m0OrderBook")).getOrder(m0OrderId).status),
+            uint8(IM0OrderBook.OrderStatus.Cancelled)
+        );
+
+        // Now the swapper runs its own cancelOrder. With the adapter detecting the already-cancelled
+        // order and returning empty data, the redundant on-chain cancel is skipped and the refund is
+        // forwarded to the vault instead of reverting with BoringSwapper__CancelFailed.
+        Tx memory cancelTx = _getTxArrays(1);
+        cancelTx.manageLeafs[0] = leafs[7]; //approve token
+        cancelTx.targets[0] = address(swapper);
+        cancelTx.targetData[0] = abi.encodeWithSignature(
+            "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
+            0,
+            config,
+            cancelFunctionAndArgs
+        );
+        cancelTx.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+        bytes32[][] memory cancelProofs = _getProofsUsingTree(cancelTx.manageLeafs, manageTree);
+
+        uint256 vaultWethBefore = getERC20(sourceChain, "WETH").balanceOf(address(boringVault));
+        _submitManagerCall(cancelProofs, cancelTx);
+
+        // refund round-tripped M0 -> swapper -> vault, and the swapper recorded the cancellation
+        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(boringVault)) - vaultWethBefore, 1000000000000000);
+        assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+    }
+
+    function testM0OrderBook__CancelAfterPartialFill() external {
+
+        ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
+            getERC20(sourceChain, "WETH"),
+            getERC20(sourceChain, "USDC")
+        );
+
+        bytes memory m0Data = abi.encode(
+            DecoderCustomTypes.OrderParams({
+                destChainId: uint32(block.chainid),
+                fillDeadline: uint32(block.timestamp + 3600),
+                tokenIn: getAddress(sourceChain, "WETH"),
+                tokenOut: getBytes32(sourceChain, "USDC"),
+                amountIn: 1000000000000000,
+                amountOut: 2200000,
+                recipient: address(boringVault).toBytes32(),
+                solver: address(0).toBytes32()
+            })
+        );
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: tokenRoute,
+            adapter: m0Adapter,
+            quoteAsset: getAddress(sourceChain, "USDC"),
+            swapData: m0Data,
+            slippageBps: 250,
+            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+        });
+
+        (bytes32[][] memory manageTree, Tx memory tx_, ManageLeaf[] memory leafs) = _setupLeavesAndState(config);
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        vm.recordLogs();
+        _submitManagerCall(manageProofs, tx_);
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        bytes32 sig = keccak256(
+            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+        );
+
+        bytes32 m0OrderId;
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == sig) {
+                (bytes32 orderId, , , , ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                m0OrderId = orderId;
+                break;
+            }
+        }
+
+        DecoderCustomTypes.OrderData memory orderData = IM0OrderBook(getAddress(sourceChain, "m0OrderBook")).getOrderData(m0OrderId);
+
+        uint128 amountOutToFill = 1100000;
+        IM0OrderBook.FillParams memory fillParams = IM0OrderBook.FillParams({
+            amountOutToFill: amountOutToFill,
+            originRecipient: address(0x69).toBytes32(),
+            refundAddress: address(0x69).toBytes32()
+        });
+        
+        //do the fill
+        deal(getAddress(sourceChain, "USDC"), address(this), 1000000e6);
+        getERC20(sourceChain, "USDC").approve(getAddress(sourceChain, "m0OrderBook"), type(uint256).max);
+        IM0OrderBook(getAddress(sourceChain, "m0OrderBook")).fillOrder(m0OrderId, orderData, fillParams);
+        
+        {
+            uint256 filledIn = uint256(1e15).mulDivDown(amountOutToFill, 2200000);
+            assertEq(getERC20(sourceChain, "WETH").balanceOf(address(0x69)), filledIn);
+        }
+        
+        //assert that the fill happened
+        assertEq(getERC20(sourceChain, "USDC").balanceOf(address(boringVault)), amountOutToFill);
+        
+        //setup the cancel
+
+        Tx memory cancelTx = _getTxArrays(1);
+        cancelTx.manageLeafs[0] = leafs[7];
+        cancelTx.targets[0] = address(swapper);
+        cancelTx.targetData[0] = abi.encodeWithSignature(
+            "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
+            0,
+            config,
+            abi.encodeWithSignature(
+                "cancelOrder(bytes32,(uint16,bytes32,uint64,uint32,uint32,uint64,uint64,bytes32,bytes32,uint128,uint128,bytes32,bytes32))",
+                m0OrderId,
+                orderData
+            )
+        );
+        cancelTx.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+        bytes32[][] memory cancelProofs = _getProofsUsingTree(cancelTx.manageLeafs, manageTree);
+
+        uint256 vaultWETHBefore = getERC20(sourceChain, "WETH").balanceOf(address(boringVault));
+        _submitManagerCall(cancelProofs, cancelTx);
+
+        {   
+            //same as filledIn -- avoids stack too deep
+            uint256 expectedRefund = 1e15 - uint256(1e15).mulDivDown(amountOutToFill, 2200000);
+            //expected refund should be balance after cancel - before cancel.
+            uint256 vaultWETHAfter = getERC20(sourceChain, "WETH").balanceOf(address(boringVault));
+            assertEq(vaultWETHAfter - vaultWETHBefore, expectedRefund);
+
+            uint256 vaultUSDCAfter = getERC20(sourceChain, "USDC").balanceOf(address(boringVault));
+            assertEq(vaultUSDCAfter, amountOutToFill);
+            
+            //should have 0 pending here
+            assertEq(swapper.pendingOrderPrincipal(getERC20(sourceChain, "WETH")), 0);
+            assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
+            assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+        }
+    }
+
     function testM0OrderBook__FilledAmount() external {
 
         ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
@@ -345,6 +548,7 @@ contract M0AdapterTest is BaseTestIntegration {
         //verify the vault receives the filled amounts here
         assertEq(getERC20(sourceChain, "USDC").balanceOf(address(boringVault)), 100);
     }
+
 
     // ====================================== Revert Cases ====================================== 
     //

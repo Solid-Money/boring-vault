@@ -110,8 +110,8 @@ contract CowswapAdapterTest is BaseTestIntegration {
             receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
         });
 
-        (bytes32[][] memory manageProofs, Tx memory tx_) = _setupLeavesAndState(config);
-        _submitManagerCall(manageProofs, tx_); 
+        (bytes32[][] memory manageTree, Tx memory tx_, ) = _setupLeavesAndState(config);
+        _submitManagerCall(_getProofsUsingTree(tx_.manageLeafs, manageTree), tx_);
 
 
         bytes32 domainSeparator = IGPv2Settlement(getAddress(sourceChain, "cowswapSettlement")).domainSeparator();
@@ -133,34 +133,90 @@ contract CowswapAdapterTest is BaseTestIntegration {
         assertEq(filledAmount, 5e11);
     }
 
+    function testCancelAfterPartialFill() external {
 
-    //====================================== Helpers ====================================== 
+        bytes memory cowswapData = abi.encode(DecoderCustomTypes.GPv2OrderData({
+          sellToken: getAddress(sourceChain, "WETH"),
+          buyToken: getAddress(sourceChain, "USDC"),
+          receiver: getAddress(sourceChain, "boringVault"),
+          sellAmount: 1000000000000000,
+          buyAmount: 2200000,
+          validTo: uint32(block.timestamp + 86400),
+          appData: bytes32(0),
+          feeAmount: 0,
+          kind: keccak256("sell"),
+          partiallyFillable: true,
+          sellTokenBalance: keccak256("erc20"),
+          buyTokenBalance: keccak256("erc20")
+        }));
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "WETH"), getERC20(sourceChain, "USDC")),
+            adapter: cowswapAdapter,
+            quoteAsset: getAddress(sourceChain, "USDC"),
+            swapData: cowswapData,
+            slippageBps: 250,
+            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+        });
+
+        (bytes32[][] memory manageTree, Tx memory tx_, ManageLeaf[] memory leafs) = _setupLeavesAndState(config);
+        _submitManagerCall(_getProofsUsingTree(tx_.manageLeafs, manageTree), tx_);
+
+        {
+            bytes32 structHash = keccak256(abi.encodePacked(
+                keccak256("Order(address sellToken,address buyToken,address receiver,uint256 sellAmount,uint256 buyAmount,uint32 validTo,bytes32 appData,uint256 feeAmount,string kind,bool partiallyFillable,string sellTokenBalance,string buyTokenBalance)"),
+                cowswapData
+            ));
+            bytes32 orderHash = keccak256(abi.encodePacked("\x19\x01", IGPv2Settlement(getAddress(sourceChain, "cowswapSettlement")).domainSeparator(), structHash));
+            bytes memory orderUid = abi.encodePacked(orderHash, address(swapper), uint32(block.timestamp + 86400));
+            vm.store(getAddress(sourceChain, "cowswapSettlement"), keccak256(abi.encodePacked(orderUid, uint256(2))), bytes32(uint256(4e14)));
+        }
+
+        assertEq(IAdapter(cowswapAdapter).filledAmount(config, address(swapper), ""), 4e14);
+
+        Tx memory cancelTx = _getTxArrays(1);
+        cancelTx.manageLeafs[0] = leafs[7];
+        cancelTx.targets[0] = address(swapper);
+        cancelTx.targetData[0] = abi.encodeWithSignature(
+            "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
+            0,
+            config,
+            bytes("")
+        );
+        cancelTx.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+
+        uint256 vaultWethBefore = getERC20(sourceChain, "WETH").balanceOf(address(boringVault));
+        _submitManagerCall(_getProofsUsingTree(cancelTx.manageLeafs, manageTree), cancelTx);
+
+        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(boringVault)) - vaultWethBefore, 1e15 - 4e14);
+        assertEq(swapper.pendingOrderPrincipal(getERC20(sourceChain, "WETH")), 0);
+        assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+    }
+
+
+    //====================================== Helpers ======================================
     
-    function _setupLeavesAndState(ISwapperTypes.SwapConfig memory config) internal returns (bytes32[][] memory, Tx memory) {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18); 
+    function _setupLeavesAndState(ISwapperTypes.SwapConfig memory config) internal returns (bytes32[][] memory manageTree, Tx memory, ManageLeaf[] memory leafs) {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
         address[] memory tokens = new address[](2);
         tokens[0] = getAddress(sourceChain, "WETH");
         tokens[1] = getAddress(sourceChain, "USDC");
-    
-        ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens); 
-        
-        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        _generateTestLeafs(leafs, manageTree);
+        leafs = new ManageLeaf[](16);
+        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+
+        manageTree = _generateMerkleTree(leafs);
 
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
-        Tx memory tx_ = _getTxArrays(2); 
+        Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; //approve token
-        tx_.manageLeafs[1] = leafs[6]; //swap WETH -> USDC
-        
-        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        tx_.manageLeafs[1] = leafs[6]; //submitOrder WETH -> USDC
 
-        tx_.targets[0] = getAddress(sourceChain, "WETH"); //approve 
-        tx_.targets[1] = address(swapper);  
+        tx_.targets[0] = getAddress(sourceChain, "WETH"); //approve
+        tx_.targets[1] = address(swapper);
 
         tx_.targetData[0] = abi.encodeWithSignature(
             "approve(address,uint256)", address(swapper), type(uint256).max
@@ -174,7 +230,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
         tx_.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
         tx_.decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
 
-        return (manageProofs, tx_);
+        return (manageTree, tx_, leafs);
     }
 
     function _makeOracleConfig(address rateProvider, address intermediary, bool skipValidation) internal pure returns (BoringSwapper.RateProviderConfig memory) {
