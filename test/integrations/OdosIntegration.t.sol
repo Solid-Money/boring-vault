@@ -5,6 +5,7 @@
 pragma solidity 0.8.21;
 
 import {MainnetAddresses} from "test/resources/MainnetAddresses.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {ManagerWithMerkleVerification} from "src/base/Roles/ManagerWithMerkleVerification.sol";
 import {SafeTransferLib} from "@solmate/utils/SafeTransferLib.sol";
@@ -843,6 +844,6 @@ contract OdosIntegrationTest is Test, MerkleTreeHelper {
     }
 }
 
-contract FullOdosDecoderAndSanitizer is OdosDecoderAndSanitizer {
+contract FullOdosDecoderAndSanitizer is OdosDecoderAndSanitizer, BaseDecoderAndSanitizer {
     constructor(address _odosRouter) OdosDecoderAndSanitizer(_odosRouter){}
 }
