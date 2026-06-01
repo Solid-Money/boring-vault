@@ -11,7 +11,7 @@ import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
-import {M0Adapter} from "src/base/Periphery/adapters/M0HookAdapter.sol";
+import {M0Adapter} from "src/base/Periphery/adapters/M0Adapter.sol";
 import {ERC20} from "@solmate/tokens/ERC20.sol";
 import {IRateProvider} from "src/interfaces/IRateProvider.sol";
 import {PriceValidator} from "src/base/Periphery/adapters/price/PriceValidator.sol";
