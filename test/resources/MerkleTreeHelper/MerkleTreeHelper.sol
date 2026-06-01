@@ -16304,6 +16304,14 @@ function _addTellerLeafsWithReferral(
     ) internal {
         address vault = getAddress(sourceChain, "boringVault");
         bytes32 vaultAsBytes32 = bytes32(uint256(uint160(vault)));
+        address executorPayee = getAddress(sourceChain, "wormholeMultiTokenExecutorPayee");
+
+        address quoter = getAddress(sourceChain, "wormholeExecutorQuoter");
+        bytes32 payeeAsBytes32 = bytes32(uint256(uint160(getAddress(sourceChain, "wormholeExecutorPayee"))));
+        address payeeHi = address(bytes20(bytes16(payeeAsBytes32)));
+        address payeeLo = address(bytes20(bytes16(payeeAsBytes32 << 128)));
+        address vaultHi = address(bytes20(bytes16(vaultAsBytes32)));
+        address vaultLo = address(bytes20(bytes16(vaultAsBytes32 << 128)));
 
         unchecked {
             leafIndex++;
@@ -16325,20 +16333,24 @@ function _addTellerLeafsWithReferral(
             multiTokenExecutor,
             true,
             "transfer(address,address,uint256,uint16,bytes32,bytes32,bytes,(uint256,address,bytes,bytes),(uint16,address))",
-            new address[](9),
+            new address[](14),
             string.concat("Wormhole NTT transfer ", tokenToBridge.symbol(), " to chain ", vm.toString(recipientChain)),
             getAddress(sourceChain, "rawDataDecoderAndSanitizer")
         );
-        address executorPayee = getAddress(sourceChain, "wormholeMultiTokenExecutorPayee");
         leafs[leafIndex].argumentAddresses[0] = multiTokenNtt;
         leafs[leafIndex].argumentAddresses[1] = address(tokenToBridge);
         leafs[leafIndex].argumentAddresses[2] = address(uint160(recipientChain));
-        leafs[leafIndex].argumentAddresses[3] = address(bytes20(bytes16(vaultAsBytes32)));
-        leafs[leafIndex].argumentAddresses[4] = address(bytes20(bytes16(vaultAsBytes32 << 128)));
-        leafs[leafIndex].argumentAddresses[5] = address(bytes20(bytes16(vaultAsBytes32)));
-        leafs[leafIndex].argumentAddresses[6] = address(bytes20(bytes16(vaultAsBytes32 << 128)));
-        leafs[leafIndex].argumentAddresses[7] = vault;
-        leafs[leafIndex].argumentAddresses[8] = executorPayee;
+        leafs[leafIndex].argumentAddresses[3] = vaultHi; // recipient
+        leafs[leafIndex].argumentAddresses[4] = vaultLo;
+        leafs[leafIndex].argumentAddresses[5] = vaultHi; // refundAddress
+        leafs[leafIndex].argumentAddresses[6] = vaultLo;
+        leafs[leafIndex].argumentAddresses[7] = vault; // executorArgs.refundAddress
+        leafs[leafIndex].argumentAddresses[8] = quoter; // signedQuote
+        leafs[leafIndex].argumentAddresses[9] = payeeHi;
+        leafs[leafIndex].argumentAddresses[10] = payeeLo;
+        leafs[leafIndex].argumentAddresses[11] = vaultHi; // relay drop-off recipient
+        leafs[leafIndex].argumentAddresses[12] = vaultLo;
+        leafs[leafIndex].argumentAddresses[13] = executorPayee; // feeArgs.payee
 
         unchecked {
             leafIndex++;
@@ -16347,18 +16359,23 @@ function _addTellerLeafsWithReferral(
             multiTokenExecutor,
             true,
             "transferETH(address,uint256,uint16,bytes32,bytes32,bytes,(uint256,address,bytes,bytes),(uint16,address))",
-            new address[](8),
+            new address[](13),
             string.concat("Wormhole NTT transferETH to chain ", vm.toString(recipientChain)),
             getAddress(sourceChain, "rawDataDecoderAndSanitizer")
         );
         leafs[leafIndex].argumentAddresses[0] = multiTokenNtt;
         leafs[leafIndex].argumentAddresses[1] = address(uint160(recipientChain));
-        leafs[leafIndex].argumentAddresses[2] = address(bytes20(bytes16(vaultAsBytes32)));
-        leafs[leafIndex].argumentAddresses[3] = address(bytes20(bytes16(vaultAsBytes32 << 128)));
-        leafs[leafIndex].argumentAddresses[4] = address(bytes20(bytes16(vaultAsBytes32)));
-        leafs[leafIndex].argumentAddresses[5] = address(bytes20(bytes16(vaultAsBytes32 << 128)));
-        leafs[leafIndex].argumentAddresses[6] = vault;
-        leafs[leafIndex].argumentAddresses[7] = executorPayee;
+        leafs[leafIndex].argumentAddresses[2] = vaultHi; // recipient
+        leafs[leafIndex].argumentAddresses[3] = vaultLo;
+        leafs[leafIndex].argumentAddresses[4] = vaultHi; // refundAddress
+        leafs[leafIndex].argumentAddresses[5] = vaultLo;
+        leafs[leafIndex].argumentAddresses[6] = vault; // executorArgs.refundAddress
+        leafs[leafIndex].argumentAddresses[7] = quoter; // signedQuote
+        leafs[leafIndex].argumentAddresses[8] = payeeHi;
+        leafs[leafIndex].argumentAddresses[9] = payeeLo;
+        leafs[leafIndex].argumentAddresses[10] = vaultHi; // relay drop-off recipient
+        leafs[leafIndex].argumentAddresses[11] = vaultLo;
+        leafs[leafIndex].argumentAddresses[12] = executorPayee; // feeArgs.payee
     }
 
     // ========================================= Tac CrossChainLayer =========================================

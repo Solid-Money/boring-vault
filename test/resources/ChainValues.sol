@@ -1390,6 +1390,8 @@ contract ChainValues {
         values[mainnet]["wormholeMultiTokenExecutor"] = 0x03dB430D830601DB368991eE55DAa9A708df7912.toBytes32();
         values[mainnet]["wormholeMultiTokenNtt"] = 	0x556790e948b9920A8868bCAFcC87D25e82e8a075.toBytes32();
         values[mainnet]["wormholeMultiTokenExecutorPayee"] = 0x7D73bE2ac3edDc8C5c0A1418b410b9710d4AF40D.toBytes32();
+        values[mainnet]["wormholeExecutorQuoter"] = 0xa54008017941EcE968623a0Dd8Ee907E2b133596.toBytes32();
+        values[mainnet]["wormholeExecutorPayee"] = 0x6a8BFC410A3Cc7306d52872F116AFb12F1cec6C6.toBytes32();
 
         // Stargate OFTs
         values[mainnet]["stargateUSDC"] = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7.toBytes32();
