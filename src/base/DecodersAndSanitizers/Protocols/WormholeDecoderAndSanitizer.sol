@@ -6,6 +6,8 @@ import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
 
 contract WormholeDecoderAndSanitizer {
 
+    error WormholeDecoderAndSanitizer__UnknownRelayInstruction(uint8 instructionType);
+
     function transfer(
         address multiTokenNtt,
         address token,
@@ -17,21 +19,22 @@ contract WormholeDecoderAndSanitizer {
         DecoderCustomTypes.WormholeExecutorArgs calldata executorArgs,
         DecoderCustomTypes.WormholeFeeArgs calldata feeArgs
     ) external pure virtual returns (bytes memory sensitiveArguments) {
-        address recipient0 = address(bytes20(bytes16(recipient)));
-        address recipient1 = address(bytes20(bytes16(recipient << 128)));
-
-        address refund0 = address(bytes20(bytes16(refundAddress)));
-        address refund1 = address(bytes20(bytes16(refundAddress << 128)));
+        // Grouped into one packed value to keep the outer encodePacked's live stack slots low (avoids stack too deep).
+        bytes memory recipientAndRefund = abi.encodePacked(
+            address(bytes20(bytes16(recipient))),
+            address(bytes20(bytes16(recipient << 128))),
+            address(bytes20(bytes16(refundAddress))),
+            address(bytes20(bytes16(refundAddress << 128)))
+        );
 
         sensitiveArguments = abi.encodePacked(
             multiTokenNtt,
             token,
             address(uint160(recipientChain)),
-            recipient0,
-            recipient1,
-            refund0,
-            refund1,
+            recipientAndRefund,
             executorArgs.refundAddress,
+            _decodeSignedQuoteAddresses(executorArgs.signedQuote),
+            _decodeRelayInstructionAddresses(executorArgs.instructions),
             feeArgs.payee
         );
     }
@@ -46,21 +49,66 @@ contract WormholeDecoderAndSanitizer {
         DecoderCustomTypes.WormholeExecutorArgs calldata executorArgs,
         DecoderCustomTypes.WormholeFeeArgs calldata feeArgs
     ) external pure virtual returns (bytes memory sensitiveArguments) {
-        address recipient0 = address(bytes20(bytes16(recipient)));
-        address recipient1 = address(bytes20(bytes16(recipient << 128)));
-
-        address refund0 = address(bytes20(bytes16(refundAddress)));
-        address refund1 = address(bytes20(bytes16(refundAddress << 128)));
+        bytes memory recipientAndRefund = abi.encodePacked(
+            address(bytes20(bytes16(recipient))),
+            address(bytes20(bytes16(recipient << 128))),
+            address(bytes20(bytes16(refundAddress))),
+            address(bytes20(bytes16(refundAddress << 128)))
+        );
 
         sensitiveArguments = abi.encodePacked(
             multiTokenNtt,
             address(uint160(recipientChain)),
-            recipient0,
-            recipient1,
-            refund0,
-            refund1,
+            recipientAndRefund,
             executorArgs.refundAddress,
+            _decodeSignedQuoteAddresses(executorArgs.signedQuote),
+            _decodeRelayInstructionAddresses(executorArgs.instructions),
             feeArgs.payee
         );
+    }
+
+    // Parses the SignedQuote blob into a struct (see WormholeSignedQuote layout) and returns its addresses:
+    // the EVM quoter and both halves of the payee UniversalAddress.
+    function _decodeSignedQuoteAddresses(bytes calldata signedQuote) internal pure returns (bytes memory) {
+        DecoderCustomTypes.WormholeSignedQuote memory quote = DecoderCustomTypes.WormholeSignedQuote({
+            prefix: bytes4(signedQuote[0:4]),
+            quoter: address(bytes20(signedQuote[4:24])),
+            payee: bytes32(signedQuote[24:56])
+        });
+        return abi.encodePacked(
+            quote.quoter,
+            address(bytes20(bytes16(quote.payee))),
+            address(bytes20(bytes16(quote.payee << 128)))
+        );
+    }
+
+    // RelayInstructions = unbounded array of (uint8 type + body). Layouts per type (Wormhole executor TS SDK):
+    //   1 GasInstruction:        uint128 gasLimit | uint128 msgValue                                        (no addresses)
+    //   2 GasDropOffInstruction: see WormholeGasDropOffInstruction                                          (destination wallet)
+    // Unknown types revert to fail safe — an unknown opcode may hide additional addresses.
+    function _decodeRelayInstructionAddresses(bytes calldata instructions) internal pure returns (bytes memory addrs) {
+        uint256 offset = 0;
+        uint256 len = instructions.length;
+        while (offset < len) {
+            uint8 instructionType = uint8(instructions[offset]);
+            offset += 1;
+            if (instructionType == 1) {
+                offset += 32;
+            } else if (instructionType == 2) {
+                DecoderCustomTypes.WormholeGasDropOffInstruction memory ins = DecoderCustomTypes
+                    .WormholeGasDropOffInstruction({
+                    dropOff: uint128(bytes16(instructions[offset:offset + 16])),
+                    recipient: bytes32(instructions[offset + 16:offset + 48])
+                });
+                offset += 48;
+                addrs = abi.encodePacked(
+                    addrs,
+                    address(bytes20(bytes16(ins.recipient))),
+                    address(bytes20(bytes16(ins.recipient << 128)))
+                );
+            } else {
+                revert WormholeDecoderAndSanitizer__UnknownRelayInstruction(instructionType);
+            }
+        }
     }
 }
