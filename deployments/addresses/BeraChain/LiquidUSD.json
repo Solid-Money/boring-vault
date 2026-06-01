@@ -67,7 +67,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a"
+      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a",
+      "auditGap": [
+        "none"
+      ]
     },
     "Pauser": {
       "auditCommit": null,
@@ -109,7 +112,10 @@
         "cbor",
         "evm:london"
       ],
-      "deploymentCommit": "c9b8b82b57a0b902182cc79784caab6a6a5fb062"
+      "deploymentCommit": "c9b8b82b57a0b902182cc79784caab6a6a5fb062",
+      "auditGap": [
+        "none"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

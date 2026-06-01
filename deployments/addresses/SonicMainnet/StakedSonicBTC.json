@@ -105,7 +105,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "f472abafb22f7a45e81df2814ae4bdf6f56dd74a"
+      "deploymentCommit": "f472abafb22f7a45e81df2814ae4bdf6f56dd74a",
+      "auditGap": [
+        "none"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

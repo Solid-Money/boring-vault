@@ -71,7 +71,10 @@
         "cbor",
         "evm:shanghai"
       ],
-      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63"
+      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63",
+      "auditGap": [
+        "none"
+      ]
     },
     "Pauser": {
       "auditCommit": null,
@@ -115,7 +118,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "263cf49f4219f285ccbf9f7fe2a800fea19d4c19"
+      "deploymentCommit": "263cf49f4219f285ccbf9f7fe2a800fea19d4c19",
+      "auditGap": [
+        "none"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

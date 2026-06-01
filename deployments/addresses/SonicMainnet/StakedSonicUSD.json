@@ -31,7 +31,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "edfcba3f29f691c638b06d04f60af79503632b58"
+      "deploymentCommit": "edfcba3f29f691c638b06d04f60af79503632b58",
+      "auditGap": [
+        "none"
+      ]
     },
     "BoringVault": {
       "auditCommit": "9c6e1e4458fba53f2ff09efe21195dcf570ffc3e",
@@ -114,7 +117,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "f472abafb22f7a45e81df2814ae4bdf6f56dd74a"
+      "deploymentCommit": "f472abafb22f7a45e81df2814ae4bdf6f56dd74a",
+      "auditGap": [
+        "none"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

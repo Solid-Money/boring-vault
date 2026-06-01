@@ -19,7 +19,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "568d9467202a7f6e478cb8967fcee3c2afb38730"
+      "deploymentCommit": "568d9467202a7f6e478cb8967fcee3c2afb38730",
+      "auditGap": [
+        "none"
+      ]
     },
     "BoringOnChainQueue": {
       "auditCommit": "edfcba3f29f691c638b06d04f60af79503632b58",
@@ -108,7 +111,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7"
+      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7",
+      "auditGap": [
+        "none"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

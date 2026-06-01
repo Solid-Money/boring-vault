@@ -66,7 +66,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "2c017870dea4ba9f33d377ab431b506969e35f76"
+      "deploymentCommit": "2c017870dea4ba9f33d377ab431b506969e35f76",
+      "auditGap": [
+        "none"
+      ]
     },
     "Pauser": {
       "auditCommit": null,
@@ -108,7 +111,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7"
+      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7",
+      "auditGap": [
+        "none"
+      ]
     }
   }
 }

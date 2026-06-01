@@ -110,7 +110,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "15ea1839120d6da3eeb9a0009d45cd0017a9806d"
+      "deploymentCommit": "15ea1839120d6da3eeb9a0009d45cd0017a9806d",
+      "auditGap": [
+        "none"
+      ]
     }
   }
 }

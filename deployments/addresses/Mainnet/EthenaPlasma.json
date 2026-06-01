@@ -111,6 +111,9 @@
       "deploymentCommit": "463b7a874c4480c7663473dfdb844aeb7567cb13",
       "verificationGap": [
         "none"
+      ],
+      "auditGap": [
+        "none"
       ]
     },
     "Timelock": {

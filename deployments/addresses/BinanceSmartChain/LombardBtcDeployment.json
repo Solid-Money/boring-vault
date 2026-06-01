@@ -123,7 +123,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a"
+      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a",
+      "auditGap": [
+        "none"
+      ]
     },
     "RolesAuthority": {
       "auditCommit": null,
@@ -142,7 +145,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a"
+      "deploymentCommit": "10a0dae53f20c85e08b66b2ecb8d2f322010ea5a",
+      "auditGap": [
+        "none"
+      ]
     }
   }
 }

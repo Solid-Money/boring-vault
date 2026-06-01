@@ -71,7 +71,10 @@
         "cbor",
         "evm:shanghai"
       ],
-      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63"
+      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63",
+      "auditGap": [
+        "none"
+      ]
     },
     "QueueSolver": {
       "auditCommit": "b9eafd46e656c532ea2c28a1bd66ce271ebedbc7",
@@ -105,7 +108,10 @@
         "cbor",
         "evm:shanghai"
       ],
-      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7"
+      "deploymentCommit": "c54949f556cbc9a5e752ef1d6e8c09d64f4975b7",
+      "auditGap": [
+        "none"
+      ]
     }
   }
 }

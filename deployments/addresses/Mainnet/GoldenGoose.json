@@ -111,6 +111,9 @@
       "deploymentCommit": "92e1a7af2d550c98bb89adfdd3687862abed7545",
       "verificationGap": [
         "none"
+      ],
+      "auditGap": [
+        "none"
       ]
     }
   }

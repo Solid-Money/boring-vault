@@ -71,7 +71,10 @@
         "cbor",
         "evm:shanghai"
       ],
-      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63"
+      "deploymentCommit": "dd7b8b54bd9c7ae1fcd4c8b938296db5bb32fb63",
+      "auditGap": [
+        "none"
+      ]
     },
     "Pauser": {
       "auditCommit": null,
@@ -117,7 +120,10 @@
         "cbor",
         "evm:shanghai"
       ],
-      "deploymentCommit": "36c1a1a0a337bcc0063bcf2156cde76bcdab6ac5"
+      "deploymentCommit": "36c1a1a0a337bcc0063bcf2156cde76bcdab6ac5",
+      "auditGap": [
+        "none"
+      ]
     }
   }
 }
