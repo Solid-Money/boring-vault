@@ -86,7 +86,11 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "474893ded885115e19cbea264377ca9e4d76ff1c"
+      "deploymentCommit": "474893ded885115e19cbea264377ca9e4d76ff1c",
+      "auditGap": [
+        "state",
+        "selectors"
+      ]
     },
     "RolesAuthority": {
       "auditCommit": null,
