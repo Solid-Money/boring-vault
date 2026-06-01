@@ -4,9 +4,7 @@
   },
   "contractMetadata": {
     "LayerZeroTellerWithRateLimiting_bd407268": {
-      "verificationGap": [
-        "etherscan; working-tree multi-commit"
-      ]
+      "verificationGap": ["etherscan; working-tree multi-commit"]
     }
   }
 }

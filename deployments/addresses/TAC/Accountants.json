@@ -5,9 +5,7 @@
   "contractMetadata": {
     "AccountantWithRateProviders_d43331e2": {
       "deploymentCommit": "5efd7fb6",
-      "verificationGap": [
-        "cbor"
-      ]
+      "verificationGap": ["cbor"]
     }
   }
 }

@@ -5,14 +5,10 @@
   },
   "contractMetadata": {
     "AccountantWithFixedRate_7b6890c8": {
-      "verificationGap": [
-        "source:no-match"
-      ]
+      "verificationGap": ["source:no-match"]
     },
     "AccountantWithFixedRate_ef6258d4": {
-      "verificationGap": [
-        "source:no-match"
-      ]
+      "verificationGap": ["source:no-match"]
     }
   }
 }

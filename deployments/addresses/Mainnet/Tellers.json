@@ -8,27 +8,19 @@
   "contractMetadata": {
     "LayerZeroTellerWithRateLimiting_3c730353": {
       "deploymentCommit": "bf902717",
-      "verificationGap": [
-        "cbor"
-      ]
+      "verificationGap": ["cbor"]
     },
     "LayerZeroTeller_202d82b2": {
       "deploymentCommit": "67cf8116",
-      "verificationGap": [
-        "cbor"
-      ]
+      "verificationGap": ["cbor"]
     },
     "LayerZeroTeller_564c2825": {
       "deploymentCommit": "67cf8116",
-      "verificationGap": [
-        "cbor"
-      ]
+      "verificationGap": ["cbor"]
     },
     "LayerZeroTeller_62b6293c": {
       "deploymentCommit": "92e1a7af",
-      "verificationGap": [
-        "none"
-      ]
+      "verificationGap": ["none"]
     }
   }
 }

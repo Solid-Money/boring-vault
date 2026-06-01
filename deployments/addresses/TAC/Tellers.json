@@ -5,9 +5,7 @@
   "contractMetadata": {
     "LayerZeroTeller_e98041e3": {
       "deploymentCommit": "5efd7fb6",
-      "verificationGap": [
-        "cbor"
-      ]
+      "verificationGap": ["cbor"]
     }
   }
 }
