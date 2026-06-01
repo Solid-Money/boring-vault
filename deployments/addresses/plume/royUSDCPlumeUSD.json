@@ -19,7 +19,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "BoringOnChainQueue": {
       "auditCommit": "edfcba3f29f691c638b06d04f60af79503632b58",
@@ -27,7 +30,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "BoringVault": {
       "auditCommit": "3c768bd068af856b5de3def86b1940676847eb9d",
@@ -35,7 +41,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "Lens": {
       "auditCommit": "939c77e25473dff3ed18fa104f004f7afd13452e",
@@ -43,7 +52,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "ManagerWithMerkleVerification": {
       "auditCommit": "b7ad4066a946a5e64285c88617a5de36e5eef436",
@@ -51,7 +63,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "Pauser": {
       "auditCommit": null,
@@ -70,7 +85,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "RolesAuthority": {
       "auditCommit": null,
@@ -89,7 +107,10 @@
       "verificationGap": [
         "none"
       ],
-      "deploymentCommit": null
+      "deploymentCommit": null,
+      "auditGap": [
+        "unknown"
+      ]
     },
     "Timelock": {
       "auditCommit": null,

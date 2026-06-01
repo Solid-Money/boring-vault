@@ -49,7 +49,10 @@
       "verificationGap": [
         "cbor"
       ],
-      "deploymentCommit": "30848dc2638f6776eee66d0d5006600a08b7f677"
+      "deploymentCommit": "30848dc2638f6776eee66d0d5006600a08b7f677",
+      "auditGap": [
+        "unaudited"
+      ]
     },
     "DelayedWithdraw": {
       "auditCommit": "938478e59619c693150a2290ff677191b19a0948",

@@ -49,7 +49,10 @@
         "evm:shanghai",
         "source:execute_method_not_in_repo"
       ],
-      "deploymentCommit": "353e102866e7f1f014aad691bb63e4f994110429"
+      "deploymentCommit": "353e102866e7f1f014aad691bb63e4f994110429",
+      "auditGap": [
+        "unaudited"
+      ]
     },
     "DelayedWithdraw": {
       "auditCommit": "938478e59619c693150a2290ff677191b19a0948",

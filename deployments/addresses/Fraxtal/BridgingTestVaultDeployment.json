@@ -74,7 +74,10 @@
         "cbor",
         "evm:london"
       ],
-      "deploymentCommit": "ae8e0b6573cca14c70e1e8edbef2209d62639eea"
+      "deploymentCommit": "ae8e0b6573cca14c70e1e8edbef2209d62639eea",
+      "auditGap": [
+        "unaudited"
+      ]
     },
     "DelayedWithdraw": {
       "auditCommit": "938478e59619c693150a2290ff677191b19a0948",

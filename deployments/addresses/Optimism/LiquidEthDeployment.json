@@ -89,7 +89,10 @@
         "cbor",
         "evm:paris"
       ],
-      "deploymentCommit": "529104270f693af771b1469e6f830c0010e34107"
+      "deploymentCommit": "529104270f693af771b1469e6f830c0010e34107",
+      "auditGap": [
+        "unaudited"
+      ]
     },
     "DelayedWithdraw": {
       "auditCommit": "938478e59619c693150a2290ff677191b19a0948",
