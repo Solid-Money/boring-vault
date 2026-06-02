@@ -146,14 +146,12 @@ import "forge-std/StdJson.sol";
  * @dev For Unichain verification, use appropriate block explorer when available
  */
 contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddresses, MerkleTreeHelper {
-    uint256 public privateKey;
     Deployer public deployer = Deployer(deployerAddress);
     Deployer public bobDeployer = Deployer(0xF3d0672a91Fd56C9ef04C79ec67d60c34c6148a0);
 
     string[] addressKeys;
 
     function setUp() external {
-        privateKey = vm.envUint("BORING_DEVELOPER");
 
         vm.createSelectFork("mainnet");
         setSourceChainName("mainnet");
@@ -162,11 +160,11 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
     function run() external {
         bytes memory creationCode;
         bytes memory constructorArgs;
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast();
 
         creationCode = type(BoringSwapperDecoder).creationCode;
         constructorArgs = abi.encode();
-        deployer.deployContract("bigSwappa Decoder", creationCode, constructorArgs, 0);
+        deployer.deployContract("bigSwappa Decoder v2", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }

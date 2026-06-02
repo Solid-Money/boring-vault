@@ -929,6 +929,14 @@ contract ChainValues {
         // LI.FI
         values[mainnet]["lifi"] = 0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE.toBytes32();
 
+        // OpenOcean
+        values[mainnet]["openOceanRouter"] = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64.toBytes32();
+        values[mainnet]["openOceanCaller"] = 0xa8F8296f4053fd65e89b245d6c7F983a70234C8b.toBytes32();
+
+        // BoringSwapper oracle rate providers (USD-denominated)
+        values[mainnet]["usdcUsdRateProvider"] = 0x8d99465A5F1631f9B7063C9437e6C09AC3504527.toBytes32();
+        values[mainnet]["wethUsdRateProvider"] = 0x2F22FBE27D24CA359eb282A6a13c0017C13dEDa4.toBytes32();
+
         // 1Inch
         values[mainnet]["aggregationRouterV5"] = 0x1111111254EEB25477B68fb85Ed929f73A960582.toBytes32();
         values[mainnet]["aggregationRouterV6"] = 0x111111125421cA6dc452d289314280a0f8842A65.toBytes32();
