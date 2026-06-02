@@ -27,6 +27,8 @@ contract DeployMetadataHelpersTest is Test {
 
     function setUp() public {
         harness = new MetadataHarness();
+        // Tests write temporary fixtures here; ensure the directory exists in CI.
+        vm.createDir("./test/fixtures", true);
     }
 
     // -------------------------------------------------------------------------
