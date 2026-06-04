@@ -34,6 +34,9 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
     address constant boringVault    = 0xE003287E34fF16A109477e84A0D271C5c3dc3c7f;
     address constant rolesAuthority = 0x1Ae56c37aF9C27d036a1A8a4d9C0762e15D947B8;
 
+    // Already-deployed swapper. Owner is the tx bundler, so config calls go through bundleTxs.
+    address constant swapper = 0xa4Bb310ec3A4C9F728F385f3C657b4f0BeB9fde8;
+
     function setUp() external {
         setSourceChainName("mainnet");
         vm.createSelectFork("mainnet");
@@ -42,6 +45,7 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
     function run() external {
         vm.startBroadcast();
 
+        /* Infra already deployed/configured on mainnet — kept for reference.
         registry = new AdapterRegistry();
         console.log("AdapterRegistry:", address(registry));
 
@@ -119,10 +123,29 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         txs[10] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setBaseAssetOracle.selector, getERC20(sourceChain, "WETH"), usdQuoteAsset, ethRateProviders), value: 0 });
 
         Deployer(getAddress(sourceChain, "txBundlerAddress")).bundleTxs(txs);
+        */
+
+        // WETH -> USDC route: 5% max slippage, rate limit of 1 ETH per hour (capacity and refill normalized to 18 decimals).
+        Deployer.Tx[] memory txs = new Deployer.Tx[](1);
+        txs[0] = Deployer.Tx({
+            target: swapper,
+            data: abi.encodeWithSelector(
+                BoringSwapper.setRouteConfig.selector,
+                getERC20(sourceChain, "WETH"),
+                getERC20(sourceChain, "USDC"),
+                uint256(500),
+                uint256(1e18),
+                uint256(1e18) / 1 hours
+            ),
+            value: 0
+        });
+
+        Deployer(getAddress(sourceChain, "txBundlerAddress")).bundleTxs(txs);
 
         vm.stopBroadcast();
     }
 
+    /*
     function _makeOracleConfig(address rateProvider, address intermediary, bool skipValidation)
         internal
         pure
@@ -134,4 +157,5 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         intermediaries[0] = intermediary;
         return BoringSwapper.RateProviderConfig(rateProviders, intermediaries, skipValidation);
     }
+    */
 }
