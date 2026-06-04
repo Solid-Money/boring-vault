@@ -183,7 +183,7 @@ contract BeraborrowIntegrationTest is BaseTestIntegration {
         
         deal(getAddress(sourceChain, "WBTC"), address(boringVault), 10e8);
         
-        ManageLeaf[] memory leafs = new ManageLeaf[](4);
+        ManageLeaf[] memory leafs = new ManageLeaf[](16);
 
         address[] memory managedVaults = new address[](1);
         managedVaults[0] = getAddress(sourceChain, "bbWBTCManagedVault");
@@ -247,7 +247,7 @@ contract BeraborrowIntegrationTest is BaseTestIntegration {
         
         deal(getAddress(sourceChain, "WBTC"), address(boringVault), 10e8);
         
-        ManageLeaf[] memory leafs = new ManageLeaf[](8);
+        ManageLeaf[] memory leafs = new ManageLeaf[](16);
 
         address[] memory managedVaults = new address[](1);
         managedVaults[0] = getAddress(sourceChain, "bbWBTCManagedVault");
