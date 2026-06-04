@@ -68,18 +68,14 @@ contract WormholeDecoderAndSanitizer {
     }
 
     // Parses the SignedQuote blob into a struct (see WormholeSignedQuote layout) and returns its addresses:
-    // the EVM quoter and both halves of the payee UniversalAddress.
+    // the EVM quoter. The payee is the quoter's own payout address (not attacker-controlled), so it is not sanitized.
     function _decodeSignedQuoteAddresses(bytes calldata signedQuote) internal pure returns (bytes memory) {
         DecoderCustomTypes.WormholeSignedQuote memory quote = DecoderCustomTypes.WormholeSignedQuote({
             prefix: bytes4(signedQuote[0:4]),
             quoter: address(bytes20(signedQuote[4:24])),
             payee: bytes32(signedQuote[24:56])
         });
-        return abi.encodePacked(
-            quote.quoter,
-            address(bytes20(bytes16(quote.payee))),
-            address(bytes20(bytes16(quote.payee << 128)))
-        );
+        return abi.encodePacked(quote.quoter);
     }
 
     // RelayInstructions = unbounded array of (uint8 type + body). Layouts per type (Wormhole executor TS SDK):
