@@ -48,11 +48,41 @@ jobs:
         with:
           version: stable
 
+      # Cache forge's compilation output so same-branch pushes only recompile
+      # changed files. Restore + save are split (not the combined actions/cache)
+      # because the combined action only saves on job success, and this job
+      # fails on known-failing tests — so it would never persist a cache. We
+      # save right after a successful build, before tests run. forge validates
+      # artifacts by content hash, so a stale cache only triggers a (correct)
+      # recompile, never wrong output.
+      - name: Restore Foundry compilation cache
+        id: forge-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            cache
+            out
+          key: foundry-${{ runner.os }}-${{ hashFiles('foundry.toml') }}-${{ github.sha }}
+          restore-keys: |
+            foundry-${{ runner.os }}-${{ hashFiles('foundry.toml') }}-
+            foundry-${{ runner.os }}-
+
       - name: Run Forge build
         run: |
           forge --version
           forge build --skip script
         id: build
+
+      # Persist the compiled artifacts even though the test step below fails on
+      # known-failing suites. Runs only when the build succeeded.
+      - name: Save Foundry compilation cache
+        if: steps.build.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            cache
+            out
+          key: ${{ steps.forge-cache.outputs.cache-primary-key }}
 
       - name: Run Forge tests
         # Berachain, Corn and Scroll vaults are being deprecated (ETHFI-35),
