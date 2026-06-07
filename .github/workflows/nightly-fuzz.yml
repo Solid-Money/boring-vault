@@ -53,6 +53,15 @@ jobs:
         id: build
 
       - name: Run Forge tests
+        # Berachain, Corn and Scroll vaults are being deprecated (ETHFI-35),
+        # so their integration suites are skipped in CI.
         run: |
-          forge test -vv --skip SymbioticVaultIntegration --skip CreateTimelockTx
+          forge test -vv \
+            --skip SymbioticVaultIntegration --skip CreateTimelockTx \
+            --skip GoldiVaultIntegration --skip BGTRewardVaultIntegration \
+            --skip KodiakIslandIntegration --skip KodiakSwappingIntegration \
+            --skip InfraredIntegration --skip HoneyIntegration \
+            --skip DolomiteFinanceIntegration --skip BerachainPOLIntegration \
+            --skip BeraborrowIntegration --skip BeraETHIntegration \
+            --skip ScrollBridgeIntegration
         id: test
