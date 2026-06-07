@@ -249,7 +249,7 @@ contract DeriveIntegrationTest is BaseTestIntegration {
         tx_ = _getTxArrays(1); 
         
         //manage leafs
-        tx_.manageLeafs[0] = leafs[2]; //redeem stDRV
+        tx_.manageLeafs[0] = leafs[3]; //redeem stDRV
 
         //generate proofs
         manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
