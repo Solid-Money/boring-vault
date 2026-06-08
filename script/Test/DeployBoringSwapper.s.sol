@@ -19,6 +19,7 @@ import {LifiAdapter} from "src/base/Periphery/adapters/LifiAdapter.sol";
 import {M0Adapter} from "src/base/Periphery/adapters/M0Adapter.sol";
 import {RolesAuthority} from "@solmate/auth/authorities/RolesAuthority.sol";
 import {Deployer} from "src/helper/Deployer.sol";
+import {FeeRegistry} from "src/base/Periphery/FeeRegistry.sol";
 
 import "forge-std/Script.sol";
 
@@ -36,6 +37,9 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
 
     // Already-deployed swapper. Owner is the tx bundler, so config calls go through bundleTxs.
     address constant swapper = 0xa4Bb310ec3A4C9F728F385f3C657b4f0BeB9fde8;
+
+    // Already-deployed adapter registry. Owner is the deployer, so put() is a direct call.
+    address constant adapterRegistry = 0x80DC9f1aE37cca9a90fbF3771bd1B7074d0D6a31;
 
     function setUp() external {
         setSourceChainName("mainnet");
@@ -125,18 +129,35 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         Deployer(getAddress(sourceChain, "txBundlerAddress")).bundleTxs(txs);
         */
 
-        // WETH -> USDC route: 5% max slippage, rate limit of 1 ETH per hour (capacity and refill normalized to 18 decimals).
+
+        // Deploy the fee registry the swapper reads fees/recipients from. Owner is the tx bundler so the
+        // requiresAuth config below routes through bundleTxs. maxFeeBps capped at 100%.
+        //FeeRegistry registryContract = new FeeRegistry(getAddress(sourceChain, "txBundlerAddress"), 10_000);
+        //console.log("FeeRegistry:    ", address(registryContract));
+
+        // Redeploy the 1inch adapter pointing at the updated trusted executor.
+        //address oneInchAdapter = address(new OneInchAdapter(
+        //    getAddress(sourceChain, "aggregationRouterV6"),
+        //    address(0),
+        //    0x7F51C134230eB9e5aBa42BC364D3d3EbA26d9712,
+        //    getAddress(sourceChain, "uniV2Factory"),
+        //    getAddress(sourceChain, "uniV3Factory"),
+        //    getAddress(sourceChain, "curveMetaRegistry")
+        //));
+        //console.log("OneInchAdapter: ", oneInchAdapter);
+
+        //// Register the new adapter in the registry. Registry owner is the deployer, so this is a direct call.
+        //AdapterRegistry(adapterRegistry).remove(0xF93dF4f9e88a6ce98DA88495B389225Cbb89543f);
+
+        // Point the swapper at the new registry, set the fallback recipient that getFeeRecipientAtomic/Limit
+        // return when no per-token recipient is configured, approve the new adapter on the swapper, and
+        // unapprove the old adapter (left registered, just disabled on the swapper).
         Deployer.Tx[] memory txs = new Deployer.Tx[](1);
+        
         txs[0] = Deployer.Tx({
             target: swapper,
-            data: abi.encodeWithSelector(
-                BoringSwapper.setRouteConfig.selector,
-                getERC20(sourceChain, "WETH"),
-                getERC20(sourceChain, "USDC"),
-                uint256(500),
-                uint256(1e18),
-                uint256(1e18) / 1 hours
-            ),
+            data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, 
+0x4894c9635897eb10035c7b65449e64cC20fE1A74, true),
             value: 0
         });
 
