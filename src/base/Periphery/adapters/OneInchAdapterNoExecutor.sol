@@ -42,7 +42,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     address public immutable univ3Factory;
     address public immutable curveMetaRegistry;
     bytes32 public immutable domainSeparator;
-    address[] public immutable trustedExecutors;
 
     //============================== Constants ===============================
     
@@ -70,14 +69,12 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     constructor(
         address _router,
         address _feeTaker,
-        address[] memory _executors,
         address _univ2Factory,
         address _univ3Factory,
         address _curveMetaRegistry
     ) {
         router = _router;
         feeTaker = _feeTaker;
-        trustedExecutors = _executors;
         univ2Factory = _univ2Factory;
         univ3Factory = _univ3Factory;
         curveMetaRegistry = _curveMetaRegistry;
@@ -95,18 +92,14 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     //============================== V6 swap ===============================
 
     function swap(
-        address executor,
+        address /*executor*/,
         DecoderCustomTypes.SwapDescription memory desc,
         bytes memory /*data*/
     )
         external
-        view
+            view
         returns (address, uint256)
     {
-        for (uint256 i; i < trustedExecutors.length; ++i) {
-            if (executor != trustedExecutors[i]) revert OneInchAdapter__ExecutorMismatch();
-            if (desc.srcReceiver != payable(trustedExecutors[i])) revert OneInchAdapter__SrcReceiverMismatch();
-        }
         if (desc.dstReceiver != payable(msg.sender)) revert OneInchAdapter__DstReceiverNotSwapper();
 
         ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
