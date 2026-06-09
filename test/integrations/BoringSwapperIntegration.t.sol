@@ -89,10 +89,12 @@ contract BoringSwapperIntegration is BaseTestIntegration {
 
         uniswapV3Adapter = address(new UniswapV3Adapter(getAddress(sourceChain, "uniV3Router")));
         cowswapAdapter = address(new CowswapAdapter(COW_SETTLEMENT, COW_VAULT_RELAYER));
+        address[] memory executors = new address[](1);
+        executors[0] = ONEINCH_EXECUTOR;
         oneInchAdapter = address(new OneInchAdapter(
             ONEINCH_ROUTER,
             ONEINCH_FEE_TAKER,
-            ONEINCH_EXECUTOR,
+            executors,
             getAddress(sourceChain, "uniV2Factory"),
             getAddress(sourceChain, "uniV3Factory"),
             getAddress(sourceChain, "curveMetaRegistry")
@@ -121,12 +123,16 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         //create tokens array
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18); 
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
     
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens); 
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind); 
         
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -137,7 +143,7 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2); 
 
         tx_.manageLeafs[0] = leafs[0]; //approve token
-        tx_.manageLeafs[1] = leafs[5]; //swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; //swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -220,20 +226,27 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         feeReg.toggleSwapperLimitFee(address(swapper), true);
         swapper.setFeeRegistry(IFeeRegistry(address(feeReg)));
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
-
-        ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
-
-        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
-        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
-
         Tx memory tx_ = _getTxArrays(2);
-        tx_.manageLeafs[0] = leafs[0];
-        tx_.manageLeafs[1] = leafs[5];
-        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        bytes32[][] memory manageProofs;
+        {
+            address[][] memory pairs = new address[][](1);
+            pairs[0] = new address[](2);
+            pairs[0][0] = getAddress(sourceChain, "WETH");
+            pairs[0][1] = getAddress(sourceChain, "USDC");
+
+            SwapKind[] memory kind = new SwapKind[](1);
+            kind[0] = SwapKind.BuyAndSell;
+
+            ManageLeaf[] memory leafs = new ManageLeaf[](16);
+            _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
+
+            bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+            manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+            tx_.manageLeafs[0] = leafs[0];
+            tx_.manageLeafs[1] = leafs[1];
+            manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        }
 
         tx_.targets[0] = getAddress(sourceChain, "WETH");
         tx_.targets[1] = address(swapper);
@@ -292,12 +305,16 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         //create tokens array
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18); 
 
-        address[] memory tokens = new address[](2);  
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
     
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens); 
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind); 
         
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -308,7 +325,7 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2); 
 
         tx_.manageLeafs[0] = leafs[0]; //approve token
-        tx_.manageLeafs[1] = leafs[5]; //swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; //swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -409,25 +426,31 @@ contract BoringSwapperIntegration is BaseTestIntegration {
     function testCowswapValidSignature() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        Tx memory tx_ = _getTxArrays(2);
+        bytes32[][] memory manageProofs;
+        {
+            address[][] memory pairs = new address[][](1);
+            pairs[0] = new address[](2);
+            pairs[0][0] = getAddress(sourceChain, "WETH");
+            pairs[0][1] = getAddress(sourceChain, "USDC");
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+            SwapKind[] memory kind = new SwapKind[](1);
+            kind[0] = SwapKind.BuyAndSell;
 
-        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+            ManageLeaf[] memory leafs = new ManageLeaf[](16);
+            _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
-        //_generateTestLeafs(leafs, manageTree);
+            bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+            //_generateTestLeafs(leafs, manageTree);
 
-        Tx memory tx_ = _getTxArrays(2); 
+            manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
-        tx_.manageLeafs[0] = leafs[0]; //approve token (to swapper)
-        tx_.manageLeafs[1] = leafs[6]; //submitOrder WETH -> USDC
+            tx_.manageLeafs[0] = leafs[0]; //approve token (to swapper)
+            tx_.manageLeafs[1] = leafs[2]; //submitOrder WETH -> USDC
 
-        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+            manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+        }
 
         tx_.targets[0] = getAddress(sourceChain, "WETH"); //approve
         tx_.targets[1] = address(swapper);
@@ -499,12 +522,16 @@ contract BoringSwapperIntegration is BaseTestIntegration {
     function testCowswap__RevertBadSlippage() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -515,7 +542,7 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; //approve token (to swapper)
-        tx_.manageLeafs[1] = leafs[6]; //submitOrder WETH -> USDC
+        tx_.manageLeafs[1] = leafs[2]; //submitOrder WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 

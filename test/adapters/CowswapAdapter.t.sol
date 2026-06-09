@@ -175,7 +175,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
         assertEq(IAdapter(cowswapAdapter).filledAmount(config, address(swapper), ""), 4e14);
 
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7];
+        cancelTx.manageLeafs[0] = leafs[3];
         cancelTx.targets[0] = address(swapper);
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
@@ -199,12 +199,16 @@ contract CowswapAdapterTest is BaseTestIntegration {
     function _setupLeavesAndState(ISwapperTypes.SwapConfig memory config) internal returns (bytes32[][] memory manageTree, Tx memory, ManageLeaf[] memory leafs) {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         manageTree = _generateMerkleTree(leafs);
 
@@ -213,7 +217,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; //approve token
-        tx_.manageLeafs[1] = leafs[6]; //submitOrder WETH -> USDC
+        tx_.manageLeafs[1] = leafs[2]; //submitOrder WETH -> USDC
 
         tx_.targets[0] = getAddress(sourceChain, "WETH"); //approve
         tx_.targets[1] = address(swapper);

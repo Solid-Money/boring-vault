@@ -72,10 +72,12 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
             getAddress(sourceChain, "cowswapSettlement"),
             getAddress(sourceChain, "cowswapVaultRelayer")
         ));
+        address[] memory oneInchExecutors = new address[](1);
+        oneInchExecutors[0] = getAddress(sourceChain, "oneInchExecutor");
         address oneInchAdapter   = address(new OneInchAdapter(
             getAddress(sourceChain, "aggregationRouterV6"),
             address(0),
-            getAddress(sourceChain, "oneInchExecutor"),
+            oneInchExecutors,
             getAddress(sourceChain, "uniV2Factory"),
             getAddress(sourceChain, "uniV3Factory"),
             getAddress(sourceChain, "curveMetaRegistry")
@@ -152,12 +154,36 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         // Point the swapper at the new registry, set the fallback recipient that getFeeRecipientAtomic/Limit
         // return when no per-token recipient is configured, approve the new adapter on the swapper, and
         // unapprove the old adapter (left registered, just disabled on the swapper).
-        Deployer.Tx[] memory txs = new Deployer.Tx[](1);
-        
+        // mUSD is treated as 1:1 pegged to USD, so it reuses the USDC/USD rate provider for pricing.
+        // The USDC output leg's oracle was already set at deploy time (see commented block above), so
+        // only the mUSD input leg needs an oracle here; no intermediary hop, so address(0) intermediary.
+        address usdQuoteAsset = getAddress(sourceChain, "USDC");
+        address usdcUsdRateProvider = getAddress(sourceChain, "usdcUsdRateProvider");
+
+        Deployer.Tx[] memory txs = new Deployer.Tx[](2);
+
         txs[0] = Deployer.Tx({
             target: swapper,
-            data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, 
-0x4894c9635897eb10035c7b65449e64cC20fE1A74, true),
+            data: abi.encodeWithSelector(
+                BoringSwapper.setRouteConfig.selector,
+                getERC20(sourceChain, "mUSD"),
+                getERC20(sourceChain, "USDC"),
+                1000,
+                100_000_000e18,
+                100_000e18
+            ),
+            value: 0
+        });
+
+        // Oracle for the mUSD input leg (reuses the USDC/USD feed under the 1:1 peg assumption).
+        txs[1] = Deployer.Tx({
+            target: swapper,
+            data: abi.encodeWithSelector(
+                BoringSwapper.setTokenOracle.selector,
+                getERC20(sourceChain, "mUSD"),
+                usdQuoteAsset,
+                _makeOracleConfig(usdcUsdRateProvider, address(0), false)
+            ),
             value: 0
         });
 
@@ -166,7 +192,6 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         vm.stopBroadcast();
     }
 
-    /*
     function _makeOracleConfig(address rateProvider, address intermediary, bool skipValidation)
         internal
         pure
@@ -178,5 +203,4 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         intermediaries[0] = intermediary;
         return BoringSwapper.RateProviderConfig(rateProviders, intermediaries, skipValidation);
     }
-    */
 }

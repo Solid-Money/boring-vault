@@ -42,7 +42,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     address public immutable univ3Factory;
     address public immutable curveMetaRegistry;
     bytes32 public immutable domainSeparator;
-    address[] public immutable trustedExecutors;
+    address[] public trustedExecutors; //effecively immutable
 
     //============================== Constants ===============================
     

@@ -30,10 +30,12 @@ contract DeployOneInchAdapterV2 is Script {
     function run() external {
         vm.startBroadcast(privateKey);
 
+        address[] memory executors = new address[](1);
+        executors[0] = 0x990636ecB3FF04d33D92e970d3d588bF5cD8d086; // executor
         OneInchAdapter newAdapter = new OneInchAdapter(
             0x111111125421cA6dc452d289314280a0f8842A65, // router
             0xc0DFdB9E7a392c3dBBE7c6FBe8FBC1789C9FE05e, // feeTaker
-            0x990636ecB3FF04d33D92e970d3d588bF5cD8d086, // executor
+            executors,
             0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f, // uniV2Factory
             0x1F98431c8aD98523631AE4a59f267346ea31F984, // uniV3Factory
             0xF98B45FA17DE75FB1aD0e7aFD971b0ca00e379fC  // curveMetaRegistry

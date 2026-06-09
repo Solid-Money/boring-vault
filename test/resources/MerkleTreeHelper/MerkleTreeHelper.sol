@@ -14485,161 +14485,164 @@ function _addTellerLeafsWithReferral(
 
     // ========================================= BoringSwapper =========================================
 
+    /// @notice Build BoringSwapper leafs for an explicit set of directed token pairs.
+    /// @param pairs array of [token0, token1] pairs. Each pair enables the token0 -> token1 route.
+    /// @param kind per-pair direction: SwapKind.Sell = one-way (token0 -> token1 only),
+    ///        SwapKind.BuyAndSell = two-way (token0 -> token1 and token1 -> token0).
     function _addBoringSwapperLeafs(
         ManageLeaf[] memory leafs,
         address partnerSwapperAddress,
-        address[] memory tokens
-        //SwapKind[] memory kind
+        address[][] memory pairs,
+        SwapKind[] memory kind
     ) internal {
+        // Collect every enabled directed route (tokenIn -> tokenOut) so replaceOrder can be
+        // built over the cartesian product of allowed routes. A pair contributes one route when
+        // one-way (Sell) and two routes when two-way (BuyAndSell).
+        address[] memory routeIn = new address[](pairs.length * 2);
+        address[] memory routeOut = new address[](pairs.length * 2);
+        uint256 routeCount;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
+        for (uint256 k = 0; k < pairs.length; k++) {
+            address token0 = pairs[k][0];
+            address token1 = pairs[k][1];
+
+            _addBoringSwapperDirectedLeafs(leafs, partnerSwapperAddress, token0, token1, true);
+            routeIn[routeCount] = token0;
+            routeOut[routeCount] = token1;
+            routeCount++;
+
+            if (kind[k] == SwapKind.BuyAndSell) {
+                _addBoringSwapperDirectedLeafs(leafs, partnerSwapperAddress, token1, token0, true);
+                routeIn[routeCount] = token1;
+                routeOut[routeCount] = token0;
+                routeCount++;
+            }
+        }
+
+        // replaceOrder: one leaf per (cancelRoute × newRoute) over the enabled routes.
+        for (uint256 ci = 0; ci < routeCount; ci++) {
+            for (uint256 ni = 0; ni < routeCount; ni++) {
+                unchecked {
+                    leafIndex++;
+                }
+                leafs[leafIndex] = ManageLeaf(
+                    partnerSwapperAddress,
+                    false,
+                    "replaceOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes,((address,address),address,address,bytes,uint256,address))",
+                    new address[](6),
+                    string.concat(
+                        "Replace ", ERC20(routeIn[ci]).symbol(), "->", ERC20(routeOut[ci]).symbol(),
+                        " with ", ERC20(routeIn[ni]).symbol(), "->", ERC20(routeOut[ni]).symbol()
+                    ),
+                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+                );
+                leafs[leafIndex].argumentAddresses[0] = routeIn[ci]; // cancelIn
+                leafs[leafIndex].argumentAddresses[1] = routeOut[ci]; // cancelOut
+                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
+                leafs[leafIndex].argumentAddresses[3] = routeIn[ni]; // newIn
+                leafs[leafIndex].argumentAddresses[4] = routeOut[ni]; // newOut
+                leafs[leafIndex].argumentAddresses[5] = getAddress(sourceChain, "boringVault");
+            }
+        }
+    }
+
+    /// @notice Emit the approval + swap/submitOrder(/cancelOrder) leafs for a single directed
+    ///         route (tokenIn -> tokenOut). Deduped via tree-state mappings so a token reused as
+    ///         tokenIn across pairs is only approved once and a route is only added once.
+    function _addBoringSwapperDirectedLeafs(
+        ManageLeaf[] memory leafs,
+        address partnerSwapperAddress,
+        address tokenIn,
+        address tokenOut,
+        bool includeCancel
+    ) internal {
+        if (
+            !ownerToTokenToSpenderToApprovalInTree[getAddress(sourceChain, "boringVault")][tokenIn][partnerSwapperAddress]
+        ) {
             unchecked {
                 leafIndex++;
             }
             leafs[leafIndex] = ManageLeaf(
-                tokens[i],
+                tokenIn,
                 false,
                 "approve(address,uint256)",
                 new address[](1),
-                string.concat("Approve Swapper to spend", ERC20(tokens[i]).symbol()),
+                string.concat("Approve Swapper to spend ", ERC20(tokenIn).symbol()),
                 getAddress(sourceChain, "rawDataDecoderAndSanitizer")
             );
             leafs[leafIndex].argumentAddresses[0] = partnerSwapperAddress;
-            
-            for (uint256 j = 0; j < tokens.length; j++) {
-                if (tokens[i] == tokens[j]) continue; 
-                unchecked {
-                    leafIndex++;
-                }
-                leafs[leafIndex] = ManageLeaf(
-                    partnerSwapperAddress,
-                    false,
-                    "swap(((address,address),address,address,bytes,uint256,address))",
-                    new address[](3),
-                    string.concat("", ERC20(tokens[i]).symbol()),
-                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                );
-                leafs[leafIndex].argumentAddresses[0] = tokens[j];
-                leafs[leafIndex].argumentAddresses[1] = tokens[i];
-                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
-
-                unchecked {
-                    leafIndex++;
-                }
-                leafs[leafIndex] = ManageLeaf(
-                    partnerSwapperAddress,
-                    false,
-                    "submitOrder(((address,address),address,address,bytes,uint256,address))",
-                    new address[](3),
-                    string.concat("", ERC20(tokens[i]).symbol()),
-                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                );
-                leafs[leafIndex].argumentAddresses[0] = tokens[j];
-                leafs[leafIndex].argumentAddresses[1] = tokens[i];
-                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
-
-                unchecked {
-                    leafIndex++;
-                }
-                leafs[leafIndex] = ManageLeaf(
-                    partnerSwapperAddress,
-                    false,
-                    "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
-                    new address[](3),
-                    string.concat("", ERC20(tokens[i]).symbol()),
-                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                );
-                leafs[leafIndex].argumentAddresses[0] = tokens[j];
-                leafs[leafIndex].argumentAddresses[1] = tokens[i];
-                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
-
-            }
+            ownerToTokenToSpenderToApprovalInTree[getAddress(sourceChain, "boringVault")][tokenIn][partnerSwapperAddress]
+            = true;
         }
 
-        // replaceOrder: one leaf per (cancelPair × newPair) combination
-        for (uint256 ci = 0; ci < tokens.length; ci++) {
-            for (uint256 cj = 0; cj < tokens.length; cj++) {
-                if (tokens[ci] == tokens[cj]) continue;
-                for (uint256 ni = 0; ni < tokens.length; ni++) {
-                    for (uint256 nj = 0; nj < tokens.length; nj++) {
-                        if (tokens[ni] == tokens[nj]) continue;
-                        unchecked { leafIndex++; }
-                        leafs[leafIndex] = ManageLeaf(
-                            partnerSwapperAddress,
-                            false,
-                            "replaceOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes,((address,address),address,address,bytes,uint256,address))",
-                            new address[](6),
-                            string.concat(
-                                "Replace ", ERC20(tokens[ci]).symbol(), "->", ERC20(tokens[cj]).symbol(),
-                                " with ", ERC20(tokens[ni]).symbol(), "->", ERC20(tokens[nj]).symbol()
-                            ),
-                            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                        );
-                        leafs[leafIndex].argumentAddresses[0] = tokens[ci]; // cancelIn
-                        leafs[leafIndex].argumentAddresses[1] = tokens[cj]; // cancelOut
-                        leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
-                        leafs[leafIndex].argumentAddresses[3] = tokens[ni]; // newIn
-                        leafs[leafIndex].argumentAddresses[4] = tokens[nj]; // newOut
-                        leafs[leafIndex].argumentAddresses[5] = getAddress(sourceChain, "boringVault");
-                    }
-                }
-            }
+        if (ownerToBoringSwapperSellTokenToBuyTokenToInTree[getAddress(sourceChain, "boringVault")][tokenIn][tokenOut]) {
+            return;
         }
+
+        unchecked {
+            leafIndex++;
+        }
+        leafs[leafIndex] = ManageLeaf(
+            partnerSwapperAddress,
+            false,
+            "swap(((address,address),address,address,bytes,uint256,address))",
+            new address[](3),
+            string.concat("Swap ", ERC20(tokenIn).symbol(), "->", ERC20(tokenOut).symbol()),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        leafs[leafIndex].argumentAddresses[0] = tokenIn;
+        leafs[leafIndex].argumentAddresses[1] = tokenOut;
+        leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
+
+        unchecked {
+            leafIndex++;
+        }
+        leafs[leafIndex] = ManageLeaf(
+            partnerSwapperAddress,
+            false,
+            "submitOrder(((address,address),address,address,bytes,uint256,address))",
+            new address[](3),
+            string.concat("Submit order ", ERC20(tokenIn).symbol(), "->", ERC20(tokenOut).symbol()),
+            getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+        );
+        leafs[leafIndex].argumentAddresses[0] = tokenIn;
+        leafs[leafIndex].argumentAddresses[1] = tokenOut;
+        leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
+
+        if (includeCancel) {
+            unchecked {
+                leafIndex++;
+            }
+            leafs[leafIndex] = ManageLeaf(
+                partnerSwapperAddress,
+                false,
+                "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
+                new address[](3),
+                string.concat("Cancel order ", ERC20(tokenIn).symbol(), "->", ERC20(tokenOut).symbol()),
+                getAddress(sourceChain, "rawDataDecoderAndSanitizer")
+            );
+            leafs[leafIndex].argumentAddresses[0] = tokenIn;
+            leafs[leafIndex].argumentAddresses[1] = tokenOut;
+            leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
+        }
+
+        ownerToBoringSwapperSellTokenToBuyTokenToInTree[getAddress(sourceChain, "boringVault")][tokenIn][tokenOut] = true;
     }
 
     function _addBoringSwapperEOALeafs(
         ManageLeaf[] memory leafs,
         address partnerSwapperAddress,
-        address[] memory tokens
-        //SwapKind[] memory kind
+        address[][] memory pairs,
+        SwapKind[] memory kind
     ) internal {
+        for (uint256 k = 0; k < pairs.length; k++) {
+            address token0 = pairs[k][0];
+            address token1 = pairs[k][1];
 
-        for (uint256 i = 0; i < tokens.length; i++) {
-            unchecked {
-                leafIndex++;
-            }
-            leafs[leafIndex] = ManageLeaf(
-                tokens[i],
-                false,
-                "approve(address,uint256)",
-                new address[](1),
-                string.concat("Approve Swapper to spend", ERC20(tokens[i]).symbol()),
-                getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-            );
-            leafs[leafIndex].argumentAddresses[0] = partnerSwapperAddress;
-            
-            for (uint256 j = 0; j < tokens.length; j++) {
-                if (tokens[i] == tokens[j]) continue; 
-                unchecked {
-                    leafIndex++;
-                }
-                leafs[leafIndex] = ManageLeaf(
-                    partnerSwapperAddress,
-                    false,
-                    "swap(((address,address),address,address,bytes,uint256,address))",
-                    new address[](3),
-                    string.concat("", ERC20(tokens[i]).symbol()),
-                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                );
-                leafs[leafIndex].argumentAddresses[0] = tokens[j];
-                leafs[leafIndex].argumentAddresses[1] = tokens[i];
-                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
+            _addBoringSwapperDirectedLeafs(leafs, partnerSwapperAddress, token0, token1, false);
 
-                unchecked {
-                    leafIndex++;
-                }
-                leafs[leafIndex] = ManageLeaf(
-                    partnerSwapperAddress,
-                    false,
-                    "submitOrder(((address,address),address,address,bytes,uint256,address))",
-                    new address[](3),
-                    string.concat("", ERC20(tokens[i]).symbol()),
-                    getAddress(sourceChain, "rawDataDecoderAndSanitizer")
-                );
-                leafs[leafIndex].argumentAddresses[0] = tokens[j];
-                leafs[leafIndex].argumentAddresses[1] = tokens[i];
-                leafs[leafIndex].argumentAddresses[2] = getAddress(sourceChain, "boringVault");
-
+            if (kind[k] == SwapKind.BuyAndSell) {
+                _addBoringSwapperDirectedLeafs(leafs, partnerSwapperAddress, token1, token0, false);
             }
         }
     }

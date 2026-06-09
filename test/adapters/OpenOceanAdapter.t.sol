@@ -96,12 +96,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testSwap() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -110,7 +114,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -151,12 +155,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testSimpleSwap() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -165,7 +173,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -208,12 +216,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testCallUniswap() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -222,7 +234,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -264,12 +276,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testCallUniswap_RevertsDstTokenMismatch() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDT");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDT");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -278,7 +294,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDT
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDT
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -320,12 +336,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testCallUniswapTo() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -334,7 +354,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -394,12 +414,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testUniswapV3SwapTo() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -408,7 +432,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -448,12 +472,16 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testUniswapV3SwapTo_RevertsDstTokenMismatch() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDT");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDT");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -462,7 +490,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve token
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDT
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDT
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -504,19 +532,23 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testOpenOcean__RevertsUniswapV2PoolNotFromFactory() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         Tx memory tx_ = _getTxArrays(2);
         tx_.manageLeafs[0] = leafs[0]; // approve WETH
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -570,19 +602,23 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
     function testOpenOcean__RevertsUniswapV3PoolNotFromFactory() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         Tx memory tx_ = _getTxArrays(2);
         tx_.manageLeafs[0] = leafs[0]; // approve WETH
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 

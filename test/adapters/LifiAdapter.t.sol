@@ -81,12 +81,16 @@ contract LifiAdapterTest is BaseTestIntegration {
     function testSwapTokensMultipleV3ERC20ToERC20_Live() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
@@ -95,7 +99,7 @@ contract LifiAdapterTest is BaseTestIntegration {
         Tx memory tx_ = _getTxArrays(2);
 
         tx_.manageLeafs[0] = leafs[0]; // approve WETH
-        tx_.manageLeafs[1] = leafs[5]; // swap WETH -> USDC
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
 
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
@@ -142,19 +146,23 @@ contract LifiAdapterTest is BaseTestIntegration {
     function testSwapTokensGeneric_Live() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         Tx memory tx_ = _getTxArrays(2);
         tx_.manageLeafs[0] = leafs[0];
-        tx_.manageLeafs[1] = leafs[5];
+        tx_.manageLeafs[1] = leafs[1];
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
         tx_.targets[0] = getAddress(sourceChain, "WETH");
@@ -200,19 +208,23 @@ contract LifiAdapterTest is BaseTestIntegration {
     function testSwapTokensSingleV3ERC20ToERC20_Live() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 
-        address[] memory tokens = new address[](2);
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
 
         ManageLeaf[] memory leafs = new ManageLeaf[](16);
-        _addBoringSwapperLeafs(leafs, address(swapper), tokens);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
         manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
 
         Tx memory tx_ = _getTxArrays(2);
         tx_.manageLeafs[0] = leafs[0];
-        tx_.manageLeafs[1] = leafs[5];
+        tx_.manageLeafs[1] = leafs[1];
         bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
 
         tx_.targets[0] = getAddress(sourceChain, "WETH");

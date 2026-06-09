@@ -44,10 +44,20 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
 
         // ========================== Swapper ==========================
         address swapper = 0xa4Bb310ec3A4C9F728F385f3C657b4f0BeB9fde8;
-        address[] memory tokens = new address[](2);  
-        tokens[0] = getAddress(sourceChain, "WETH");
-        tokens[1] = getAddress(sourceChain, "USDC");
-        _addBoringSwapperLeafs(leafs, swapper, tokens); 
+        address[][] memory pairs = new address[][](2);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        pairs[1] = new address[](2);
+        pairs[1][0] = getAddress(sourceChain, "mUSD");
+        pairs[1][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](2);
+        kind[0] = SwapKind.BuyAndSell;
+        kind[1] = SwapKind.BuyAndSell;
+
+        _addBoringSwapperLeafs(leafs, swapper, pairs, kind);
 
         // ========================== Verify ==========================
         _verifyDecoderImplementsLeafsFunctionSelectors(leafs);
