@@ -103,10 +103,15 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         view
         returns (address, uint256)
     {
+        bool found;
         for (uint256 i; i < trustedExecutors.length; ++i) {
-            if (executor != trustedExecutors[i]) revert OneInchAdapter__ExecutorMismatch();
-            if (desc.srcReceiver != payable(trustedExecutors[i])) revert OneInchAdapter__SrcReceiverMismatch();
+            if (executor == trustedExecutors[i]) {
+                found = true;
+                break;
+            }
         }
+        if (!found) revert OneInchAdapter__ExecutorMismatch();
+        if (desc.srcReceiver != payable(executor)) revert OneInchAdapter__SrcReceiverMismatch();
         if (desc.dstReceiver != payable(msg.sender)) revert OneInchAdapter__DstReceiverNotSwapper();
 
         ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
