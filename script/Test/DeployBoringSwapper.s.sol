@@ -77,6 +77,7 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         address oneInchAdapter   = address(new OneInchAdapter(
             getAddress(sourceChain, "aggregationRouterV6"),
             address(0),
+            0x90CbE4BDd538D6e9b379bFF5fE72c3d67A521De5, // 1inch protocol fee receiver
             oneInchExecutors,
             getAddress(sourceChain, "uniV2Factory"),
             getAddress(sourceChain, "uniV3Factory"),

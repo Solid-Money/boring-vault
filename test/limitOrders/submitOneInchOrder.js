@@ -241,6 +241,111 @@ async function check() {
     console.log(JSON.stringify(data, null, 2));
 }
 
+// ==================== SUBMIT RAW (NO FEE TAKER) ====================
+// Builds a plain limit order WITHOUT any FeeTaker extension — receiver = boring vault, no extension —
+// and POSTs it raw to the orderbook endpoint, to see whether the backend rejects orders with no fee taker.
+// NOTE: read the response REASON, not just accept/reject. A rejection that mentions the signature / ERC-1271
+// is a different failure (the order isn't approvedHashes-set on-chain) and does NOT prove a fee-taker
+// requirement. A rejection mentioning fee/extension/receiver, or an acceptance, is the signal we want.
+
+async function submitRaw() {
+    const makingAmount = 1_000_000_000_000_000n; // 0.001 WETH
+    const takingAmount = 2_200_000n; // 2.2 USDC
+    const expiration = BigInt(Math.floor(Date.now() / 1000)) + 36000n;
+
+    const makerTraits = MakerTraits.default()
+        .withExpiration(expiration)
+        .withNonce(randBigInt(UINT_40_MAX))
+        .disablePartialFills()
+        .disableMultipleFills();
+
+    // Plain LimitOrder: no extension, receiver = vault directly.
+    const order = new LimitOrder(
+        {
+            makerAsset: new Address(WETH),
+            takerAsset: new Address(USDC),
+            makingAmount,
+            takingAmount,
+            maker: new Address(SWAPPER),
+            receiver: new Address(BORING_VAULT),
+        },
+        makerTraits
+    );
+
+    const data = order.build();
+    const extensionHex = order.extension.encode(); // expect "0x" — no fee taker
+    const orderHash = order.getOrderHash(CHAIN_ID);
+
+    console.log("hasExtension flag:", makerTraits.hasExtension());
+    console.log("extension:", extensionHex, "(expect 0x)");
+    console.log("receiver:", data.receiver, "(boring vault)");
+    console.log("orderHash:", orderHash);
+
+    // ERC-1271 signature blob = abi.encode(SwapConfig), extension = 0x
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    const swapData = abiCoder.encode(
+        [
+            "tuple(uint256 salt, address maker, address receiver, address makerAsset, address takerAsset, uint256 makingAmount, uint256 takingAmount, uint256 makerTraits)",
+            "bytes",
+        ],
+        [
+            {
+                salt: data.salt,
+                maker: data.maker,
+                receiver: data.receiver,
+                makerAsset: data.makerAsset,
+                takerAsset: data.takerAsset,
+                makingAmount: data.makingAmount,
+                takingAmount: data.takingAmount,
+                makerTraits: data.makerTraits,
+            },
+            extensionHex,
+        ]
+    );
+    const signature = abiCoder.encode(
+        [
+            "tuple(tuple(address tokenIn, address tokenOut) tokenRoute, address adapter, address quoteAsset, bytes swapData, uint256 slippageBps, address receiver)",
+        ],
+        [
+            {
+                tokenRoute: { tokenIn: WETH, tokenOut: USDC },
+                adapter: ONEINCH_ADAPTER,
+                quoteAsset: USDC,
+                swapData,
+                slippageBps: 500,
+                receiver: BORING_VAULT,
+            },
+        ]
+    );
+
+    const url = `https://api.1inch.dev/orderbook/v4.1/${CHAIN_ID}/`; // SDK posts to ${base}/${chain}/
+    const body = {
+        orderHash,
+        signature,
+        data: {
+            makerAsset: data.makerAsset,
+            takerAsset: data.takerAsset,
+            maker: data.maker,
+            receiver: data.receiver,
+            makingAmount: String(data.makingAmount),
+            takingAmount: String(data.takingAmount),
+            salt: String(data.salt),
+            extension: extensionHex,
+            makerTraits: String(data.makerTraits),
+        },
+    };
+
+    console.log("\nPOST", url);
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    console.log("status:", res.status);
+    console.log("response:", text);
+}
+
 // ==================== CLI ====================
 
 const mode = process.argv[2];
@@ -252,10 +357,13 @@ if (mode === "generate") {
     submit().catch(console.error);
 } else if (mode === "check") {
     check().catch(console.error);
+} else if (mode === "submitRaw") {
+    submitRaw().catch(console.error);
 } else {
-    console.log("Usage: node submitOneInchOrder.js <generate|verify|submit|check>");
+    console.log("Usage: node submitOneInchOrder.js <generate|verify|submit|check|submitRaw>");
     console.log("  generate  — create order via SDK, save to order.json");
     console.log("  verify    — check hash matches between JS and Solidity");
     console.log("  submit    — submit saved order to 1inch API");
     console.log("  check     — look up saved order on the 1inch orderbook");
+    console.log("  submitRaw — POST a plain order WITHOUT a fee taker, print the backend's response");
 }

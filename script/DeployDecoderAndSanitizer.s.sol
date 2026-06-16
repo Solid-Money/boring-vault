@@ -164,7 +164,7 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
 
         creationCode = type(BoringSwapperDecoder).creationCode;
         constructorArgs = abi.encode();
-        deployer.deployContract("bigSwappa Decoder v2", creationCode, constructorArgs, 0);
+        deployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }

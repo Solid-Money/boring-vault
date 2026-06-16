@@ -70,6 +70,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
         oneInchAdapter = address(new OneInchAdapter(
             ONEINCH_ROUTER,
             ONEINCH_FEE_TAKER,
+            0x90CbE4BDd538D6e9b379bFF5fE72c3d67A521De5, // 1inch protocol fee receiver
             executors,
             getAddress(sourceChain, "uniV2Factory"),
             getAddress(sourceChain, "uniV3Factory"),
