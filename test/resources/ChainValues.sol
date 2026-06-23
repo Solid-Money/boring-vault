@@ -1634,6 +1634,9 @@ contract ChainValues {
 
         // EtherFi
         values[optimism]["etherFiL2SyncPool"] = 0xC9475e18E2C5C26EA6ADCD55fabE07920beA887e.toBytes32();
+
+        // EtherFi Debt Manager
+        values[optimism]["etherFiDebtManager"] = 0x0078C5a459132e279056B2371fE8A8eC973A9553.toBytes32();
     }
 
     function _addBaseValues() private {
