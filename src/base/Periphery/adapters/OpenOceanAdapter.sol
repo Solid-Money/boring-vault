@@ -99,23 +99,6 @@ contract OpenOceanAdapter is IAdapter, BaseAdapter {
         return (router, desc.amount);
     }
 
-    function swapGmxV2(
-        address caller,
-        DecoderCustomTypes.OpenOceanSwapDescription calldata desc,
-        DecoderCustomTypes.OpenOceanCallDescription[] calldata /*calls*/
-    ) external view returns (address, uint256) {
-        if (caller != openOceanCaller) revert OpenOceanAdapter__InvalidCaller();
-
-        if (desc.srcReceiver != openOceanCaller) revert OpenOceanAdapter__SrcReceiverMismatch();
-        if (desc.dstReceiver != msg.sender) revert Adapter__ReceiverMismatch();
-
-        ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
-        if (ERC20(desc.srcToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
-        if (ERC20(desc.dstToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
-
-        return (router, desc.amount);
-    }
-
     //============================== UniswapV2 direct paths ===============================
 
     function callUniswap(

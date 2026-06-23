@@ -23,6 +23,7 @@ contract CowswapAdapter is IAdapter {
     error CowswapAdapter__NonZeroFeeAmount();
     error CowswapAdapter__InvalidSellTokenBalance();
     error CowswapAdapter__InvalidBuyTokenBalance();
+    error CowswapAdapter__NonEmptyAppData();
 
     //============================== Immutables ===============================
     
@@ -56,6 +57,7 @@ contract CowswapAdapter is IAdapter {
         if (order.feeAmount != 0) revert CowswapAdapter__NonZeroFeeAmount();
         if (order.sellTokenBalance != keccak256("erc20")) revert CowswapAdapter__InvalidSellTokenBalance();
         if (order.buyTokenBalance != keccak256("erc20")) revert CowswapAdapter__InvalidBuyTokenBalance();
+        if (order.appData != bytes32(0)) revert CowswapAdapter__NonEmptyAppData();
         if (ERC20(order.sellToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
         if (ERC20(order.buyToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
         if (order.receiver != (address(swapConfig.receiver))) revert Adapter__ReceiverMismatch();

@@ -6,6 +6,7 @@ import {BaseTestIntegration} from "test/integrations/BaseTestIntegration.t.sol";
 import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
 import {OpenOceanAdapter} from "src/base/Periphery/adapters/OpenOceanAdapter.sol";
@@ -52,7 +53,7 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         super.setUp();
         _setupChain("mainnet", 24843705);
 
-        address swapperDecoder = address(new BoringSwapperDecoder());
+        address swapperDecoder = address(new FullBoringSwapperDecoderAndSanitizer());
         _overrideDecoder(swapperDecoder);
 
         registry = new AdapterRegistry();
@@ -716,3 +717,5 @@ contract MockUniV3Pool {
         return address(this);
     }
 }
+
+contract FullBoringSwapperDecoderAndSanitizer is BoringSwapperDecoder, BaseDecoderAndSanitizer {}

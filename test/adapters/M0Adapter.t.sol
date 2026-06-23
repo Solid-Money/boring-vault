@@ -9,6 +9,7 @@ import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {FixedPointMathLib} from "@solmate/utils/FixedPointMathLib.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
 import {M0Adapter} from "src/base/Periphery/adapters/M0Adapter.sol";
@@ -56,7 +57,7 @@ contract M0AdapterTest is BaseTestIntegration {
         super.setUp();
         _setupChain("mainnet", 24886820);
 
-        address swapperDecoder = address(new BoringSwapperDecoder());
+        address swapperDecoder = address(new FullBoringSwapperDecoderAndSanitizer());
         _overrideDecoder(swapperDecoder);
 
         registry = new AdapterRegistry();
@@ -146,12 +147,12 @@ contract M0AdapterTest is BaseTestIntegration {
         }
         
         //verify an incorrect id doesn't work
-        uint256 swapperOrderId = 1; 
+        uint256 swapperOrderId = 0;
         BoringSwapper.OrderRecord memory rec = swapper.getOrderRecord(swapperOrderId);
         assertEq(rec.context.length, 0);
-        
+
         //verify the correct one does
-        swapperOrderId = 0; 
+        swapperOrderId = 1;
         rec = swapper.getOrderRecord(swapperOrderId);
         bytes32 predicted = abi.decode(rec.context, (bytes32)); 
         assertEq(m0OrderId, predicted);
@@ -230,11 +231,11 @@ contract M0AdapterTest is BaseTestIntegration {
 
 
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7]; //approve token
+        cancelTx.manageLeafs[0] = leafs[3]; //cancelOrder WETH->USDC
         cancelTx.targets[0] = address(swapper);  
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)", 
-            0,
+            1,
             config,            
             cancelFunctionAndArgs 
         );
@@ -323,11 +324,11 @@ contract M0AdapterTest is BaseTestIntegration {
         // order and returning empty data, the redundant on-chain cancel is skipped and the refund is
         // forwarded to the vault instead of reverting with BoringSwapper__CancelFailed.
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7]; //approve token
+        cancelTx.manageLeafs[0] = leafs[3]; //cancelOrder WETH->USDC
         cancelTx.targets[0] = address(swapper);
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
-            0,
+            1,
             config,
             cancelFunctionAndArgs
         );
@@ -340,7 +341,7 @@ contract M0AdapterTest is BaseTestIntegration {
 
         // refund round-tripped M0 -> swapper -> vault, and the swapper recorded the cancellation
         assertEq(getERC20(sourceChain, "WETH").balanceOf(address(boringVault)) - vaultWethBefore, 1000000000000000);
-        assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+        assertGt(swapper.getOrderRecord(1).cancelledAt, 0);
     }
 
     function testM0OrderBook__CancelAfterPartialFill() external {
@@ -416,11 +417,11 @@ contract M0AdapterTest is BaseTestIntegration {
         //setup the cancel
 
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7];
+        cancelTx.manageLeafs[0] = leafs[3]; //cancelOrder WETH->USDC
         cancelTx.targets[0] = address(swapper);
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
-            0,
+            1,
             config,
             abi.encodeWithSignature(
                 "cancelOrder(bytes32,(uint16,bytes32,uint64,uint32,uint32,uint64,uint64,bytes32,bytes32,uint128,uint128,bytes32,bytes32))",
@@ -448,7 +449,7 @@ contract M0AdapterTest is BaseTestIntegration {
             //should have 0 pending here
             assertEq(swapper.pendingOrderPrincipal(getERC20(sourceChain, "WETH")), 0);
             assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
-            assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+            assertGt(swapper.getOrderRecord(1).cancelledAt, 0);
         }
     }
 
@@ -511,7 +512,7 @@ contract M0AdapterTest is BaseTestIntegration {
         }
         
         //should be valid context 
-        BoringSwapper.OrderRecord memory rec = swapper.getOrderRecord(0);
+        BoringSwapper.OrderRecord memory rec = swapper.getOrderRecord(1);
         assertGt(rec.context.length, 0);
         
         //initial state should be 0
@@ -660,6 +661,82 @@ contract M0AdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_); 
     }
 
+    function testM0OrderBook__DirtyTokenOutReverts() external {
+        ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
+            getERC20(sourceChain, "WETH"),
+            getERC20(sourceChain, "USDC")
+        );
+
+        // lower 160 bits = the EXPECTED USDC (passes the old lower-160 check); upper 96 bits dirtied.
+        bytes32 dirtyTokenOut = bytes32(uint256(getBytes32(sourceChain, "USDC")) | (uint256(0xDEAD) << 160));
+
+        bytes memory m0Data = abi.encode(
+            DecoderCustomTypes.OrderParams({
+                destChainId: uint32(block.chainid),
+                fillDeadline: uint32(block.timestamp + 3600),
+                tokenIn: getAddress(sourceChain, "WETH"),
+                tokenOut: dirtyTokenOut,
+                amountIn: 1000000000000000,
+                amountOut: 2200000,
+                recipient: address(boringVault).toBytes32(),
+                solver: address(0).toBytes32()
+            })
+        );
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: tokenRoute,
+            adapter: m0Adapter,
+            quoteAsset: getAddress(sourceChain, "USDC"),
+            swapData: m0Data,
+            slippageBps: 250,
+            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+        });
+
+        (bytes32[][] memory manageTree, Tx memory tx_, ) = _setupLeavesAndState(config);
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+        vm.expectRevert(M0Adapter.M0Adapter__InvalidAddress.selector);
+        _submitManagerCall(manageProofs, tx_);
+    }
+
+    function testM0OrderBook__DirtyRecipientReverts() external {
+        ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
+            getERC20(sourceChain, "WETH"),
+            getERC20(sourceChain, "USDC")
+        );
+
+        // lower 160 bits = the EXPECTED vault (passes the old lower-160 check); upper 96 bits dirtied.
+        bytes32 dirtyRecipient = bytes32(uint256(address(boringVault).toBytes32()) | (uint256(0xBEEF) << 160));
+
+        bytes memory m0Data = abi.encode(
+            DecoderCustomTypes.OrderParams({
+                destChainId: uint32(block.chainid),
+                fillDeadline: uint32(block.timestamp + 3600),
+                tokenIn: getAddress(sourceChain, "WETH"),
+                tokenOut: getBytes32(sourceChain, "USDC"),
+                amountIn: 1000000000000000,
+                amountOut: 2200000,
+                recipient: dirtyRecipient,
+                solver: address(0).toBytes32()
+            })
+        );
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: tokenRoute,
+            adapter: m0Adapter,
+            quoteAsset: getAddress(sourceChain, "USDC"),
+            swapData: m0Data,
+            slippageBps: 250,
+            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+        });
+
+        (bytes32[][] memory manageTree, Tx memory tx_, ) = _setupLeavesAndState(config);
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+        vm.expectRevert(M0Adapter.M0Adapter__InvalidAddress.selector);
+        _submitManagerCall(manageProofs, tx_);
+    }
+
     function testM0OrderBook__CrossChainNotAllowedReverts() external {
 
         ISwapperTypes.TokenRoute memory tokenRoute = ISwapperTypes.TokenRoute(
@@ -804,11 +881,11 @@ contract M0AdapterTest is BaseTestIntegration {
         );
 
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7]; //approve token
+        cancelTx.manageLeafs[0] = leafs[3]; //cancelOrder WETH->USDC
         cancelTx.targets[0] = address(swapper);  
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)", 
-            0,
+            1,
             config,            
             cancelFunctionAndArgs 
         );
@@ -892,11 +969,11 @@ contract M0AdapterTest is BaseTestIntegration {
         );
 
         Tx memory cancelTx = _getTxArrays(1);
-        cancelTx.manageLeafs[0] = leafs[7]; //approve token
+        cancelTx.manageLeafs[0] = leafs[3]; //cancelOrder WETH->USDC
         cancelTx.targets[0] = address(swapper);  
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)", 
-            0,
+            1,
             config,            
             cancelFunctionAndArgs 
         );
@@ -963,5 +1040,8 @@ contract M0AdapterTest is BaseTestIntegration {
         intermediaries[0] = intermediary;
         return BoringSwapper.RateProviderConfig(rateProviders, intermediaries, skipValidation);
     }
+}
+
+contract FullBoringSwapperDecoderAndSanitizer is BoringSwapperDecoder, BaseDecoderAndSanitizer {
 
 }

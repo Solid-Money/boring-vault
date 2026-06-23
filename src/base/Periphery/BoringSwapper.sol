@@ -148,8 +148,11 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
     /// @notice tracks the relationship between the approved hash and the order number
     mapping(bytes32 orderHash => uint256 orderId) public hashToOrder;
 
+    /// @notice tracks finalized order hashes — once used, a hash can never be re-submitted
+    mapping(bytes32 orderHash => bool used) public usedHashes;
+
     /// @notice orderId, incremented by limit orders via submitOrder()
-    uint256 public orders;
+    uint256 public orders = 1;
 
     /// @notice central registry for allowed adapters
     AdapterRegistry public adapterRegistry;
@@ -262,6 +265,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
         //cleanup state
         approvedHashes[record.protocolHash] = false;
         delete hashToOrder[record.protocolHash];
+        usedHashes[record.protocolHash] = true;
 
         //on-chain cancellation via adapter. not needed for most adapters.
         (address target, bytes memory data) = IAdapter(adapter).cancelLimitOrder(swapConfig, address(this), cancelData, record.context);
@@ -310,6 +314,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
 
         //lookup the order record
         uint256 orderId = hashToOrder[_hash];
+        if (orderId == 0) revert BoringSwapper__OrderNotApproved();
         OrderRecord memory record = orderRecords[orderId];
 
         IPriceValidator(priceValidator)
@@ -471,6 +476,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
         delete orderRecords[orderId];
         approvedHashes[record.protocolHash] = false;
         delete hashToOrder[record.protocolHash];
+        usedHashes[record.protocolHash] = true;
         emit OrderRemoved(orderId);
 
         // `_cancelOrder` already decremented `pendingOrderPrincipal` at cancel time — skip the second
@@ -574,8 +580,11 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
         //transfer assets from the vault to the swapper, approve target & execute
         swapConfig.tokenRoute.tokenIn.safeTransferFrom(address(swapConfig.receiver), address(this), amount);
 
+        // Approve only what this atomic swap consumes. Approving amount + tokenInCurrentAllowance would
+        // expose any pending limit order's escrowed principal (its live allowance to the same target) to
+        // this call. The post-call restore below re-establishes the pending order's allowance.
         swapConfig.tokenRoute.tokenIn.safeApprove(target, 0);
-        swapConfig.tokenRoute.tokenIn.safeApprove(target, amount + tokenInCurrentAllowance);
+        swapConfig.tokenRoute.tokenIn.safeApprove(target, amount);
 
         (bool success,) = target.call(swapConfig.swapData);
         if (!success) revert BoringSwapper__SwapFailed();
@@ -634,6 +643,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
         //reject byte-identical resubmissions.
         //@dev if you are hitting this, change salt or other fields to get a new hash
         if (approvedHashes[info.protocolHash]) revert BoringSwapper__DuplicateOrder();
+        if (usedHashes[info.protocolHash]) revert BoringSwapper__DuplicateOrder();
 
         // Price Verification
 
@@ -687,6 +697,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
             context: info.context
         });
         approvedHashes[info.protocolHash] = true;
+        hashToOrder[info.protocolHash] = orderId;
 
         // Accumulate approval — multiple concurrent orders to the same approvalTarget must not
         // overwrite each other's allowance, so we add to the existing amount.

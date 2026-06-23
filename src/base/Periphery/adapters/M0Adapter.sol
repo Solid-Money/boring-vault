@@ -21,6 +21,7 @@ contract M0Adapter is IAdapter {
     error M0Adapter__PrivateOrdersNotAllowed();
     error M0Adapter__NotCancelFunction();
     error M0Adapter__OrderIdMismatch();
+    error M0Adapter__InvalidAddress();
         
     //============================== Immutables ===============================
     
@@ -43,6 +44,9 @@ contract M0Adapter is IAdapter {
         //   abi.decode(swapConfig.swapData, (DecoderCustomTypes.GPv2OrderData));
         DecoderCustomTypes.OrderParams memory order =
              abi.decode(swapConfig.swapData, (DecoderCustomTypes.OrderParams));
+        
+        if (uint256(order.tokenOut) >> 160 != 0) revert M0Adapter__InvalidAddress();
+        if (uint256(order.recipient) >> 160 != 0) revert M0Adapter__InvalidAddress();
 
         if (ERC20(order.tokenIn) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
         if (ERC20(order.tokenOut.toAddress()) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();

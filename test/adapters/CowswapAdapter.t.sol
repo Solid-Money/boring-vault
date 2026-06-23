@@ -8,6 +8,7 @@ import {BaseTestIntegration} from "test/integrations/BaseTestIntegration.t.sol";
 import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
 import {CowswapAdapter, IGPv2Settlement} from "src/base/Periphery/adapters/CowswapAdapter.sol";
@@ -48,7 +49,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
         super.setUp();
         _setupChain("mainnet", 24886820);
 
-        address swapperDecoder = address(new BoringSwapperDecoder());
+        address swapperDecoder = address(new FullBoringSwapperDecoderAndSanitizer());
         _overrideDecoder(swapperDecoder);
 
         registry = new AdapterRegistry();
@@ -179,7 +180,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
         cancelTx.targets[0] = address(swapper);
         cancelTx.targetData[0] = abi.encodeWithSignature(
             "cancelOrder(uint256,((address,address),address,address,bytes,uint256,address),bytes)",
-            0,
+            1,
             config,
             bytes("")
         );
@@ -190,7 +191,7 @@ contract CowswapAdapterTest is BaseTestIntegration {
 
         assertEq(getERC20(sourceChain, "WETH").balanceOf(address(boringVault)) - vaultWethBefore, 1e15 - 4e14);
         assertEq(swapper.pendingOrderPrincipal(getERC20(sourceChain, "WETH")), 0);
-        assertGt(swapper.getOrderRecord(0).cancelledAt, 0);
+        assertGt(swapper.getOrderRecord(1).cancelledAt, 0);
     }
 
 
@@ -248,3 +249,5 @@ contract CowswapAdapterTest is BaseTestIntegration {
 
 }
 
+
+contract FullBoringSwapperDecoderAndSanitizer is BoringSwapperDecoder, BaseDecoderAndSanitizer {}

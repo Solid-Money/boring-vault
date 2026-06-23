@@ -200,6 +200,41 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         swapper.submitOrder(config);
     }
 
+    // M-04: appData must be bytes32(0). A non-zero appData can reference off-chain metadata enabling CoW
+    // partner fees, silently skimming up to ~1% of every fill to an arbitrary address below the oracle
+    // minimum. Order is otherwise valid (sell kind, zero feeAmount, erc20 balances, correct route/receiver),
+    // so the revert isolates to the appData guard.
+    function testSubmitOrder_RevertNonZeroAppData() external {
+        deal(address(WETH), address(boringVault), 100e18);
+
+        bytes memory cowswapData = abi.encode(
+            address(WETH),                  // sellToken
+            address(USDC),                  // buyToken
+            address(boringVault),           // receiver
+            uint256(1e18),                  // sellAmount
+            uint256(2000e6),                // buyAmount
+            uint32(block.timestamp + 3600), // validTo
+            bytes32(uint256(1)),            // appData != 0 (the only invalid field)
+            uint256(0),                     // feeAmount
+            KIND_SELL,
+            false,
+            BALANCE_ERC20,
+            BALANCE_ERC20
+        );
+
+        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
+            tokenRoute: ISwapperTypes.TokenRoute(WETH, USDC),
+            adapter: address(cowAdapter),
+            quoteAsset: address(USDC),
+            swapData: cowswapData,
+            slippageBps: 10,
+            receiver: boringVault
+        });
+
+        vm.expectRevert(abi.encodeWithSelector(CowswapAdapter.CowswapAdapter__NonEmptyAppData.selector));
+        swapper.submitOrder(config);
+    }
+
     function testSubmitOrder_RevertUnapprovedProtocol() external {
         deal(address(WETH), address(boringVault), 100e18);
 
@@ -217,9 +252,9 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         (, , uint256 orderId0) = _submitOrder(1e18, 2000e6, uint32(block.timestamp + 3600));
         (, , uint256 orderId1) = _submitOrder(2e18, 4000e6, uint32(block.timestamp + 7200));
 
-        assertEq(orderId0, 0);
-        assertEq(orderId1, 1);
-        assertEq(swapper.orders(), 2);
+        assertEq(orderId0, 1);
+        assertEq(orderId1, 2);
+        assertEq(swapper.orders(), 3);
         assertEq(WETH.balanceOf(address(swapper)), 3e18);
         assertEq(WETH.balanceOf(address(boringVault)), 97e18);
     }
@@ -246,7 +281,7 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         _submitOrder(1e18, 2000e6, uint32(block.timestamp + 3600));
         _submitOrder(1e18, 2000e6, uint32(block.timestamp + 7200));
 
-        assertEq(swapper.orders(), 2);
+        assertEq(swapper.orders(), 3);
     }
 
     //==================== IsValidSignature Tests ====================
@@ -278,21 +313,6 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         swapper.isValidSignature(bytes32(uint256(0x69420)), abi.encode(config));
     }
 
-    function testIsValidSignature_RevertAfterRouteRevoked() external {
-        deal(address(WETH), address(boringVault), 100e18);
-
-        (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest,) =
-            _submitOrder(1e18, 2000e6, uint32(block.timestamp + 3600));
-
-        //verify it works before revocation
-        vm.prank(COW_SETTLEMENT);
-        bytes4 result = swapper.isValidSignature(orderDigest, abi.encode(config));
-        assertEq(result, bytes4(0x1626ba7e));
-
-        //revoke route by setting max slippage to 0 and unapproving
-        //note: there's no removeApprovedRoute — this is a gap. skip for now.
-    }
-
     function testIsValidSignature_RevertUnapprovedProtocol() external {
         deal(address(WETH), address(boringVault), 100e18);
 
@@ -318,6 +338,45 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
 
         bytes4 result = swapper.isValidSignature(orderDigest, abi.encode(tampered));
         assertEq(result, bytes4(0x1626ba7e));
+    }
+
+    function testHashToOrder_ResolvesPerOrder() external {
+        deal(address(WETH), address(boringVault), 100e18);
+        
+        //orders start at 1
+        (, bytes32 digest1, uint256 orderId1) = _submitOrder(1e18, 2000e6, uint32(block.timestamp + 3600));
+        (, bytes32 digest2, uint256 orderId2) = _submitOrder(2e18, 4000e6, uint32(block.timestamp + 7200));
+
+        assertTrue(orderId2 != orderId1);
+        assertEq(swapper.hashToOrder(digest1), orderId1);
+        assertEq(swapper.hashToOrder(digest2), orderId2);
+
+        assertEq(swapper.orders(), 3);
+    }
+
+    function testHashToOrder_FillValidatesAgainstOwnRecord() external {
+        deal(address(WETH), address(boringVault), 100e18);
+
+        // orderId 1 — looser: 1993e6 USDC for 1e18 WETH (~0.35% below the 2000 fair value), 50 bps.
+        (ISwapperTypes.SwapConfig memory looseConfig, bytes32 looseDigest) =
+            _buildSwapConfig(1e18, 1993e6, uint32(block.timestamp + 3600));
+        looseConfig.slippageBps = 50;
+        uint256 looseOrderId = swapper.orders();
+        swapper.submitOrder(looseConfig);
+
+        // orderId 2 — tighter: priced at oracle-fair, 10 bps. Exists only to be the "latest" order, so a
+        // resolve-to-latest bug would send the fill below into its 10 bps record and revert.
+        (ISwapperTypes.SwapConfig memory tightConfig,) =
+            _buildSwapConfig(1e18, 2000e6, uint32(block.timestamp + 7200));
+        tightConfig.slippageBps = 10;
+        swapper.submitOrder(tightConfig);
+
+        assertEq(looseOrderId, 1);
+
+        // The only way this returns magic is if the lookup resolved to the looser order's own record
+        // (50 bps). Any other resolution (orderId 2, or zeroed order 0) reverts and fails this assertion.
+        vm.prank(COW_SETTLEMENT);
+        assertEq(swapper.isValidSignature(looseDigest, abi.encode(looseConfig)), bytes4(0x1626ba7e));
     }
 
     //==================== Cancel Order Tests ====================
@@ -623,7 +682,7 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         //unpause and it works again
         swapper.unpause();
         swapper.submitOrder(config);
-        assertEq(swapper.orders(), 1);
+        assertEq(swapper.orders(), 2);
     }
 
     function testGlobalPause_BlocksIsValidSignature() external {
@@ -650,7 +709,7 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         //unpause and it works again
         swapper.setAdapterPaused(address(cowAdapter), false);
         swapper.submitOrder(config);
-        assertEq(swapper.orders(), 1);
+        assertEq(swapper.orders(), 2);
     }
 
     function testProtocolPause_BlocksIsValidSignature() external {
@@ -675,7 +734,7 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         //cowswap should still work
         (ISwapperTypes.SwapConfig memory config,) = _buildSwapConfig(1e18, 2000e6, uint32(block.timestamp + 3600));
         swapper.submitOrder(config);
-        assertEq(swapper.orders(), 1);
+        assertEq(swapper.orders(), 2);
     }
 
     //==================== Admin Tests ====================

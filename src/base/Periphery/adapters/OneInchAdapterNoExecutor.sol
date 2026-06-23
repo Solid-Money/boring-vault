@@ -33,6 +33,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     error OneInchAdapter__EpochManagerNotAllowed();
     error OneInchAdapter__InvalidPool();
     error OneInchAdapter__WethUnwrapNotAllowed();
+    error OneInchAdapter__MakerAmountFlagNotAllowed();
 
     //============================== Immutables ===============================
     
@@ -53,6 +54,8 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant _NEED_CHECK_EPOCH_MANAGER_FLAG = 1 << 250;
     // takerTraits bit 254: router unwraps WETH to ETH before delivering maker asset. Blocked — swapper is ERC20-only.
     uint256 private constant _TAKER_UNWRAP_WETH = 1 << 254;
+    // takerTraits bit 255: amount denominates makerAsset output (exact-output). Blocked — swapper assumes amount is takerAsset input.
+    uint256 private constant _MAKER_AMOUNT_FLAG = 1 << 255;
     // unoswap dex bit 252: router unwraps WETH to ETH before delivering output. Blocked — swapper is ERC20-only.
     uint256 private constant _DEX_WETH_UNWRAP_FLAG = 1 << 252;
     // nonceOrEpoch is packed at bits [120, 160) of makerTraits as a uint40.
@@ -252,6 +255,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         // swapper for slippage verification before forwarding to the vault.
         if (takerTraits & _ARGS_HAS_TARGET != 0) revert OneInchAdapter__CustomTargetNotAllowed();
         if (takerTraits & _TAKER_UNWRAP_WETH != 0) revert OneInchAdapter__WethUnwrapNotAllowed();
+        if (takerTraits & _MAKER_AMOUNT_FLAG != 0) revert OneInchAdapter__MakerAmountFlagNotAllowed();
 
         return (router, amount);
     }

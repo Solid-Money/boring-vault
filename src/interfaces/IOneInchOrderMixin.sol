@@ -6,4 +6,5 @@ pragma solidity 0.8.21;
 
 interface IOneInchOrderMixin {
     function rawRemainingInvalidatorForOrder(address maker, bytes32 orderHash) external view returns (uint256);
+    function bitInvalidatorForOrder(address maker, uint256 slot) external view returns (uint256);
 }

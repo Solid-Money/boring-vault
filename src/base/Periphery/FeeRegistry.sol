@@ -72,6 +72,7 @@ contract FeeRegistry is Auth, IFeeRegistry {
     // ========================================= CONSTRUCTOR =========================================
 
     constructor(address _owner, uint16 _maxFeeBps) Auth(_owner, Authority(address(0))) {
+        if (_maxFeeBps > 10_000) revert FeeRegistry__FeeTooHigh();
         maxFeeBps = _maxFeeBps;
     }
 

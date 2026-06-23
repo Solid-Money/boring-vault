@@ -42,6 +42,9 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     error OneInchAdapter__IntegratorFeeRecipientNotZero();
     error OneInchAdapter__ProtocolFeeRecipientMismatch();
     error OneInchAdapter__FeeMismatch();
+    error OneInchAdapter__PostInteractionRequired();
+    error OneInchAdapter__MakerAmountFlagNotAllowed();
+    error OneInchAdapter__InvalidFillFlags();
 
     //============================== Immutables ===============================
     
@@ -66,8 +69,16 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant _NEED_CHECK_EPOCH_MANAGER_FLAG = 1 << 250;
     // makerTraits bit 249: order carries an extension.
     uint256 private constant _HAS_EXTENSION_FLAG = 1 << 249;
+    // makerTraits bit 251: router calls postInteraction at fill (FeeTaker forwards output to the vault).
+    uint256 private constant _POST_INTERACTION_CALL_FLAG = 1 << 251;
+    // makerTraits bit 255: order forbids partial fills (fill-or-kill). Selects the BitInvalidator.
+    uint256 private constant _NO_PARTIAL_FILLS_FLAG = 1 << 255;
+    // makerTraits bit 254: order may be filled multiple times. With partial fills, selects the RemainingInvalidator.
+    uint256 private constant _ALLOW_MULTIPLE_FILLS_FLAG = 1 << 254;
     // takerTraits bit 254: router unwraps WETH to ETH before delivering maker asset. Blocked — swapper is ERC20-only.
     uint256 private constant _TAKER_UNWRAP_WETH = 1 << 254;
+    // takerTraits bit 255: amount denominates makerAsset output (exact-output). Blocked — swapper assumes amount is takerAsset input.
+    uint256 private constant _MAKER_AMOUNT_FLAG = 1 << 255;
     // unoswap dex bit 252: router unwraps WETH to ETH before delivering output. Blocked — swapper is ERC20-only.
     uint256 private constant _DEX_WETH_UNWRAP_FLAG = 1 << 252;
     // nonceOrEpoch is packed at bits [120, 160) of makerTraits as a uint40.
@@ -77,6 +88,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant PROTOCOL_OFFSET = 253;
     //Curve Offsets
     uint256 private constant CURVE_TO_COINS_ARG_OFFSET = 216;
+    uint256 private constant CURVE_FROM_COINS_ARG_OFFSET = 200;
     uint256 private constant CURVE_TO_COINS_ARG_MASK = 0xff;
 
     //============================== Constructor ===============================
@@ -280,6 +292,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         // swapper for slippage verification before forwarding to the vault.
         if (takerTraits & _ARGS_HAS_TARGET != 0) revert OneInchAdapter__CustomTargetNotAllowed();
         if (takerTraits & _TAKER_UNWRAP_WETH != 0) revert OneInchAdapter__WethUnwrapNotAllowed();
+        if (takerTraits & _MAKER_AMOUNT_FLAG != 0) revert OneInchAdapter__MakerAmountFlagNotAllowed();
 
         return (router, amount);
     }
@@ -300,13 +313,17 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         if (ERC20(order.takerAsset) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
         if (order.maker != swapper) revert OneInchAdapter__MakerNotSwapper();
         if (order.makerTraits & _NEED_CHECK_EPOCH_MANAGER_FLAG != 0) revert OneInchAdapter__EpochManagerNotAllowed();
-        
+        bool partialAllowed = order.makerTraits & _NO_PARTIAL_FILLS_FLAG == 0;
+        bool multipleAllowed = order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG != 0;
+        if (partialAllowed != multipleAllowed) revert OneInchAdapter__InvalidFillFlags();
+
         //check if we have an extension and if we do, extract the custom receiver
         if (order.makerTraits & _HAS_EXTENSION_FLAG != 0) {
             _isValidExtension(extension, order.salt);
             // order.receiver is the FeeTaker; the vault is the custom receiver embedded in the
             // post-interaction, which _verifyPostInteractionData validates and returns.
             if (order.receiver != feeTaker) revert OneInchAdapter__UnknownFeeTaker();
+            if (order.makerTraits & _POST_INTERACTION_CALL_FLAG == 0) revert OneInchAdapter__PostInteractionRequired();
             address customReceiver = _verifyPostInteractionData(extension);
             if (customReceiver != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
         } else {
@@ -343,6 +360,9 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         return (router, abi.encodeWithSignature("cancelOrder(uint256,bytes32)", order.makerTraits, orderHash));
     }
 
+    /// @dev Reads on-chain fill state from whichever invalidator 1inch uses for this order's flags.
+    ///      verifyLimitOrder restricts orders to two shapes: fill-or-kill (BitInvalidator) and
+    ///      partial+multiple (RemainingInvalidator).
     function filledAmount(ISwapperTypes.SwapConfig calldata swapConfig, address swapper, bytes calldata /*context*/)
         external
         view
@@ -350,19 +370,26 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     {
         (DecoderCustomTypes.OneInchLimitOrder memory order,) =
             abi.decode(swapConfig.swapData, (DecoderCustomTypes.OneInchLimitOrder, bytes));
+
+        bool useBitInvalidator =
+            order.makerTraits & _NO_PARTIAL_FILLS_FLAG != 0 || order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG == 0;
+        
+        //orders that have either of the two bits set (or both) must route through here
+        //in our case, this would mean a full fill only, since we only allow FOK orders if either are set.
+        if (useBitInvalidator) {
+            uint256 nonce = (order.makerTraits >> _NONCE_OR_EPOCH_OFFSET) & _NONCE_OR_EPOCH_MASK;
+            uint256 slot = nonce >> 8;
+            uint256 bit = 1 << (nonce & 0xff);
+            uint256 raw = IOneInchOrderMixin(router).bitInvalidatorForOrder(swapper, slot);
+            return raw & bit != 0 ? order.makingAmount : 0;
+        }
+
         bytes memory orderData = abi.encode(order);
         bytes32 orderHash = _computeOrderHash(orderData);
-        uint256 raw = IOneInchOrderMixin(router).rawRemainingInvalidatorForOrder(swapper, orderHash);
-        uint256 filled;
-        if (raw == 0) {
-            filled = 0;                              // untouched
-        } else if (raw == type(uint256).max) {       
-            filled = order.makingAmount;             // fully filled or cancelled
-        } else {
-            filled = order.makingAmount - ~raw;      // partial fill: ~raw is the remaining maker amount
-        }
-        
-        return filled;
+        uint256 remaining = IOneInchOrderMixin(router).rawRemainingInvalidatorForOrder(swapper, orderHash);
+        if (remaining == 0) return 0; // untouched
+        if (remaining == type(uint256).max) return order.makingAmount; // fully filled or cancelled
+        return order.makingAmount - ~remaining; // partial: ~remaining is the unfilled maker amount
     }
 
     function version() external pure returns (string memory) {
@@ -401,7 +428,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         uint8 protocol = _protocol(dex);
         if (protocol == 0) return _getTokenOutUniV2(dex, tokenIn);
         if (protocol == 1) return _getTokenOutUniV3(dex, tokenIn);
-        if (protocol == 2) return _getTokenOutCurve(dex);
+        if (protocol == 2) return _getTokenOutCurve(dex, tokenIn);
         revert OneInchAdapter__UnsupportedProtocol();
     }
 
@@ -411,6 +438,8 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
         if (IUniswapV2Factory(univ2Factory).getPair(token0, token1) != pool) revert OneInchAdapter__InvalidPool();
+        // tokenIn must be one of the pool's tokens
+        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
         return token0 == tokenIn ? token1 : token0;
     }
 
@@ -421,15 +450,20 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token1 = IUniswapV3(pool).token1();
         uint24 fee = IUniswapV3(pool).fee();
         if (IUniswapV3Factory(univ3Factory).getPool(token0, token1, fee) != pool) revert OneInchAdapter__InvalidPool();
+        // tokenIn must be one of the pool's tokens
+        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
         return token0 == tokenIn ? token1 : token0;
     }
 
     /// @dev Curve has no single factory — validate via MetaRegistry which aggregates StableSwap/CryptoSwap/etc.
     ///      get_coins returns zeros for unregistered pools, so a non-zero coin at the requested index is a valid pool.
-    function _getTokenOutCurve(uint256 dex) internal view returns (address) {
+    function _getTokenOutCurve(uint256 dex, address tokenIn) internal view returns (address) {
         address pool = address(uint160(dex));
+        uint256 fromTokenIndex = (dex >> CURVE_FROM_COINS_ARG_OFFSET) & CURVE_TO_COINS_ARG_MASK;
         uint256 toTokenIndex = (dex >> CURVE_TO_COINS_ARG_OFFSET) & CURVE_TO_COINS_ARG_MASK;
         address[8] memory coins = ICurveMetaRegistry(curveMetaRegistry).get_coins(pool);
+        // tokenIn must be the pool's from-coin at the index 1inch will swap from
+        if (coins[fromTokenIndex] != tokenIn) revert OneInchAdapter__InvalidPool();
         address tokenOut = coins[toTokenIndex];
         //this will hit if the index is out of range on a valid pool, and return "no registry" on invalid curve pool
         if (tokenOut == address(0)) revert OneInchAdapter__InvalidPool();

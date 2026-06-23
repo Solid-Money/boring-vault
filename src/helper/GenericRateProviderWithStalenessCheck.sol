@@ -31,8 +31,9 @@ contract GenericRateProviderWithStalenessCheck is GenericRateProvider {
     }
 
     //============================== ERRORS ===============================
-    error GenericRateProviderWithStalenessCheck__DecimalsCannotBeZero(); 
-    error GenericRateProviderWithStalenessCheck__StalePrice(); 
+    error GenericRateProviderWithStalenessCheck__DecimalsCannotBeZero();
+    error GenericRateProviderWithStalenessCheck__StalePrice();
+    error GenericRateProviderWithStalenessCheck__OutputDecimalsMustBe18();
 
     //============================== IMMUTABLES ===============================
     
@@ -69,6 +70,9 @@ contract GenericRateProviderWithStalenessCheck is GenericRateProvider {
         if (_args.inputDecimals == 0 || _args.outputDecimals == 0) {
             revert GenericRateProviderWithStalenessCheck__DecimalsCannotBeZero();
         }
+        // PriceValidator assumes every rate is 1e18-scaled. getRate() scales input -> output, so pinning
+        // output to 18 guarantees this provider always emits an 18-decimal rate.
+        if (_args.outputDecimals != 18) revert GenericRateProviderWithStalenessCheck__OutputDecimalsMustBe18();
         inputDecimals = _args.inputDecimals;
         outputDecimals = _args.outputDecimals;
 
