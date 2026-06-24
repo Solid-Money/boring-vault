@@ -55,7 +55,7 @@ contract M0AdapterTest is BaseTestIntegration {
 
     function setUp() public override {
         super.setUp();
-        _setupChain("mainnet", 24886820);
+        _setupChain("mainnet", 25389336);
 
         address swapperDecoder = address(new FullBoringSwapperDecoderAndSanitizer());
         _overrideDecoder(swapperDecoder);
@@ -104,7 +104,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -126,20 +127,14 @@ contract M0AdapterTest is BaseTestIntegration {
         //get the orderId from m0?
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
                 // non-indexed, in emit order
-                (
-                    bytes32 orderId,
-                    /*tokenIn*/,
-                    /*amountIn*/,
-                    /*tokenOut*/,
-                    /*amountOut*/
-                ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
 
                 m0OrderId = orderId;
                 break;
@@ -174,7 +169,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -196,20 +192,14 @@ contract M0AdapterTest is BaseTestIntegration {
         //get the orderId from m0?
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
                 // non-indexed, in emit order
-                (
-                    bytes32 orderId,
-                    /*tokenIn*/,
-                    /*amountIn*/,
-                    /*tokenOut*/,
-                    /*amountOut*/
-                ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
 
                 m0OrderId = orderId;
                 break;
@@ -270,7 +260,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(),
-                solver: address(0).toBytes32()
+                solver: address(0).toBytes32(),
+                sender: address(swapper)
             })
         );
 
@@ -290,13 +281,13 @@ contract M0AdapterTest is BaseTestIntegration {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
-                (bytes32 orderId, , , , ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
                 m0OrderId = orderId;
                 break;
             }
@@ -360,7 +351,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(),
-                solver: address(0).toBytes32()
+                solver: address(0).toBytes32(),
+                sender: address(swapper)
             })
         );
 
@@ -380,13 +372,13 @@ contract M0AdapterTest is BaseTestIntegration {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
-                (bytes32 orderId, , , , ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
                 m0OrderId = orderId;
                 break;
             }
@@ -469,7 +461,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -491,20 +484,14 @@ contract M0AdapterTest is BaseTestIntegration {
         //get the orderId from m0?
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
                 // non-indexed, in emit order
-                (
-                    bytes32 orderId,
-                    /*tokenIn*/,
-                    /*amountIn*/,
-                    /*tokenOut*/,
-                    /*amountOut*/
-                ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
 
                 m0OrderId = orderId;
                 break;
@@ -569,7 +556,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -605,7 +593,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -641,7 +630,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(this).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -679,7 +669,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(),
-                solver: address(0).toBytes32()
+                solver: address(0).toBytes32(),
+                sender: address(swapper)
             })
         );
 
@@ -717,7 +708,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: dirtyRecipient,
-                solver: address(0).toBytes32()
+                solver: address(0).toBytes32(),
+                sender: address(swapper)
             })
         );
 
@@ -753,7 +745,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -789,7 +782,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(this).toBytes32() 
+                solver: address(this).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -825,7 +819,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -847,20 +842,14 @@ contract M0AdapterTest is BaseTestIntegration {
         //get the orderId from m0?
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
                 // non-indexed, in emit order
-                (
-                    bytes32 orderId,
-                    /*tokenIn*/,
-                    /*amountIn*/,
-                    /*tokenOut*/,
-                    /*amountOut*/
-                ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
 
                 m0OrderId = orderId;
                 break;
@@ -913,7 +902,8 @@ contract M0AdapterTest is BaseTestIntegration {
                 amountIn: 1000000000000000,
                 amountOut: 2200000,
                 recipient: address(boringVault).toBytes32(), 
-                solver: address(0).toBytes32() 
+                solver: address(0).toBytes32(),
+                sender: address(swapper) 
             })
         );
 
@@ -935,20 +925,14 @@ contract M0AdapterTest is BaseTestIntegration {
         //get the orderId from m0?
 
         bytes32 sig = keccak256(
-            "OrderOpened(bytes32,address,address,uint128,uint32,bytes32,uint128,bytes32)"
+            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
         );
 
         bytes32 m0OrderId;
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == sig) {
                 // non-indexed, in emit order
-                (
-                    bytes32 orderId,
-                    /*tokenIn*/,
-                    /*amountIn*/,
-                    /*tokenOut*/,
-                    /*amountOut*/
-                ) = abi.decode(entries[i].data, (bytes32, address, uint128, bytes32, uint128));
+                bytes32 orderId = abi.decode(entries[i].data, (bytes32));
 
                 m0OrderId = orderId;
                 break;

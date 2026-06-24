@@ -22,6 +22,7 @@ contract M0Adapter is IAdapter {
     error M0Adapter__NotCancelFunction();
     error M0Adapter__OrderIdMismatch();
     error M0Adapter__InvalidAddress();
+    error M0Adapter__SenderMismatch();
         
     //============================== Immutables ===============================
     
@@ -53,6 +54,7 @@ contract M0Adapter is IAdapter {
         if (order.recipient.toAddress() != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
         if (order.destChainId != block.chainid) revert M0Adapter__CrossChainNotAllowed();
         if (order.solver != bytes32(0)) revert M0Adapter__PrivateOrdersNotAllowed();
+        if (order.sender != swapper) revert M0Adapter__SenderMismatch();
 
         bytes32 m0OrderId = IM0OrderBook(orderBook).getOrderId(
             DecoderCustomTypes.OrderData({
@@ -81,7 +83,7 @@ contract M0Adapter is IAdapter {
             outputAmount: order.amountOut,
             protocolHash: keccak256(swapConfig.swapData), //hash the swapData since m0 doesn't use a domain separator pattern
             hook: orderBook,
-            hookData: abi.encodeWithSignature("openOrder((uint32,uint32,address,bytes32,uint128,uint128,bytes32,bytes32))", order),
+            hookData: abi.encodeWithSignature("openOrder((uint32,uint32,address,bytes32,uint128,uint128,bytes32,bytes32,address))", order),
             context: abi.encode(m0OrderId)
         });
     }

@@ -990,6 +990,7 @@ contract DecoderCustomTypes {
         uint128 amountOut;
         bytes32 recipient;
         bytes32 solver;
+        address sender;
     }
 
     struct OrderData {

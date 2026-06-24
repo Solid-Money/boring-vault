@@ -178,6 +178,77 @@ contract OneInchAdapterTest is BaseTestIntegration {
 
     }
 
+    // Verifies the swapper's ATOMIC fee path end-to-end: with a 1% atomic fee active, _swapPostFlightCheck
+    // must send exactly the 1% cut (of gross output) to the configured recipient and forward the net to the
+    // vault. (The limit-fee escrow path is covered in BoringSwapper.t.sol; this covers the atomic deduction.)
+    function testOneInchAtomicSwap_ChargesFee() external {
+        address vault = getAddress(sourceChain, "boringVault");
+        address feeRecipient = address(0x69);
+        deal(getAddress(sourceChain, "WETH"), vault, 100e18);
+
+        // enable a 1% atomic fee for this swapper, paid to feeRecipient
+        {
+            FeeRegistry feeRegistry = FeeRegistry(address(swapper.feeRegistry()));
+            feeRegistry.toggleSwapperAtomicFee(address(swapper), true);
+            feeRegistry.setDefaultAtomicFee(address(swapper), 100);
+            feeRegistry.setDefaultFeeRecipient(address(swapper), feeRecipient);
+        }
+
+        uint256 vaultUsdcBefore = getERC20(sourceChain, "USDC").balanceOf(vault);
+        uint256 recipientUsdcBefore = getERC20(sourceChain, "USDC").balanceOf(feeRecipient);
+
+        // scoped so the merkle/tx locals are released before the balance math (avoids stack-too-deep)
+        {
+            address[][] memory pairs = new address[][](1);
+            pairs[0] = new address[](2);
+            pairs[0][0] = getAddress(sourceChain, "WETH");
+            pairs[0][1] = getAddress(sourceChain, "USDC");
+
+            SwapKind[] memory kind = new SwapKind[](1);
+            kind[0] = SwapKind.BuyAndSell;
+
+            ManageLeaf[] memory leafs = new ManageLeaf[](16);
+            _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
+            bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+            manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+            Tx memory tx_ = _getTxArrays(2);
+            tx_.manageLeafs[0] = leafs[0];
+            tx_.manageLeafs[1] = leafs[1];
+            bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+            tx_.targets[0] = getAddress(sourceChain, "WETH");
+            tx_.targets[1] = address(swapper);
+            tx_.targetData[0] =
+                abi.encodeWithSignature("approve(address,uint256)", address(swapper), type(uint256).max);
+            tx_.targetData[1] = abi.encodeWithSelector(
+                BoringSwapper.swap.selector,
+                ISwapperTypes.SwapConfig({
+                    tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "WETH"), getERC20(sourceChain, "USDC")),
+                    adapter: oneInchAdapter,
+                    quoteAsset: getAddress(sourceChain, "USDC"),
+                    swapData: hex"83800a8e000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc200000000000000000000000000000000000000000000000000038d7ea4c6800000000000000000000000000000000000000000000000000000000000001f6d2c08000000000000003b6d0340b4e16d0168e52d35cacd2c6185b44281ec28c9dc",
+                    slippageBps: 10,
+                    receiver: BoringVault(payable(vault))
+                })
+            );
+            tx_.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+            tx_.decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+            _submitManagerCall(manageProofs, tx_);
+        }
+
+        uint256 vaultGot = getERC20(sourceChain, "USDC").balanceOf(vault) - vaultUsdcBefore;
+        uint256 recipientGot = getERC20(sourceChain, "USDC").balanceOf(feeRecipient) - recipientUsdcBefore;
+
+        uint256 gross = vaultGot + recipientGot;
+        uint256 expectedFee = (gross * 100 + 9999) / 10_000; // mulDivUp(gross, 100, 10_000) == 1%
+
+        assertGt(recipientGot, 0, "fee recipient received nothing");
+        assertEq(recipientGot, expectedFee, "fee is not 1% of gross output");
+        assertEq(vaultGot, gross - expectedFee, "vault did not receive the net");
+    }
+
 
     function testUnoswapTo() external {
         //set up manager swap
