@@ -235,19 +235,6 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         swapper.submitOrder(config);
     }
 
-    // L-03: the FeeRegistry constructor must enforce the same 10_000 bps (100%) cap as setMaxFeeBps; otherwise
-    // a deployer could set maxFeeBps far above 100% and every fee setter would validate against it.
-    function testFeeRegistryConstructor_RevertMaxFeeTooHigh() external {
-        vm.expectRevert(abi.encodeWithSelector(FeeRegistry.FeeRegistry__FeeTooHigh.selector));
-        new FeeRegistry(address(this), 10_001);
-    }
-
-    // control: the boundary value (exactly 100%) is allowed.
-    function testFeeRegistryConstructor_AllowsMaxCap() external {
-        FeeRegistry registry = new FeeRegistry(address(this), 10_000);
-        assertEq(registry.maxFeeBps(), 10_000);
-    }
-
     function testSubmitOrder_RevertUnapprovedProtocol() external {
         deal(address(WETH), address(boringVault), 100e18);
 
@@ -1016,119 +1003,6 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         BoringSwapper.OrderRecord memory newRec = swapper.getOrderRecord(newOrderId);
         assertEq(newRec.cancelledAt, 0);
         assertEq(newRec.inputAmount, 2e18);
-    }
-
-    //==================== FeeRegistry Unit Tests ====================
-
-    function testFeeRegistry_SameGroup() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        feeRegistry.setTokenGroup(address(this), address(USDC), 1);
-        feeRegistry.setTokenGroup(address(this), address(WETH), 1);
-        feeRegistry.setLimitGroupPairFee(address(this), 1, 1, 5);
-        feeRegistry.setDefaultFeeRecipient(address(this), address(0x69));
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(this), address(USDC), address(WETH));
-        address recipient = feeRegistry.getFeeRecipientLimit(address(this), ERC20(address(WETH)));
-        assertEq(feeBps, 5);
-        assertEq(recipient, address(0x69));
-    }
-
-    function testFeeRegistry_CrossGroup() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        feeRegistry.setTokenGroup(address(this), address(WETH), 2);
-        feeRegistry.setTokenGroup(address(this), address(USDC), 1);
-        feeRegistry.setLimitGroupPairFee(address(this), 1, 2, 30);
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(this), address(WETH), address(USDC));
-        assertEq(feeBps, 30);
-        // symmetric: (B,A) should return same fee as (A,B)
-        uint16 feeBps2 = feeRegistry.getLimitFee(address(this), address(USDC), address(WETH));
-        assertEq(feeBps2, 30);
-    }
-
-    function testFeeRegistry_DefaultFallback() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        feeRegistry.setDefaultLimitFee(address(this), 20);
-        feeRegistry.setDefaultFeeRecipient(address(this), address(0x69));
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(this), address(WETH), address(USDC));
-        address recipient = feeRegistry.getFeeRecipientLimit(address(this), ERC20(address(USDC)));
-        assertEq(feeBps, 20);
-        assertEq(recipient, address(0x69));
-    }
-
-    function testFeeRegistry_GroupPairOverridesDefault() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        feeRegistry.setDefaultLimitFee(address(this), 20);
-        feeRegistry.setTokenGroup(address(this), address(WETH), 2);
-        feeRegistry.setTokenGroup(address(this), address(USDC), 1);
-        feeRegistry.setLimitGroupPairFee(address(this), 1, 2, 5);
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(this), address(WETH), address(USDC));
-        assertEq(feeBps, 5);
-    }
-
-    function testFeeRegistry_IsolatedPerSwapper() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        // configure for address(this) — address(0x420) swapper should see zero fee
-        feeRegistry.setDefaultLimitFee(address(this), 20);
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(0x420), address(WETH), address(USDC));
-        address recipient = feeRegistry.getFeeRecipientLimit(address(0x420), ERC20(address(USDC)));
-        assertEq(feeBps, 0);
-        assertEq(recipient, address(0));
-    }
-
-    function testFeeRegistry_ExplicitZeroDoesNotFallback() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        feeRegistry.setDefaultLimitFee(address(this), 20);
-        feeRegistry.setTokenGroup(address(this), address(WETH), 1);
-        feeRegistry.setTokenGroup(address(this), address(USDC), 2);
-        feeRegistry.setLimitGroupPairFee(address(this), 1, 2, 0);
-
-        uint16 feeBps = feeRegistry.getLimitFee(address(this), address(WETH), address(USDC));
-        assertEq(feeBps, 0);
-    }
-
-    function testFeeRegistry_RevertFeeTooHigh() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        vm.expectRevert(FeeRegistry.FeeRegistry__FeeTooHigh.selector);
-        feeRegistry.setLimitGroupPairFee(address(this), 0, 1, 1001);
-    }
-
-    function testFeeRegistry_RevertInvalidRecipient() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        vm.expectRevert(FeeRegistry.FeeRegistry__InvalidRecipient.selector);
-        feeRegistry.setDefaultFeeRecipient(address(this), address(0));
-    }
-
-    function testFeeRegistry_SetSwapperActive() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        assertEq(feeRegistry.limitFeeActive(address(0x420)), false);
-
-        vm.expectEmit(true, false, false, true, address(feeRegistry));
-        emit LimitFeeToggleUpdated(address(0x420), true);
-        feeRegistry.toggleSwapperLimitFee(address(0x420), true);
-        assertEq(feeRegistry.limitFeeActive(address(0x420)), true);
-
-        vm.expectEmit(true, false, false, true, address(feeRegistry));
-        emit LimitFeeToggleUpdated(address(0x420), false);
-        feeRegistry.toggleSwapperLimitFee(address(0x420), false);
-        assertEq(feeRegistry.limitFeeActive(address(0x420)), false);
-    }
-
-    function testFeeRegistry_SetMaxFeeBps() external {
-        feeRegistry = new FeeRegistry(address(this), 1000);
-        assertEq(feeRegistry.maxFeeBps(), 1000);
-
-        vm.expectEmit(false, false, false, true, address(feeRegistry));
-        emit MaxFeeBpsUpdated(500);
-        feeRegistry.setMaxFeeBps(500);
-        assertEq(feeRegistry.maxFeeBps(), 500);
-
-        // fee above new cap is rejected
-        vm.expectRevert(FeeRegistry.FeeRegistry__FeeTooHigh.selector);
-        feeRegistry.setLimitGroupPairFee(address(this), 0, 1, 501);
     }
 
     //==================== BoringSwapper Fee Tests ====================

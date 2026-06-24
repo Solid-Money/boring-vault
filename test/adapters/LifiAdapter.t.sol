@@ -124,7 +124,7 @@ contract LifiAdapterTest is BaseTestIntegration {
                 tokenRoute: tokenRoute,
                 adapter: lifiAdapter,
                 quoteAsset: getAddress(sourceChain, "USDC"),
-                swapData: swapData,
+                swapData: _retargetReceiver(swapData),
                 slippageBps: 100,
                 receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
             })
@@ -186,7 +186,7 @@ contract LifiAdapterTest is BaseTestIntegration {
                 tokenRoute: tokenRoute,
                 adapter: lifiAdapter,
                 quoteAsset: getAddress(sourceChain, "USDC"),
-                swapData: swapData,
+                swapData: _retargetReceiver(swapData),
                 slippageBps: 100,
                 receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
             })
@@ -248,7 +248,7 @@ contract LifiAdapterTest is BaseTestIntegration {
                 tokenRoute: tokenRoute,
                 adapter: lifiAdapter,
                 quoteAsset: getAddress(sourceChain, "USDC"),
-                swapData: swapData,
+                swapData: _retargetReceiver(swapData),
                 slippageBps: 100,
                 receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
             })
@@ -273,6 +273,33 @@ contract LifiAdapterTest is BaseTestIntegration {
         address[] memory intermediaries = new address[](1);
         intermediaries[0] = intermediary;
         return BoringSwapper.RateProviderConfig(rateProviders, intermediaries, skipValidation);
+    }
+
+    // The captured LI.FI _Live calldata embeds the swapper address that existed at capture time as the
+    // _receiver. LifiAdapter requires _receiver == msg.sender (the swapper), but the swapper's deterministic
+    // deploy address has since shifted, so we retarget the embedded receiver to the CURRENT swapper. The old
+    // address appears exactly once per blob; scan for it and overwrite in place. Reverts if not found, so a
+    // stale constant fails loudly rather than silently no-op'ing.
+    bytes20 constant LIFI_CAPTURED_RECEIVER = hex"a4ad4f68d0b91cfd19687c881e50f3a00242828c";
+
+    function _retargetReceiver(bytes memory data) internal view returns (bytes memory) {
+        bytes20 newReceiver = bytes20(address(swapper));
+        for (uint256 i = 0; i + 20 <= data.length; i++) {
+            bool matched = true;
+            for (uint256 j = 0; j < 20; j++) {
+                if (data[i + j] != LIFI_CAPTURED_RECEIVER[j]) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) {
+                for (uint256 j = 0; j < 20; j++) {
+                    data[i + j] = newReceiver[j];
+                }
+                return data;
+            }
+        }
+        revert("LIFI_CAPTURED_RECEIVER not found in swapData");
     }
 }
 

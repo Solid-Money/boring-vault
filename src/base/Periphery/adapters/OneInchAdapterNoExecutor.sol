@@ -15,7 +15,7 @@ import {IUniswapV3Factory} from "src/interfaces/IUniswapV3Factory.sol";
 import {IOneInchOrderMixin} from "src/interfaces/IOneInchOrderMixin.sol";
 import {ICurveMetaRegistry} from "src/interfaces/ICurveMetaRegistry.sol";
 
-contract OneInchAdapter is IAdapter, BaseAdapter {
+contract OneInchAdapterNoExecutor is IAdapter, BaseAdapter {
 
     //============================== Errors ===============================
 
@@ -33,12 +33,26 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     error OneInchAdapter__EpochManagerNotAllowed();
     error OneInchAdapter__InvalidPool();
     error OneInchAdapter__WethUnwrapNotAllowed();
+    error OneInchAdapter__InvalidExtension();
+    error OneInchAdapter__MissingExtension();
+    error OneInchAdapter__UnexpectedExtension();
+    error OneInchAdapter__UnsupportedExtensionField();
+    error OneInchAdapter__GetterNotFeeTaker();
+    error OneInchAdapter__ExtensionFieldTooShort();
+    error OneInchAdapter__IntegratorFeeRecipientNotZero();
+    error OneInchAdapter__ProtocolFeeRecipientMismatch();
+    error OneInchAdapter__FeeMismatch();
+    error OneInchAdapter__PostInteractionRequired();
     error OneInchAdapter__MakerAmountFlagNotAllowed();
+    error OneInchAdapter__InvalidFillFlags();
 
     //============================== Immutables ===============================
     
     address public immutable router;
     address public immutable feeTaker;
+    /// @notice 1inch protocol/resolver fee receiver (from getFeeParams). Pinned so a strategist cannot
+    ///         redirect the fee to themselves. Immutable — redeploy if 1inch ever changes it.
+    address public immutable protocolFeeReceiver;
     address public immutable univ2Factory;
     address public immutable univ3Factory;
     address public immutable curveMetaRegistry;
@@ -52,6 +66,14 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     // If set in takerTraits, makerAsset is sent to a custom address instead of msg.sender
     uint256 private constant _ARGS_HAS_TARGET = 1 << 251;
     uint256 private constant _NEED_CHECK_EPOCH_MANAGER_FLAG = 1 << 250;
+    // makerTraits bit 249: order carries an extension.
+    uint256 private constant _HAS_EXTENSION_FLAG = 1 << 249;
+    // makerTraits bit 251: router calls postInteraction at fill (FeeTaker forwards output to the vault).
+    uint256 private constant _POST_INTERACTION_CALL_FLAG = 1 << 251;
+    // makerTraits bit 255: order forbids partial fills (fill-or-kill). Selects the BitInvalidator.
+    uint256 private constant _NO_PARTIAL_FILLS_FLAG = 1 << 255;
+    // makerTraits bit 254: order may be filled multiple times. With partial fills, selects the RemainingInvalidator.
+    uint256 private constant _ALLOW_MULTIPLE_FILLS_FLAG = 1 << 254;
     // takerTraits bit 254: router unwraps WETH to ETH before delivering maker asset. Blocked — swapper is ERC20-only.
     uint256 private constant _TAKER_UNWRAP_WETH = 1 << 254;
     // takerTraits bit 255: amount denominates makerAsset output (exact-output). Blocked — swapper assumes amount is takerAsset input.
@@ -65,6 +87,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant PROTOCOL_OFFSET = 253;
     //Curve Offsets
     uint256 private constant CURVE_TO_COINS_ARG_OFFSET = 216;
+    uint256 private constant CURVE_FROM_COINS_ARG_OFFSET = 200;
     uint256 private constant CURVE_TO_COINS_ARG_MASK = 0xff;
 
     //============================== Constructor ===============================
@@ -72,12 +95,14 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     constructor(
         address _router,
         address _feeTaker,
+        address _protocolFeeReceiver,
         address _univ2Factory,
         address _univ3Factory,
         address _curveMetaRegistry
     ) {
         router = _router;
         feeTaker = _feeTaker;
+        protocolFeeReceiver = _protocolFeeReceiver;
         univ2Factory = _univ2Factory;
         univ3Factory = _univ3Factory;
         curveMetaRegistry = _curveMetaRegistry;
@@ -95,12 +120,12 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     //============================== V6 swap ===============================
 
     function swap(
-        address /*executor*/,
+        address, /*executor*/
         DecoderCustomTypes.SwapDescription memory desc,
         bytes memory /*data*/
     )
         external
-            view
+        view
         returns (address, uint256)
     {
         if (desc.dstReceiver != payable(msg.sender)) revert OneInchAdapter__DstReceiverNotSwapper();
@@ -276,14 +301,21 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         if (ERC20(order.takerAsset) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
         if (order.maker != swapper) revert OneInchAdapter__MakerNotSwapper();
         if (order.makerTraits & _NEED_CHECK_EPOCH_MANAGER_FLAG != 0) revert OneInchAdapter__EpochManagerNotAllowed();
+        bool partialAllowed = order.makerTraits & _NO_PARTIAL_FILLS_FLAG == 0;
+        bool multipleAllowed = order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG != 0;
+        if (partialAllowed != multipleAllowed) revert OneInchAdapter__InvalidFillFlags();
 
-        //for orders with a fee extension, the order.receiver is the fee taker contract.
-        //the actual receiver (vault) is embedded in the extension's postInteraction data.
-        if (extension.length > 0) {
+        //check if we have an extension and if we do, extract the custom receiver
+        if (order.makerTraits & _HAS_EXTENSION_FLAG != 0) {
+            _isValidExtension(extension, order.salt);
+            // order.receiver is the FeeTaker; the vault is the custom receiver embedded in the
+            // post-interaction, which _verifyPostInteractionData validates and returns.
             if (order.receiver != feeTaker) revert OneInchAdapter__UnknownFeeTaker();
-            address customReceiver = _extractCustomReceiver(extension);
+            if (order.makerTraits & _POST_INTERACTION_CALL_FLAG == 0) revert OneInchAdapter__PostInteractionRequired();
+            address customReceiver = _verifyPostInteractionData(extension);
             if (customReceiver != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
         } else {
+            if (extension.length > 0) revert OneInchAdapter__UnexpectedExtension();
             if (order.receiver != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
         }
 
@@ -316,6 +348,9 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         return (router, abi.encodeWithSignature("cancelOrder(uint256,bytes32)", order.makerTraits, orderHash));
     }
 
+    /// @dev Reads on-chain fill state from whichever invalidator 1inch uses for this order's flags.
+    ///      verifyLimitOrder restricts orders to two shapes: fill-or-kill (BitInvalidator) and
+    ///      partial+multiple (RemainingInvalidator).
     function filledAmount(ISwapperTypes.SwapConfig calldata swapConfig, address swapper, bytes calldata /*context*/)
         external
         view
@@ -323,19 +358,26 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     {
         (DecoderCustomTypes.OneInchLimitOrder memory order,) =
             abi.decode(swapConfig.swapData, (DecoderCustomTypes.OneInchLimitOrder, bytes));
+
+        bool useBitInvalidator =
+            order.makerTraits & _NO_PARTIAL_FILLS_FLAG != 0 || order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG == 0;
+        
+        //orders that have either of the two bits set (or both) must route through here
+        //in our case, this would mean a full fill only, since we only allow FOK orders if either are set.
+        if (useBitInvalidator) {
+            uint256 nonce = (order.makerTraits >> _NONCE_OR_EPOCH_OFFSET) & _NONCE_OR_EPOCH_MASK;
+            uint256 slot = nonce >> 8;
+            uint256 bit = 1 << (nonce & 0xff);
+            uint256 raw = IOneInchOrderMixin(router).bitInvalidatorForOrder(swapper, slot);
+            return raw & bit != 0 ? order.makingAmount : 0;
+        }
+
         bytes memory orderData = abi.encode(order);
         bytes32 orderHash = _computeOrderHash(orderData);
-        uint256 raw = IOneInchOrderMixin(router).rawRemainingInvalidatorForOrder(swapper, orderHash);
-        uint256 filled;
-        if (raw == 0) {
-            filled = 0;                              // untouched
-        } else if (raw == type(uint256).max) {       
-            filled = order.makingAmount;             // fully filled or cancelled
-        } else {
-            filled = order.makingAmount - ~raw;      // partial fill: ~raw is the remaining maker amount
-        }
-        
-        return filled;
+        uint256 remaining = IOneInchOrderMixin(router).rawRemainingInvalidatorForOrder(swapper, orderHash);
+        if (remaining == 0) return 0; // untouched
+        if (remaining == type(uint256).max) return order.makingAmount; // fully filled or cancelled
+        return order.makingAmount - ~remaining; // partial: ~remaining is the unfilled maker amount
     }
 
     function version() external pure returns (string memory) {
@@ -352,47 +394,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     function _protocol(uint256 dex) internal pure returns (uint8) {
         // there is no need to mask because protocol is stored in the highest 3 bits
         return uint8(dex >> PROTOCOL_OFFSET);
-    }
-
-    /// @notice Extracts the custom receiver address from a 1inch FeeTaker extension.
-    /// Extension layout:
-    ///   [32 bytes] header — 8 packed uint32 offsets
-    ///   [variable] data   — concatenated fields
-    /// PostInteraction layout (within data):
-    ///   [20 bytes] fee taker address
-    ///   [ 1 byte ] flags (bit 0 = CUSTOM_RECEIVER_FLAG)
-    ///   [20 bytes] integrator fee recipient
-    ///   [20 bytes] protocol fee recipient
-    ///   [20 bytes] custom receiver (only if flags & 1)
-    function _extractCustomReceiver(bytes memory extension) internal pure returns (address) {
-        if (extension.length < 32) revert OneInchAdapter__ExtensionTooShort();
-
-        // Header offset[1] (bytes 4-7) = postInteraction start in data
-        uint32 postInteractionStart;
-        assembly {
-            postInteractionStart := shr(224, mload(add(extension, 36))) // bytes 4-7 of header
-        }
-
-        // postInteraction is at: 32 (header) + postInteractionStart
-        uint256 piOffset = 32 + uint256(postInteractionStart);
-        if (extension.length < piOffset + 62) revert OneInchAdapter__PostInteractionTooShort();
-
-        // Read flags byte at postInteraction + 20 (after fee taker address)
-        uint8 flags;
-        assembly {
-            flags := byte(0, mload(add(add(extension, 32), add(piOffset, 20))))
-        }
-
-        if (flags & 1 != 1) revert OneInchAdapter__NoCustomReceiver();
-        if (extension.length < piOffset + 81) revert OneInchAdapter__CustomReceiverOutOfBounds();
-
-        // Custom receiver is at postInteraction + 61 (after: 20 addr + 1 flags + 20 integrator + 20 protocol)
-        address customReceiver;
-        assembly {
-            customReceiver := shr(96, mload(add(add(extension, 32), add(piOffset, 61))))
-        }
-
-        return customReceiver;
     }
 
     function _unoswapCheck(uint256 dex, uint256 token) internal view returns (address) {
@@ -415,7 +416,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         uint8 protocol = _protocol(dex);
         if (protocol == 0) return _getTokenOutUniV2(dex, tokenIn);
         if (protocol == 1) return _getTokenOutUniV3(dex, tokenIn);
-        if (protocol == 2) return _getTokenOutCurve(dex);
+        if (protocol == 2) return _getTokenOutCurve(dex, tokenIn);
         revert OneInchAdapter__UnsupportedProtocol();
     }
 
@@ -425,6 +426,8 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token0 = IUniswapV3(pool).token0();
         address token1 = IUniswapV3(pool).token1();
         if (IUniswapV2Factory(univ2Factory).getPair(token0, token1) != pool) revert OneInchAdapter__InvalidPool();
+        // tokenIn must be one of the pool's tokens
+        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
         return token0 == tokenIn ? token1 : token0;
     }
 
@@ -435,18 +438,108 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token1 = IUniswapV3(pool).token1();
         uint24 fee = IUniswapV3(pool).fee();
         if (IUniswapV3Factory(univ3Factory).getPool(token0, token1, fee) != pool) revert OneInchAdapter__InvalidPool();
+        // tokenIn must be one of the pool's tokens
+        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
         return token0 == tokenIn ? token1 : token0;
     }
 
     /// @dev Curve has no single factory — validate via MetaRegistry which aggregates StableSwap/CryptoSwap/etc.
     ///      get_coins returns zeros for unregistered pools, so a non-zero coin at the requested index is a valid pool.
-    function _getTokenOutCurve(uint256 dex) internal view returns (address) {
+    function _getTokenOutCurve(uint256 dex, address tokenIn) internal view returns (address) {
         address pool = address(uint160(dex));
+        uint256 fromTokenIndex = (dex >> CURVE_FROM_COINS_ARG_OFFSET) & CURVE_TO_COINS_ARG_MASK;
         uint256 toTokenIndex = (dex >> CURVE_TO_COINS_ARG_OFFSET) & CURVE_TO_COINS_ARG_MASK;
         address[8] memory coins = ICurveMetaRegistry(curveMetaRegistry).get_coins(pool);
+        // tokenIn must be the pool's from-coin at the index 1inch will swap from
+        if (coins[fromTokenIndex] != tokenIn) revert OneInchAdapter__InvalidPool();
         address tokenOut = coins[toTokenIndex];
         //this will hit if the index is out of range on a valid pool, and return "no registry" on invalid curve pool
         if (tokenOut == address(0)) revert OneInchAdapter__InvalidPool();
         return tokenOut;
     }
+
+    function _verifyPostInteractionData(bytes memory extension) internal view returns (address customReceiver) {
+        if (extension.length < 32) revert OneInchAdapter__ExtensionTooShort();
+        // offsets word: 8 packed uint32 cumulative END offsets, one per dynamic field.
+        // length[i] = end[i] - end[i-1]; a field is empty when its end equals the previous end.
+        uint256 offsets;
+        assembly {
+            offsets := mload(add(extension, 0x20))
+        }
+        
+        if (offsets & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 0: end[0] == 0
+        if ((offsets >> (32 * 1)) & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 1: end[1] == 0
+        // fields 4,5,6 all empty
+        if ((offsets >> (32 * 6)) & 0xffffffff != (offsets >> (32 * 3)) & 0xffffffff) {
+            revert OneInchAdapter__UnsupportedExtensionField();
+        }
+        // field 8 (customData) empty <=> concat length == end[7]
+        if (extension.length - 0x20 != (offsets >> (32 * 7)) & 0xffffffff) {
+            revert OneInchAdapter__UnsupportedExtensionField();
+        }
+
+        // Fields 2 (makingAmountData) and 3 (takingAmountData) are the amount getters: the router calls
+        // their first 20 bytes to compute fill amounts.
+        uint256 begin2 = (offsets >> (32 * 1)) & 0xffffffff; // end[1]
+        uint256 begin3 = (offsets >> (32 * 2)) & 0xffffffff; // end[2]
+        uint256 begin7 = (offsets >> (32 * 3)) & 0xffffffff; // end[3] (== end[6] = begin[7])
+
+        // each getter field must hold at least a 20-byte address
+        if (begin3 < begin2 + 20 || begin7 < begin3 + 20) revert OneInchAdapter__ExtensionFieldTooShort();
+        if (_addrAt(extension, begin2) != feeTaker) revert OneInchAdapter__GetterNotFeeTaker(); // field 2
+        if (_addrAt(extension, begin3) != feeTaker) revert OneInchAdapter__GetterNotFeeTaker(); // field 3
+        
+        //validate customReceiver
+        if (extension.length - 0x20 < begin7 + 81) revert OneInchAdapter__PostInteractionTooShort();
+        if (_addrAt(extension, begin7) != feeTaker) revert OneInchAdapter__UnknownFeeTaker();
+        if (_byteAt(extension, begin7 + 20) & 1 != 1) revert OneInchAdapter__NoCustomReceiver();
+        if (_addrAt(extension, begin7 + 21) != address(0)) revert OneInchAdapter__IntegratorFeeRecipientNotZero();
+        if (_addrAt(extension, begin7 + 41) != protocolFeeReceiver) revert OneInchAdapter__ProtocolFeeRecipientMismatch();
+
+        customReceiver = _addrAt(extension, begin7 + 61);
+        
+        //fees MUST be equal on a valid order 
+        uint256 end7 = extension.length - 0x20; // == end[7], enforced equal by the customData check above
+        uint256 getterLen = begin3 - begin2;
+        if (begin7 - begin3 != getterLen || !_rangesEqual(extension, begin2, begin3, getterLen)) {
+            revert OneInchAdapter__FeeMismatch();
+        }
+        uint256 feeLen = begin7 - begin3 - 20;
+        if (end7 - begin7 - 81 != feeLen || !_rangesEqual(extension, begin3 + 20, begin7 + 81, feeLen)) {
+            revert OneInchAdapter__FeeMismatch();
+        }
+        
+        //explicit return since 
+        return customReceiver;
+    }
+
+    function _addrAt(bytes memory extension, uint256 concatOffset) internal pure returns (address a) {
+        assembly {
+            a := shr(96, mload(add(add(extension, 0x40), concatOffset)))
+        }
+    }
+
+    function _byteAt(bytes memory extension, uint256 concatOffset) internal pure returns (uint8 b) {
+        assembly {
+            b := byte(0, mload(add(add(extension, 0x40), concatOffset)))
+        }
+    }
+
+    /// @notice True if the two `len`-byte ranges at `off1` and `off2` within the concat section are equal.
+    function _rangesEqual(bytes memory extension, uint256 off1, uint256 off2, uint256 len) internal pure returns (bool) {
+        bytes32 h1;
+        bytes32 h2;
+        assembly {
+            let base := add(extension, 0x40)
+            h1 := keccak256(add(base, off1), len)
+            h2 := keccak256(add(base, off2), len)
+        }
+        return h1 == h2;
+    }
+
+    function _isValidExtension(bytes memory extension, uint256 salt) internal pure {
+        if (extension.length == 0) revert OneInchAdapter__MissingExtension();
+        if (uint256(keccak256(extension)) & type(uint160).max != salt & type(uint160).max) revert OneInchAdapter__InvalidExtension();
+    }
+    
 }
