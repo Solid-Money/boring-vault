@@ -235,6 +235,19 @@ contract BoringSwapperTest is Test, MerkleTreeHelper {
         swapper.submitOrder(config);
     }
 
+    // L-03: the FeeRegistry constructor must enforce the same 10_000 bps (100%) cap as setMaxFeeBps; otherwise
+    // a deployer could set maxFeeBps far above 100% and every fee setter would validate against it.
+    function testFeeRegistryConstructor_RevertMaxFeeTooHigh() external {
+        vm.expectRevert(abi.encodeWithSelector(FeeRegistry.FeeRegistry__FeeTooHigh.selector));
+        new FeeRegistry(address(this), 10_001);
+    }
+
+    // control: the boundary value (exactly 100%) is allowed.
+    function testFeeRegistryConstructor_AllowsMaxCap() external {
+        FeeRegistry registry = new FeeRegistry(address(this), 10_000);
+        assertEq(registry.maxFeeBps(), 10_000);
+    }
+
     function testSubmitOrder_RevertUnapprovedProtocol() external {
         deal(address(WETH), address(boringVault), 100e18);
 

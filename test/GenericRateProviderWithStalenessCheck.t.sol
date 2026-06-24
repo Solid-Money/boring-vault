@@ -44,9 +44,10 @@ contract GenericRateProviderWithStalenessCheckTest is Test {
         assertEq(provider.getRate(), BASE_RATE);
     }
 
-    function testGetRate_ScalesDown_18To8() external {
-        GenericRateProviderWithStalenessCheck provider = _deploy(18, 8);
-        assertEq(provider.getRate(), BASE_RATE / 1e10);
+    // outputDecimals is pinned to 18 (L-04), so scale-down is exercised with inputDecimals > 18.
+    function testGetRate_ScalesDown_20To18() external {
+        GenericRateProviderWithStalenessCheck provider = _deploy(20, 18);
+        assertEq(provider.getRate(), BASE_RATE / 1e2);
     }
 
     function testGetRate_ScalesUp_8To18() external {
@@ -55,9 +56,9 @@ contract GenericRateProviderWithStalenessCheckTest is Test {
         assertEq(provider.getRate(), 1e8 * 1e10);
     }
 
-    function testGetRate_ScalesDown_18To6() external {
-        GenericRateProviderWithStalenessCheck provider = _deploy(18, 6);
-        assertEq(provider.getRate(), BASE_RATE / 1e12);
+    function testGetRate_ScalesDown_24To18() external {
+        GenericRateProviderWithStalenessCheck provider = _deploy(24, 18);
+        assertEq(provider.getRate(), BASE_RATE / 1e6);
     }
 
     function testGetRate_ScalesUp_6To18() external {
@@ -88,6 +89,15 @@ contract GenericRateProviderWithStalenessCheckTest is Test {
             GenericRateProviderWithStalenessCheck.GenericRateProviderWithStalenessCheck__DecimalsCannotBeZero.selector
         );
         _deploy(18, 0);
+    }
+
+    // L-04: PriceValidator assumes every rate is 1e18-scaled, so this provider must pin outputDecimals to 18;
+    // a non-18 (non-zero) output would silently feed a wrongly-scaled rate into the slippage math.
+    function testConstructor_RevertsOnNonEighteenOutputDecimals() external {
+        vm.expectRevert(
+            GenericRateProviderWithStalenessCheck.GenericRateProviderWithStalenessCheck__OutputDecimalsMustBe18.selector
+        );
+        _deploy(18, 8);
     }
 
     function _deploy(uint8 inputDecimals, uint8 outputDecimals)

@@ -1137,6 +1137,25 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.swap(config);
     }
 
+    // I-04: the offsets word must bound the postInteraction field — CustomData (the block after it) must be
+    // empty. Pre-fix the parser read a fixed header from postInteractionStart without checking the field's
+    // end, so it could spill into CustomData and resolve a receiver from foreign bytes. Here we append extra
+    // CustomData to a valid extension (without growing end[7]); the "CustomData empty" check must reject it.
+    function testOneInchExtensionOrder_RevertTrailingCustomData() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        // valid extension + trailing bytes the offsets word does NOT account for (non-empty CustomData)
+        bytes memory tampered =
+            abi.encodePacked(_buildFeeTakerExtension(getAddress(sourceChain, "boringVault")), hex"deadbeef");
+        // salt auto-binds to the tampered bytes, so _isValidExtension passes and we reach the offsets check
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, tampered);
+
+        vm.expectRevert(OneInchAdapter.OneInchAdapter__UnsupportedExtensionField.selector);
+        swapper.submitOrder(config);
+    }
+
     function testOneInchOrder_RevertPartialSingleFillFlags() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
         vm.prank(getAddress(sourceChain, "boringVault"));
