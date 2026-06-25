@@ -1,0 +1,42 @@
+# CODEOWNERS for Veda-Labs/boring-vault
+#
+# Owners listed here are automatically requested for review when a PR touches a
+# matching path. The LAST matching pattern wins.
+#
+# IMPORTANT — for these to be *required* (not just auto-requested):
+#   1. Branch protection on `main` must enable "Require review from Code Owners"
+#      (currently require_code_owner_reviews = false).
+#   2. A listed team/user must have write access to this repo, otherwise GitHub
+#      silently ignores it. @Veda-Labs/smart-contracts has write access today.
+#      @Veda-Labs/security-sensitive does NOT yet — see the commented block below.
+
+# Default owner for everything in the repo.
+*                                   @Veda-Labs/smart-contracts
+
+# --- Security-sensitive paths -------------------------------------------------
+# CI / supply chain: workflows pull third-party Actions and consume secrets
+# (e.g. CERTORAKEY, RPC keys). Changes here can alter what runs with secrets.
+/.github/                           @Veda-Labs/smart-contracts
+
+# Formal-verification specs & configs: these define what is actually proven,
+# so weakening them is a silent loss of guarantees.
+/certora/                           @Veda-Labs/smart-contracts
+
+# Core access control: roles, manager, merkle verification, cross-chain tellers.
+/src/base/Roles/                    @Veda-Labs/smart-contracts
+
+# Calldata security boundary: decoders/sanitizers gate what the vault may call.
+/src/base/DecodersAndSanitizers/    @Veda-Labs/smart-contracts
+
+# Deploy scripts.
+/script/                            @Veda-Labs/smart-contracts
+
+# --- Optional hardening (enable once the security team has repo write access) -
+# To force a dedicated security review on the crown-jewels paths, grant
+# @Veda-Labs/security-sensitive write access to this repo and append that team
+# to the lines below (multiple owners = review required from each team):
+#
+# /.github/                         @Veda-Labs/smart-contracts @Veda-Labs/security-sensitive
+# /certora/                         @Veda-Labs/smart-contracts @Veda-Labs/security-sensitive
+# /src/base/Roles/                  @Veda-Labs/smart-contracts @Veda-Labs/security-sensitive
+# /src/base/DecodersAndSanitizers/  @Veda-Labs/smart-contracts @Veda-Labs/security-sensitive
