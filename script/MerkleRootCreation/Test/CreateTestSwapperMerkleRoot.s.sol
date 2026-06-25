@@ -18,10 +18,10 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
     using FixedPointMathLib for uint256;
 
     //standard
-    address public boringVault = 0xE003287E34fF16A109477e84A0D271C5c3dc3c7f;
+    address public boringVault = 0x0Fc760EEbEFbF5FE3B452A9a52325c4376FEADFA;
     address public rawDataDecoderAndSanitizer = 0x907cE330C7841C2bD31abCB8c77c97f1EFb5a770; 
-    address public managerAddress = 0xBA270fFaDD785289991C471A8d7811505EA6F694;
-    address public accountantAddress = 0x2BAF79Bca4D48eE6890a09243483E458966fB957;
+    address public managerAddress = 0x1AE3346BC6d3267b860De524D5E38E19679A1DB0;
+    address public accountantAddress = 0xD1135B891143d3c5DfE158C6b4961937a27b8AE4;
     
 
     function setUp() external {}
@@ -43,7 +43,7 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
         ManageLeaf[] memory leafs = new ManageLeaf[](32);
 
         // ========================== Swapper ==========================
-        address swapper = 0xa4Bb310ec3A4C9F728F385f3C657b4f0BeB9fde8;
+        address swapper = 0x2802eAaa79601619D11fA83CB42fc4A7aD4f127b;
         address[][] memory pairs = new address[][](2);
         pairs[0] = new address[](2);
         pairs[0][0] = getAddress(sourceChain, "WETH");

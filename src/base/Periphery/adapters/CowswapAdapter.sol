@@ -24,6 +24,7 @@ contract CowswapAdapter is IAdapter {
     error CowswapAdapter__InvalidSellTokenBalance();
     error CowswapAdapter__InvalidBuyTokenBalance();
     error CowswapAdapter__NonEmptyAppData();
+    error CowswapAdapter__OrderExpired();
 
     //============================== Immutables ===============================
     
@@ -61,6 +62,7 @@ contract CowswapAdapter is IAdapter {
         if (ERC20(order.sellToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
         if (ERC20(order.buyToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
         if (order.receiver != (address(swapConfig.receiver))) revert Adapter__ReceiverMismatch();
+        if (order.validTo <= block.timestamp) revert CowswapAdapter__OrderExpired();
 
         bytes32 orderHash = _computeOrderHash(swapConfig.swapData);
 

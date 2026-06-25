@@ -16,8 +16,8 @@ import "dotenv/config";
 
 const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-const SWAPPER = "0xA19a28547d07C35B2F9C71DFDF7cEBA89C41E6CC";
-const ONEINCH_ADAPTER = "0x48EE2f75E67dE1Cc686b02F81EB3dFe95341DFC1";
+const SWAPPER = "0x2802eAaa79601619D11fA83CB42fc4A7aD4f127b";
+const ONEINCH_ADAPTER = "0x1c5d8ca5662E1C0c5979659c0035955C89101206";
 const BORING_VAULT = "0x0Fc760EEbEFbF5FE3B452A9a52325c4376FEADFA";
 
 const UINT_40_MAX = (1n << 40n) - 1n;
@@ -40,33 +40,39 @@ const sdk = new Sdk({
 // Then paste the params into Solidity TestLimitOrder and submit on-chain
 
 async function generate() {
-    const makingAmount = 1_000_000_000_000_000n; // 0.001 WETH
-    const takingAmount = 2_200_000n; // 2.2 USDC
+    const makingAmount = 100_000n; // 0.1 USDC
+    const takingAmount = 62_000_000_000_000n; // ~0.000062 WETH, tune to market before on-chain submit
 
     const expiresIn = 36000n; // 10 hours
     const expiration = BigInt(Math.floor(Date.now() / 1000)) + expiresIn;
-    // Single-shot order: NO_PARTIAL_FILLS_FLAG set, multiple fills disabled. Required by our
-    // OneInchAdapter.verifyLimitOrder, and guarantees the protocol uses BitInvalidator so that
-    // isValidSignature is called on the fill and isFilled() can read the right slot.
+    // Partial + multiple fills: the public 1inch orderbook rejects bit-invalidator (FOK) orders
+    // ("Bit invalidator only supported for RFQ orders. Allow partial and multiple fills..."). This
+    // shape uses the RemainingInvalidator, tracked by orderHash. OneInchAdapter.verifyLimitOrder
+    // requires partialAllowed == multipleAllowed, so both flags must be on, and filledAmount reads
+    // the RemainingInvalidator slot for this shape.
     const makerTraits = MakerTraits.default()
         .withExpiration(expiration)
-        .withNonce(randBigInt(UINT_40_MAX))
-        .disablePartialFills()
-        .disableMultipleFills();
+        .allowPartialFills()
+        .allowMultipleFills();
 
-    if (!makerTraits.isBitInvalidatorMode()) {
-        throw new Error("makerTraits must enable BitInvalidator mode for our adapter");
+    if (makerTraits.isBitInvalidatorMode()) {
+        throw new Error("makerTraits must NOT be BitInvalidator mode; backend only accepts RemainingInvalidator (partial+multiple) orders");
     }
     const NO_PARTIAL_FILLS_FLAG = 1n << 255n;
-    if ((makerTraits.asBigInt() & NO_PARTIAL_FILLS_FLAG) === 0n) {
-        throw new Error("NO_PARTIAL_FILLS_FLAG (bit 255) is not set");
+    const ALLOW_MULTIPLE_FILLS_FLAG = 1n << 254n;
+    const t = makerTraits.asBigInt();
+    if ((t & NO_PARTIAL_FILLS_FLAG) !== 0n) {
+        throw new Error("NO_PARTIAL_FILLS_FLAG (bit 255) must be clear");
+    }
+    if ((t & ALLOW_MULTIPLE_FILLS_FLAG) === 0n) {
+        throw new Error("ALLOW_MULTIPLE_FILLS_FLAG (bit 254) must be set");
     }
 
     console.log("Creating order via SDK...");
     const order = await sdk.createOrder(
         {
-            makerAsset: new Address(WETH),
-            takerAsset: new Address(USDC),
+            makerAsset: new Address(USDC),
+            takerAsset: new Address(WETH),
             makingAmount,
             takingAmount,
             maker: new Address(SWAPPER),
@@ -203,7 +209,7 @@ async function submit() {
         ],
         [
             {
-                tokenRoute: { tokenIn: WETH, tokenOut: USDC },
+                tokenRoute: { tokenIn: USDC, tokenOut: WETH },
                 adapter: ONEINCH_ADAPTER,
                 quoteAsset: USDC,
                 swapData,
@@ -249,21 +255,20 @@ async function check() {
 // requirement. A rejection mentioning fee/extension/receiver, or an acceptance, is the signal we want.
 
 async function submitRaw() {
-    const makingAmount = 1_000_000_000_000_000n; // 0.001 WETH
-    const takingAmount = 2_200_000n; // 2.2 USDC
+    const makingAmount = 100_000n; // 0.1 USDC
+    const takingAmount = 62_000_000_000_000n; // ~0.000062 WETH, tune to market before on-chain submit
     const expiration = BigInt(Math.floor(Date.now() / 1000)) + 36000n;
 
     const makerTraits = MakerTraits.default()
         .withExpiration(expiration)
-        .withNonce(randBigInt(UINT_40_MAX))
-        .disablePartialFills()
-        .disableMultipleFills();
+        .allowPartialFills()
+        .allowMultipleFills();
 
     // Plain LimitOrder: no extension, receiver = vault directly.
     const order = new LimitOrder(
         {
-            makerAsset: new Address(WETH),
-            takerAsset: new Address(USDC),
+            makerAsset: new Address(USDC),
+            takerAsset: new Address(WETH),
             makingAmount,
             takingAmount,
             maker: new Address(SWAPPER),
@@ -308,7 +313,7 @@ async function submitRaw() {
         ],
         [
             {
-                tokenRoute: { tokenIn: WETH, tokenOut: USDC },
+                tokenRoute: { tokenIn: USDC, tokenOut: WETH },
                 adapter: ONEINCH_ADAPTER,
                 quoteAsset: USDC,
                 swapData,
