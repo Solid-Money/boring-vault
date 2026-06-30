@@ -65,3 +65,14 @@ jobs:
             --skip BeraborrowIntegration --skip BeraETHIntegration \
             --skip ScrollBridgeIntegration
         id: test
+
+      # Scheduled runs notify no one by default, so ping Slack on failure.
+      # Requires the SLACK_WEBHOOK_URL repo secret (a Slack incoming webhook).
+      - name: Alert Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {"text": "🌙❌ *nightly-fuzz* failed — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}

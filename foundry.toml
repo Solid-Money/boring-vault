@@ -118,7 +118,9 @@ fail_on_revert = false
 # 6h job cap.
 [profile.nightly.fuzz]
 runs = 16000
-seed = "0x0000000000000000000000000000000000000000000000000000000000000002"
+# No fixed seed: the nightly deep run explores fresh fuzz inputs each night,
+# rather than re-running the same seed CI already covers. (CI keeps its seed
+# pinned for reproducible PR gating.)
 
 [profile.nightly.invariant]
 runs = 256
