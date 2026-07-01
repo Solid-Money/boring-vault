@@ -9,15 +9,18 @@ on:
 env:
   FOUNDRY_PROFILE: ci
 
+# We invoke certoraRun directly (not the certora-run-action) so the job's
+# exit status reflects the actual verification verdict: the action submits with
+# `--wait_for_results none` (async) and always exits 0 on successful submission,
+# so a violated rule left the job green. `--wait_for_results all` blocks and
+# returns non-zero on a real property violation, which fails the job and fires
+# the Slack alert below. Only needs CERTORAKEY (no GitHub App / PR scopes).
 jobs:
   fv:
     name: Verified Rules (${{ matrix.scenario }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      statuses: write
-      pull-requests: write
-      id-token: write
     strategy:
       # Run every scenario even if one fails (these were 5 separate workflows).
       fail-fast: false
@@ -74,19 +77,46 @@ jobs:
           corepack enable
           yarn install
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Certora CLI + solc 0.8.21
+        run: |
+          uv tool install --python 3.12 "certora-cli==8.16.1"
+          uv tool install solc-select
+          solc-select install 0.8.21
+          # The confs pin `solc8.21`; expose the 0.8.21 binary under that name.
+          ln -sf "$(find "$HOME/.solc-select/artifacts" -name 'solc-0.8.21' -type f | head -1)" "$HOME/.local/bin/solc8.21"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Certora munge
         run: certora/scripts/setup.sh ${{ matrix.scenario }}
 
-      - name: run configs
-        uses: Certora/certora-run-action@1b56663420688a98038ba93168f67c43210f99c5 # pinned to commit (post-v2.9.0) per security review: PR#95 safe arg parsing (no eval), PR#91 solc SHA-256
-        with:
-          configurations: ${{ matrix.configs }}
-          solc-versions: 0.8.21
-          solc-remove-version-prefix: "0."
-          job-name: "Verified Rules"
-          certora-key: ${{ secrets.CERTORAKEY }}
+      - name: Run Certora verification
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CERTORAKEY: ${{ secrets.CERTORAKEY }}
+        run: |
+          set -uo pipefail
+          fail=0
+          while IFS= read -r line; do
+            # skip blank lines
+            [ -z "${line//[[:space:]]/}" ] && continue
+            # Parse the config line into args honoring quotes (no eval).
+            mapfile -t -d '' parts < <(printf '%s' "$line" | xargs printf '%s\0')
+            echo "::group::certoraRun ${parts[*]}"
+            if ! certoraRun "${parts[@]}" --wait_for_results all; then
+              echo "::error::Certora verification failed for: $line"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done <<< '${{ matrix.configs }}'
+          exit "$fail"
 
       # Scheduled runs notify no one by default, so ping Slack on failure.
       # Requires the SLACK_WEBHOOK_URL repo secret (a Slack incoming webhook).
