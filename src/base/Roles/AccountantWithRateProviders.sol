@@ -132,6 +132,10 @@ contract AccountantWithRateProviders is Auth, IRateProvider, IPausable {
         uint16 platformFee,
         uint16 performanceFee
     ) Auth(_owner, Authority(address(0))) {
+        // Enforce the same exchange-rate-change bounds the updateUpper/updateLower
+        // setters enforce, so the accountant cannot be deployed outside them.
+        if (allowedExchangeRateChangeUpper < 1e4) revert AccountantWithRateProviders__UpperBoundTooSmall();
+        if (allowedExchangeRateChangeLower > 1e4) revert AccountantWithRateProviders__LowerBoundTooLarge();
         base = ERC20(_base);
         decimals = ERC20(_base).decimals();
         vault = BoringVault(payable(_vault));
