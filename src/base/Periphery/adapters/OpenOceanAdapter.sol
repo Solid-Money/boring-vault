@@ -182,7 +182,7 @@ contract OpenOceanAdapter is IAdapter, BaseAdapter {
             if (rawPool & WETH_MASK != 0) revert OpenOceanAdapter__WethFlagsNotAllowed();
             _validateV2Pool(address(uint160(rawPool)));
         }
-        // srcToken must be the INPUT side of the first pool (M-03). Validating only that each pool is
+        // srcToken must be the INPUT side of the first pool. Validating only that each pool is
         // factory-registered leaves the swap direction unbound, so bind srcToken to the first hop's input.
         // REVERSE_MASK set => output is token0 (selling token1), i.e. input is token1; otherwise input is token0.
         uint256 firstRaw = uint256(pools[0]);

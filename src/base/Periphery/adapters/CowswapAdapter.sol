@@ -93,7 +93,7 @@ contract CowswapAdapter is IAdapter {
     }
 
     /// @dev Returns the sell amount filled so far (partial or full) from the GPv2 settlement.
-    /// @dev M-07 / L-05: a CoW solver may call `freeFilledAmountStorage` on an EXPIRED order, after which this
+    /// @dev A CoW solver may call `freeFilledAmountStorage` on an EXPIRED order, after which this
     ///      returns 0 even for a fully-settled order. The fake-refund drain that could otherwise enable is
     ///      UNREACHABLE on-chain: `BoringSwapper._cancelOrder` re-runs `verifyLimitOrder`, which reverts
     ///      `CowswapAdapter__OrderExpired` once `validTo <= block.timestamp`, and a filled order reverts

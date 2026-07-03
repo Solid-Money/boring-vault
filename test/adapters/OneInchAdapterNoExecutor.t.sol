@@ -9,9 +9,9 @@ import {OneInchAdapterNoExecutor} from "src/base/Periphery/adapters/OneInchAdapt
 
 /// @notice Runs the ENTIRE OneInchAdapter test suite against OneInchAdapterNoExecutor via inheritance, so the two
 ///         can never drift. OneInchAdapterNoExecutor shares byte-identical limit-order, unoswap, pool-validation,
-///         `_verifyPostInteractionData`, and `filledAmount` logic with OneInchAdapter — including every fix
-///         (M-01 raw-nonce bit-invalidator read, PostInt #2 per-slot 4/5/6 checks, PostInt #3 feeLen<=7 tail
-///         bound, M-03 tokenIn-in-pool checks). It ONLY relaxes `swap()` by dropping the trusted-executor
+///         `_verifyPostInteractionData`, and `filledAmount` logic with OneInchAdapter — including the raw-nonce
+///         bit-invalidator read, the per-slot 4/5/6 offset checks, the feeLen<=7 tail bound, and the
+///         tokenIn-in-pool checks. It ONLY relaxes `swap()` by dropping the trusted-executor
 ///         whitelist and the `srcReceiver == executor` check.
 ///
 ///         Inheritance is safe because no inherited test depends on those two dropped checks: none asserts

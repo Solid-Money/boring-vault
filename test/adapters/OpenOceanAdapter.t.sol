@@ -332,10 +332,10 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
-    // M-03: srcToken must be the INPUT side of the first pool, not just one of its tokens. Here we target the real
+    // srcToken must be the INPUT side of the first pool, not just one of its tokens. Here we target the real
     // factory-registered USDC/WETH pair (token0=USDC, token1=WETH) with the REVERSE flag UNSET, so the adapter's
-    // input side is token0=USDC — but srcToken is WETH. Pre-fix the pool passed factory validation and the wrong
-    // direction went unchecked; the srcToken<->first-pool binding must now reject it.
+    // input side is token0=USDC — but srcToken is WETH. The pool is factory-valid, so only the srcToken<->first-
+    // pool binding can reject it.
     function testCallUniswap_RevertsSrcTokenNotFirstPoolInput() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
 

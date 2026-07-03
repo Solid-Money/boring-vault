@@ -909,11 +909,11 @@ contract OneInchAdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
-    // M-03: a REAL, factory-registered UniV3 pool, but the declared tokenIn (USDT) is NOT one of its tokens.
-    // tokenOut is set to the pool's token0 (USDC), so the pre-fix silent `return token0` would have passed
-    // TokenOutMismatch — letting the V3 callback pull the pool's real input token via a standing allowance.
-    // The new membership guard must revert InvalidPool instead. (Distinct from PoolNotFromFactory, which
-    // fails the factory check first; here the pool is genuine and only the tokenIn check can fire.)
+    // A REAL, factory-registered UniV3 pool, but the declared tokenIn (USDT) is NOT one of its tokens.
+    // tokenOut is set to the pool's token0 (USDC), so without the membership check the counter-token would
+    // match — letting the V3 callback pull the pool's real input token via a standing allowance. The
+    // membership guard must revert InvalidPool. (Distinct from PoolNotFromFactory, which fails the factory
+    // check first; here the pool is genuine and only the tokenIn check can fire.)
     function testOneInchAdapter__RevertsUniswapV3TokenInNotInPool() external {
         deal(getAddress(sourceChain, "USDT"), getAddress(sourceChain, "boringVault"), 100e6);
 
@@ -1155,7 +1155,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // M-05: a FeeTaker extension order MUST set POST_INTERACTION_CALL_FLAG (bit 251); without it the router
+    // A FeeTaker extension order MUST set POST_INTERACTION_CALL_FLAG (bit 251); without it the router
     // never calls postInteraction, so the FeeTaker keeps the buyTokens and the vault gets nothing for its
     // sold makerAsset. Here makerTraits is FOK + HAS_EXTENSION with bit 251 omitted; salt binds and
     // receiver == feeTaker, so the only failing check is the post-interaction requirement.
@@ -1174,7 +1174,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // M-06: fillOrder must reject takerTraits bit 255 (_MAKER_AMOUNT_FLAG). When set, the router reinterprets
+    // fillOrder must reject takerTraits bit 255 (_MAKER_AMOUNT_FLAG). When set, the router reinterprets
     // `amount` as makerAsset OUTPUT, so the swapper would feed a tokenOut-denominated number into price/rate-limit
     // checks that expect tokenIn — and could pull a pending order's principal. The order's taker/maker assets
     // match the route, so the only failing check is the maker-amount flag.
@@ -1208,9 +1208,8 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.swap(config);
     }
 
-    // I-04: the offsets word must bound the postInteraction field — CustomData (the block after it) must be
-    // empty. Pre-fix the parser read a fixed header from postInteractionStart without checking the field's
-    // end, so it could spill into CustomData and resolve a receiver from foreign bytes. Here we append extra
+    // The offsets word must bound the postInteraction field — CustomData (the block after it) must be empty,
+    // otherwise the parser could resolve the customReceiver from foreign CustomData bytes. Here we append extra
     // CustomData to a valid extension (without growing end[7]); the "CustomData empty" check must reject it.
     function testOneInchExtensionOrder_RevertTrailingCustomData() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
@@ -1227,10 +1226,9 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // H-05 via the FeeTaker tail: pinning the amount getter to feeTaker is not sufficient. 1inch's
-    // AmountGetterBase treats any bytes trailing the fee config as a nested IAmountGetter and CALLS it, so an
-    // oversized fee blob (feeLen > 7) can embed a strategist getter that returns a near-zero taking amount and
-    // drains the vault. The fee-tail bound must reject any feeLen large enough to hold a 20-byte getter.
+    // 1inch's AmountGetterBase treats any bytes trailing the fee config as a nested IAmountGetter and CALLS it,
+    // so an oversized fee blob (feeLen > 7) could embed a strategist getter that returns a near-zero taking
+    // amount and drains the vault. The fee-tail bound must reject any feeLen large enough to hold a 20-byte getter.
     function testOneInchExtensionOrder_RevertFeeTailTooLong() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
         vm.prank(getAddress(sourceChain, "boringVault"));
@@ -1246,9 +1244,9 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // Fields 4/5/6 (predicate, makerPermit, preInteraction) must ALL be empty. The old check only compared
-    // end[6]==end[3], leaving end[4]/end[5] free — so a non-empty predicate could be injected while end[6]==end[3]
-    // still held. This extension does exactly that; the per-slot check must reject it.
+    // Fields 4/5/6 (predicate, makerPermit, preInteraction) must each be empty. This builds an extension where
+    // end[6]==end[3] holds but end[4] is bumped so field 4 (predicate) is non-empty; the per-slot
+    // end[4]/end[5]/end[6] checks must reject it.
     function testOneInchExtensionOrder_RevertNonEmptyPredicateField() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
         vm.prank(getAddress(sourceChain, "boringVault"));
@@ -1438,11 +1436,10 @@ contract OneInchAdapterTest is BaseTestIntegration {
         assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 1e18 - 1e14);
     }
 
-    // M-01 regression: a FOK (BitInvalidator) order with nonceOrEpoch >= 256. 1inch's checkSlot shifts the
-    // argument (>>8) internally, so the adapter must pass the RAW nonce. The pre-fix code passed `nonce >> 8`,
-    // reading _raw[nonce>>16] and misreporting fill state for any nonce >= 256. Here nonce=300 => slot 1,
-    // bit 44; the mock is keyed on the raw nonce only, so a re-introduced pre-shift (querying key 1) would
-    // read 0 from the real router and this test would fail.
+    // A FOK (BitInvalidator) order with nonceOrEpoch >= 256. 1inch's checkSlot shifts its argument (>>8)
+    // internally, so the adapter passes the RAW nonce (here nonce=300 => slot 1, bit 44). The mock is keyed on
+    // the raw nonce only — a query with the shifted slot (key 1) misses it and reads 0 from the real router,
+    // so this test guards the raw-nonce behavior.
     function testOneInchLimitOrder_filledAmount_BitInvalidatorNonceOver255() external {
         (ISwapperTypes.SwapConfig memory config,) = _buildOneInchSwapConfig(1e18, 2000e6);
         uint256 nonce = 300; // slot = 300>>8 = 1, bit = 1<<(300 & 0xff) = 1<<44
@@ -1664,7 +1661,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
     }
 
     // Valid getters/postInteraction, but end[4] is bumped so field 4 (predicate) is non-empty while end[6]==end[3]
-    // still holds — the exact shape the old single-slot (end[6]==end[3]) check failed to catch.
+    // still holds — a shape the per-slot end[4]/end[5]/end[6] checks must reject.
     function _buildFeeTakerExtensionBadPredicate(address customReceiver) internal view returns (bytes memory extension) {
         address feeTaker = OneInchAdapter(oneInchAdapter).feeTaker();
         address protocolFeeReceiver = OneInchAdapter(oneInchAdapter).protocolFeeReceiver();
@@ -1693,7 +1690,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
     }
 
     // Salt-bound extension order with arbitrary makerTraits, for exercising the extension flag checks
-    // (e.g. M-05's POST_INTERACTION requirement). Salt commits to the extension so _isValidExtension passes.
+    // (e.g. the POST_INTERACTION requirement). Salt commits to the extension so _isValidExtension passes.
     function _buildOneInchExtensionConfigWithTraits(
         uint256 makingAmount,
         uint256 takingAmount,

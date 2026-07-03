@@ -9,7 +9,7 @@ interface IOneInchRouterGT {
     function bitInvalidatorForOrder(address maker, uint256 slot) external view returns (uint256);
 }
 
-/// @notice GROUND TRUTH for M-01. Exercises the DEPLOYED 1inch AggregationRouterV6 (not source/snippets):
+/// @notice GROUND TRUTH. Exercises the DEPLOYED 1inch AggregationRouterV6 (not source/snippets):
 ///         invalidates a nonce >= 256 as a maker, then reads bitInvalidatorForOrder back with the raw nonce
 ///         vs. the shifted slot. This decides whether the adapter must pass the raw nonce (checkSlot shifts
 ///         internally) or the slot, independent of any documentation, param naming, or third-party claim.
@@ -33,8 +33,8 @@ contract OneInchBitInvalidatorGroundTruthTest is Test {
         vm.prank(maker);
         IOneInchRouterGT(ONEINCH_ROUTER).cancelOrder(makerTraits, bytes32(0));
 
-        uint256 atRawNonce = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, nonce); // 300
-        uint256 atSlot = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, nonce >> 8); // 1 (adapter passes this)
+        uint256 atRawNonce = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, nonce); // 300 (what the adapter passes)
+        uint256 atSlot = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, nonce >> 8); // 1 (the shifted slot, not the raw nonce)
         uint256 atSibling = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, 256); // same slot as 300
         uint256 atZero = IOneInchRouterGT(ONEINCH_ROUTER).bitInvalidatorForOrder(maker, 0);
 
@@ -48,12 +48,12 @@ contract OneInchBitInvalidatorGroundTruthTest is Test {
         // 256 (same slot 1) surfaces the same word; slot=1 and 0 (both land in slot 0) are empty.
         assertEq(atRawNonce, expectedBit, "raw nonce surfaces the bit => checkSlot shifts >>8 internally");
         assertEq(atSibling, expectedBit, "nonce 256 shares slot 1 with 300 => arg is a nonce, not a slot");
-        assertEq(atSlot, 0, "nonce>>8 (=1) reads slot 0 => WRONG word (the adapter's M-01 bug for nonce>=256)");
+        assertEq(atSlot, 0, "nonce>>8 (=1) reads slot 0 => WRONG word for nonce>=256");
         assertEq(atZero, 0, "control: untouched slot reads 0");
 
-        // The adapter now passes the RAW nonce (M-01 fix), so it reads `atRawNonce` and detects the
-        // invalidation; the `nonce >> 8` pre-shift this fix removed would have read `atSlot` and missed it.
-        assertTrue((atRawNonce & expectedBit) != 0, "fixed adapter (raw nonce) detects the invalidation");
-        assertTrue((atSlot & expectedBit) == 0, "the removed `nonce >> 8` pre-shift would have missed it");
+        // The adapter passes the RAW nonce, so it reads `atRawNonce` (the word carrying the invalidation);
+        // querying the shifted slot (nonce >> 8) instead reads `atSlot`, a different word.
+        assertTrue((atRawNonce & expectedBit) != 0, "raw nonce detects the invalidation");
+        assertTrue((atSlot & expectedBit) == 0, "the shifted-slot query does not");
     }
 }
