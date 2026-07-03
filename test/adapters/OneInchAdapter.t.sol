@@ -55,7 +55,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
     MockRateProvider usdRate;
     MockRateProvider ethRate;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         _setupChain("mainnet", 24592183);
 
@@ -1227,6 +1227,40 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
+    // H-05 via the FeeTaker tail: pinning the amount getter to feeTaker is not sufficient. 1inch's
+    // AmountGetterBase treats any bytes trailing the fee config as a nested IAmountGetter and CALLS it, so an
+    // oversized fee blob (feeLen > 7) can embed a strategist getter that returns a near-zero taking amount and
+    // drains the vault. The fee-tail bound must reject any feeLen large enough to hold a 20-byte getter.
+    function testOneInchExtensionOrder_RevertFeeTailTooLong() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        // 20-byte tail = a would-be nested getter address; feeLen becomes 20 (> 7)
+        bytes memory extension = _buildFeeTakerExtensionWithFeeData(
+            getAddress(sourceChain, "boringVault"), abi.encodePacked(bytes20(address(0xBAD)))
+        );
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, extension);
+
+        vm.expectRevert(OneInchAdapter.OneInchAdapter__FeeTailNotEmpty.selector);
+        swapper.submitOrder(config);
+    }
+
+    // Fields 4/5/6 (predicate, makerPermit, preInteraction) must ALL be empty. The old check only compared
+    // end[6]==end[3], leaving end[4]/end[5] free — so a non-empty predicate could be injected while end[6]==end[3]
+    // still held. This extension does exactly that; the per-slot check must reject it.
+    function testOneInchExtensionOrder_RevertNonEmptyPredicateField() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        bytes memory extension = _buildFeeTakerExtensionBadPredicate(getAddress(sourceChain, "boringVault"));
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, extension);
+
+        vm.expectRevert(OneInchAdapter.OneInchAdapter__UnsupportedExtensionField.selector);
+        swapper.submitOrder(config);
+    }
+
     function testOneInchOrder_RevertPartialSingleFillFlags() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
         vm.prank(getAddress(sourceChain, "boringVault"));
@@ -1404,6 +1438,41 @@ contract OneInchAdapterTest is BaseTestIntegration {
         assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 1e18 - 1e14);
     }
 
+    // M-01 regression: a FOK (BitInvalidator) order with nonceOrEpoch >= 256. 1inch's checkSlot shifts the
+    // argument (>>8) internally, so the adapter must pass the RAW nonce. The pre-fix code passed `nonce >> 8`,
+    // reading _raw[nonce>>16] and misreporting fill state for any nonce >= 256. Here nonce=300 => slot 1,
+    // bit 44; the mock is keyed on the raw nonce only, so a re-introduced pre-shift (querying key 1) would
+    // read 0 from the real router and this test would fail.
+    function testOneInchLimitOrder_filledAmount_BitInvalidatorNonceOver255() external {
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchSwapConfig(1e18, 2000e6);
+        uint256 nonce = 300; // slot = 300>>8 = 1, bit = 1<<(300 & 0xff) = 1<<44
+        DecoderCustomTypes.OneInchLimitOrder memory order = DecoderCustomTypes.OneInchLimitOrder({
+            salt: 1,
+            maker: address(swapper),
+            receiver: getAddress(sourceChain, "boringVault"),
+            makerAsset: getAddress(sourceChain, "WETH"),
+            takerAsset: getAddress(sourceChain, "USDC"),
+            makingAmount: 1e18,
+            takingAmount: 2000e6,
+            makerTraits: (uint256(1) << 255) | (nonce << 120) // NO_PARTIAL_FILLS (FOK) + nonceOrEpoch = 300
+        });
+        config.swapData = abi.encode(order, bytes(""));
+
+        // Untouched: the fresh swapper has no invalidator state, so the real router returns 0 => filled 0.
+        assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 0);
+
+        // Full fill: the real router sets bit (nonce & 0xff) in _raw[nonce>>8] and returns that word when
+        // queried with the RAW nonce. Mock keyed on the raw nonce (300) mirrors that.
+        vm.mockCall(
+            ONEINCH_ROUTER,
+            abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), nonce),
+            abi.encode(uint256(1) << (nonce & 0xff))
+        );
+
+        // Fixed adapter passes the raw nonce -> reads the mocked word -> reports fully filled.
+        assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 1e18);
+    }
+
     function testOneInchLimitMask() external {
     }
 
@@ -1572,6 +1641,47 @@ contract OneInchAdapterTest is BaseTestIntegration {
         extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
     }
 
+    // Valid-shaped FeeTaker extension but with an arbitrary fee blob appended to BOTH amount getters and the
+    // postInteraction (kept byte-equal so the getter/tail consistency checks pass and we reach the fee-tail bound).
+    function _buildFeeTakerExtensionWithFeeData(address customReceiver, bytes memory feeData)
+        internal
+        view
+        returns (bytes memory extension)
+    {
+        address feeTaker = OneInchAdapter(oneInchAdapter).feeTaker();
+        address protocolFeeReceiver = OneInchAdapter(oneInchAdapter).protocolFeeReceiver();
+
+        bytes memory amountGetter = abi.encodePacked(feeTaker, feeData);
+        bytes memory postInteraction = abi.encodePacked(
+            feeTaker, bytes1(0x01), bytes20(address(0)), bytes20(protocolFeeReceiver), bytes20(customReceiver), feeData
+        );
+        uint256 getterLength = amountGetter.length;
+        uint256 postInteractionLength = postInteraction.length;
+        uint256 offsets = (getterLength << 64) | ((2 * getterLength) << 96) | ((2 * getterLength) << 128)
+            | ((2 * getterLength) << 160) | ((2 * getterLength) << 192)
+            | ((2 * getterLength + postInteractionLength) << 224);
+        extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
+    }
+
+    // Valid getters/postInteraction, but end[4] is bumped so field 4 (predicate) is non-empty while end[6]==end[3]
+    // still holds — the exact shape the old single-slot (end[6]==end[3]) check failed to catch.
+    function _buildFeeTakerExtensionBadPredicate(address customReceiver) internal view returns (bytes memory extension) {
+        address feeTaker = OneInchAdapter(oneInchAdapter).feeTaker();
+        address protocolFeeReceiver = OneInchAdapter(oneInchAdapter).protocolFeeReceiver();
+
+        bytes memory amountGetter = abi.encodePacked(feeTaker); // feeLen 0
+        bytes memory postInteraction = abi.encodePacked(
+            feeTaker, bytes1(0x01), bytes20(address(0)), bytes20(protocolFeeReceiver), bytes20(customReceiver)
+        );
+        uint256 gl = amountGetter.length;
+        uint256 pil = postInteraction.length;
+        // end[2]=gl, end[3]=2gl, end[4]=2gl+7 (NON-EMPTY predicate), end[5]=end[6]=2gl (so end[6]==end[3] still holds),
+        // end[7]=2gl+pil (customData empty). Only the per-slot end[4] check can reject this.
+        uint256 offsets = (gl << 64) | ((2 * gl) << 96) | ((2 * gl + 7) << 128) | ((2 * gl) << 160) | ((2 * gl) << 192)
+            | ((2 * gl + pil) << 224);
+        extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
+    }
+
     function _buildOneInchExtensionConfig(uint256 makingAmount, uint256 takingAmount, bytes memory extension)
         internal
         view
@@ -1674,13 +1784,14 @@ contract OneInchAdapterTest is BaseTestIntegration {
             order.makerTraits & (uint256(1) << 255) != 0 || order.makerTraits & (uint256(1) << 254) == 0;
 
         if (useBitInvalidator) {
-            // Fill-or-kill: binary. Set the order's nonce bit in its slot (a full fill).
+            // Fill-or-kill: binary. The fixed adapter passes the RAW nonce; 1inch's checkSlot shifts it (>>8)
+            // to index _raw[nonce>>8], the word that carries bit (nonce & 0xff) once filled. Keying the mock on
+            // the raw nonce mirrors that read exactly — a re-introduced `nonce >> 8` would query the wrong key.
             uint256 nonce = (order.makerTraits >> 120) & type(uint40).max;
-            uint256 slot = nonce >> 8;
             uint256 bitWord = uint256(1) << (nonce & 0xff);
             vm.mockCall(
                 ONEINCH_ROUTER,
-                abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), slot),
+                abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), nonce),
                 abi.encode(bitWord)
             );
         } else {

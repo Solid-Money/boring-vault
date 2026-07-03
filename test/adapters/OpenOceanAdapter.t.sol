@@ -332,6 +332,63 @@ contract OpenOceanAdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
+    // M-03: srcToken must be the INPUT side of the first pool, not just one of its tokens. Here we target the real
+    // factory-registered USDC/WETH pair (token0=USDC, token1=WETH) with the REVERSE flag UNSET, so the adapter's
+    // input side is token0=USDC — but srcToken is WETH. Pre-fix the pool passed factory validation and the wrong
+    // direction went unchecked; the srcToken<->first-pool binding must now reject it.
+    function testCallUniswap_RevertsSrcTokenNotFirstPoolInput() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "WETH");
+        pairs[0][1] = getAddress(sourceChain, "USDC");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](16);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
+
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        Tx memory tx_ = _getTxArrays(2);
+        tx_.manageLeafs[0] = leafs[0]; // approve token
+        tx_.manageLeafs[1] = leafs[1]; // swap WETH -> USDC
+
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+        tx_.targets[0] = getAddress(sourceChain, "WETH");
+        tx_.targets[1] = address(swapper);
+        tx_.targetData[0] = abi.encodeWithSignature("approve(address,uint256)", address(swapper), type(uint256).max);
+
+        // USDC/WETH pair with REVERSE_MASK UNSET => adapter treats token0 (USDC) as input, but srcToken is WETH.
+        bytes32[] memory pools = new bytes32[](1);
+        pools[0] = bytes32(uint256(uint160(0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc)));
+        bytes memory swapData = abi.encodeWithSignature(
+            "callUniswap(address,uint256,uint256,bytes32[])", getAddress(sourceChain, "WETH"), uint256(1e15), uint256(0), pools
+        );
+
+        tx_.targetData[1] = abi.encodeWithSelector(
+            BoringSwapper.swap.selector,
+            ISwapperTypes.SwapConfig({
+                tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "WETH"), getERC20(sourceChain, "USDC")),
+                adapter: openOceanAdapter,
+                quoteAsset: getAddress(sourceChain, "USDC"),
+                swapData: swapData,
+                slippageBps: 10,
+                receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+            })
+        );
+
+        tx_.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        tx_.decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+        vm.expectRevert(abi.encodeWithSelector(OpenOceanAdapter.OpenOceanAdapter__InvalidPool.selector));
+        _submitManagerCall(manageProofs, tx_);
+    }
+
     //==================== OpenOcean callUniswapTo() Tests ====================
 
     function testCallUniswapTo() external {

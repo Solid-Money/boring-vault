@@ -45,6 +45,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     error OneInchAdapter__PostInteractionRequired();
     error OneInchAdapter__MakerAmountFlagNotAllowed();
     error OneInchAdapter__InvalidFillFlags();
+    error OneInchAdapter__FeeTailNotEmpty();
 
     //============================== Immutables ===============================
     
@@ -378,9 +379,12 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         //in our case, this would mean a full fill only, since we only allow FOK orders if either are set.
         if (useBitInvalidator) {
             uint256 nonce = (order.makerTraits >> _NONCE_OR_EPOCH_OFFSET) & _NONCE_OR_EPOCH_MASK;
-            uint256 slot = nonce >> 8;
+            // Pass the RAW nonce. 1inch's BitInvalidatorLib.checkSlot applies `nonce >> 8` INTERNALLY to pick
+            // the invalidator word, so bitInvalidatorForOrder(maker, X) reads _raw[X >> 8]. Pre-shifting here
+            // would double-shift to _raw[nonce >> 16] and misreport fill state for any nonce >= 256 (M-01,
+            // confirmed against the deployed router). The bit within the word is still nonce & 0xff.
             uint256 bit = 1 << (nonce & 0xff);
-            uint256 raw = IOneInchOrderMixin(router).bitInvalidatorForOrder(swapper, slot);
+            uint256 raw = IOneInchOrderMixin(router).bitInvalidatorForOrder(swapper, nonce);
             return raw & bit != 0 ? order.makingAmount : 0;
         }
 
@@ -450,7 +454,11 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token1 = IUniswapV3(pool).token1();
         uint24 fee = IUniswapV3(pool).fee();
         if (IUniswapV3Factory(univ3Factory).getPool(token0, token1, fee) != pool) revert OneInchAdapter__InvalidPool();
-        // tokenIn must be one of the pool's tokens
+        // tokenIn must be one of the pool's tokens; we return the counter-token as tokenOut. We do NOT read
+        // 1inch's swap-direction bit here (M-03): if the router swaps the reverse direction it delivers tokenIn
+        // rather than tokenOut, and BoringSwapper's post-flight tokenOut balance-delta check rejects that (the
+        // delta is zero or underflows). Direction is thus enforced downstream; this pool-token binding closes
+        // the original M-03 (a third token with a live limit-order allowance can no longer be pulled).
         if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
         return token0 == tokenIn ? token1 : token0;
     }
@@ -470,6 +478,16 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         return tokenOut;
     }
 
+    /// @dev VERSION-SPECIFIC PARSER. The layout below — 81-byte postInteraction header (feeTaker(20) + flags(1)
+    ///      + integratorRecipient(20) + protocolRecipient(20) + customReceiver(20)) and a <=7-byte amount-getter
+    ///      fee config — matches 1inch's FeeTaker "new spec" (limit-order-protocol commit 22a18f7, Dec 2024 →
+    ///      master). It is NOT a stable 1inch invariant: `feeTaker` is a maker-chosen extension address that this
+    ///      adapter pins to ONE governance-set, per-chain, non-upgradeable immutable, and earlier/other FeeTaker
+    ///      versions use different header/config sizes. Because the pinned contract is non-upgradeable the layout
+    ///      cannot drift post-deploy, so all layout risk is at (re)deploy time: on any re-pin (new chain or
+    ///      FeeTaker version) these offsets AND the feeLen bound MUST be re-derived and fork-validated against the
+    ///      DEPLOYED bytecode, not GitHub master. NEVER raise the feeLen bound to >= 20 — a 20-byte tail lets
+    ///      AmountGetterBase call a nested strategist getter and drain the vault (H-05).
     function _verifyPostInteractionData(bytes memory extension) internal view returns (address customReceiver) {
         if (extension.length < 32) revert OneInchAdapter__ExtensionTooShort();
         // offsets word: 8 packed uint32 cumulative END offsets, one per dynamic field.
@@ -481,10 +499,14 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         
         if (offsets & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 0: end[0] == 0
         if ((offsets >> (32 * 1)) & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 1: end[1] == 0
-        // fields 4,5,6 all empty
-        if ((offsets >> (32 * 6)) & 0xffffffff != (offsets >> (32 * 3)) & 0xffffffff) {
-            revert OneInchAdapter__UnsupportedExtensionField();
-        }
+        // fields 4,5,6 (predicate, makerPermit, preInteraction) must ALL be empty: end[4]==end[5]==end[6]==end[3].
+        // Checking only end[6]==end[3] leaves end[4]/end[5] unconstrained, so a non-empty predicate/permit/
+        // pre-interaction field could be injected (1inch reads those when the matching maker-trait flag is set,
+        // which this adapter does not otherwise forbid) while end[6]==end[3] still holds.
+        uint256 end3 = (offsets >> (32 * 3)) & 0xffffffff;
+        if ((offsets >> (32 * 4)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
+        if ((offsets >> (32 * 5)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
+        if ((offsets >> (32 * 6)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
         // field 8 (customData) empty <=> concat length == end[7]
         if (extension.length - 0x20 != (offsets >> (32 * 7)) & 0xffffffff) {
             revert OneInchAdapter__UnsupportedExtensionField();
@@ -517,6 +539,13 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
             revert OneInchAdapter__FeeMismatch();
         }
         uint256 feeLen = begin7 - begin3 - 20;
+        // Bound the amount-getter fee data so it cannot carry a nested getter. The getter is pinned to feeTaker
+        // (1inch AmountGetterWithFee), which parses its fee config and forwards any TRAILING bytes to
+        // AmountGetterBase — and AmountGetterBase treats the first 20 bytes of that tail as an IAmountGetter and
+        // CALLS it. A strategist could embed their own getter there to return a near-zero taking amount and drain
+        // the vault (this is H-05 resurfacing via the FeeTaker tail, which pinning the top-level getter does not
+        // stop). A minimal empty-whitelist fee config is 7 bytes; 7 < 20, so no 20-byte getter tail can exist.
+        if (feeLen > 7) revert OneInchAdapter__FeeTailNotEmpty();
         if (end7 - begin7 - 81 != feeLen || !_rangesEqual(extension, begin3 + 20, begin7 + 81, feeLen)) {
             revert OneInchAdapter__FeeMismatch();
         }

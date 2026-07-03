@@ -94,8 +94,8 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
     );
     event MaxSlippageBpsUpdated(bytes32 indexed routeId, uint256 maxSlippageBps);
     event AdapterApproved(address indexed adapter, bool approved);
-    event TokenBaseAssetOraclesUpdated(ERC20 indexed token);
-    event BaseAssetOracleUpdated(ERC20 indexed baseAsset);
+    event TokenBaseAssetOraclesUpdated(ERC20 indexed token, address indexed quoteAsset);
+    event BaseAssetOracleUpdated(ERC20 indexed baseAsset, address indexed quoteAsset);
     event PriceValidatorUpdated(address newValidator);
     event RateLimitUpdated(bytes32 indexed routeId, uint256 capacity, uint256 refillRate);
     event Swept(ERC20 indexed token, address indexed vault, uint256 amount);
@@ -405,7 +405,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
 
     function setTokenOracle(ERC20 token, address quoteAsset, RateProviderConfig memory config) external requiresAuth {
         _baseAssetOracles[token][quoteAsset] = config;
-        emit TokenBaseAssetOraclesUpdated(token);
+        emit TokenBaseAssetOraclesUpdated(token, quoteAsset);
     }
 
     function setBaseAssetOracle(ERC20 intermediary, address quoteAsset, address[] memory rateProviders)
@@ -413,7 +413,7 @@ contract BoringSwapper is Auth, ReentrancyGuard, ISwapper, IPausable {
         requiresAuth
     {
         oracles[intermediary][quoteAsset] = rateProviders;
-        emit BaseAssetOracleUpdated(intermediary);
+        emit BaseAssetOracleUpdated(intermediary, quoteAsset);
     }
 
     /// @notice Sets the price validator contract used for slippage checks.
