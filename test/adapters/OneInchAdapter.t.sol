@@ -968,6 +968,64 @@ contract OneInchAdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
+    // A REAL, factory-registered UniV3 pool where tokenIn (USDC) IS a pool token, but the dex word's zeroForOne
+    // bit is left 0 so the router would sell the counter-token (WETH). Membership alone passes and returns WETH
+    // as tokenOut, matching the route — the direction guard must reject it because USDC is not the input side.
+    function testOneInchAdapter__RevertsUniswapV3TokenInNotInputSide() external {
+        deal(getAddress(sourceChain, "USDC"), getAddress(sourceChain, "boringVault"), 100e6);
+
+        // canonical WETH/USDC 0.05% pool — token0 = USDC, token1 = WETH (ordered by address)
+        address realPool = IUniswapV3Factory(getAddress(sourceChain, "uniV3Factory")).getPool(
+            getAddress(sourceChain, "USDC"), getAddress(sourceChain, "WETH"), 500
+        );
+
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "USDC");
+        pairs[0][1] = getAddress(sourceChain, "WETH");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](16);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        Tx memory tx_ = _getTxArrays(2);
+        tx_.manageLeafs[0] = leafs[0]; // approve token
+        tx_.manageLeafs[1] = leafs[1]; // swap USDC -> WETH
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+        tx_.targets[0] = getAddress(sourceChain, "USDC");
+        tx_.targets[1] = address(swapper);
+        tx_.targetData[0] = abi.encodeWithSignature("approve(address,uint256)", address(swapper), type(uint256).max);
+
+        // protocol byte 0x2c => UniV3; zeroForOne bit (247) left 0 => router sells token1 (WETH), but the route
+        // declares tokenIn = USDC (token0).
+        uint256 dex = uint256(uint160(realPool)) | (uint256(0x2c) << 248);
+        bytes memory unoswapData = abi.encodePacked(
+            bytes4(0x83800a8e), uint256(uint160(getAddress(sourceChain, "USDC"))), uint256(1e6), uint256(0), dex
+        );
+
+        tx_.targetData[1] = abi.encodeWithSelector(
+            BoringSwapper.swap.selector,
+            ISwapperTypes.SwapConfig({
+                tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "USDC"), getERC20(sourceChain, "WETH")),
+                adapter: oneInchAdapter,
+                quoteAsset: getAddress(sourceChain, "USDC"),
+                swapData: unoswapData,
+                slippageBps: 10,
+                receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+            })
+        );
+        tx_.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        tx_.decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+        vm.expectRevert(abi.encodeWithSelector(OneInchAdapter.OneInchAdapter__InvalidPool.selector));
+        _submitManagerCall(manageProofs, tx_);
+    }
+
     function testOneInchAdapter__RevertCurvePoolNotFromFactory() external {
         deal(getAddress(sourceChain, "USDC"), getAddress(sourceChain, "boringVault"), 100e18); 
 

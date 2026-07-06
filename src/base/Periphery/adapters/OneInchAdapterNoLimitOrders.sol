@@ -23,29 +23,10 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     error OneInchAdapter__SrcReceiverMismatch();
     error OneInchAdapter__DstReceiverNotSwapper();
     error OneInchAdapter__CustomTargetNotAllowed();
-    error OneInchAdapter__MakerNotSwapper();
-    error OneInchAdapter__UnknownFeeTaker();
-    error OneInchAdapter__ExtensionTooShort();
-    error OneInchAdapter__PostInteractionTooShort();
-    error OneInchAdapter__NoCustomReceiver();
-    error OneInchAdapter__CustomReceiverOutOfBounds();
     error OneInchAdapter__UnsupportedProtocol();
-    error OneInchAdapter__EpochManagerNotAllowed();
     error OneInchAdapter__InvalidPool();
     error OneInchAdapter__WethUnwrapNotAllowed();
-    error OneInchAdapter__InvalidExtension();
-    error OneInchAdapter__MissingExtension();
-    error OneInchAdapter__UnexpectedExtension();
-    error OneInchAdapter__UnsupportedExtensionField();
-    error OneInchAdapter__GetterNotFeeTaker();
-    error OneInchAdapter__ExtensionFieldTooShort();
-    error OneInchAdapter__IntegratorFeeRecipientNotZero();
-    error OneInchAdapter__ProtocolFeeRecipientMismatch();
-    error OneInchAdapter__FeeMismatch();
-    error OneInchAdapter__PostInteractionRequired();
     error OneInchAdapter__MakerAmountFlagNotAllowed();
-    error OneInchAdapter__InvalidFillFlags();
-    error OneInchAdapter__FeeTailNotEmpty();
 
     //============================== Immutables ===============================
     
@@ -87,7 +68,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant _NONCE_OR_EPOCH_MASK = type(uint40).max;
     //General Offsets
     uint256 private constant PROTOCOL_OFFSET = 253;
-    uint256 private constant UNISWAP_V3_ZERO_FOR_ONE_OFFSET = 247;
     //Curve Offsets
     uint256 private constant CURVE_TO_COINS_ARG_OFFSET = 216;
     uint256 private constant CURVE_FROM_COINS_ARG_OFFSET = 200;
@@ -303,97 +283,31 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
 
     /// @notice swapData encoding: abi.encode(OneInchLimitOrder order, bytes extension)
     /// The extension contains the FeeTaker postInteraction data where the custom receiver (vault) is embedded.
-    function verifyLimitOrder(ISwapperTypes.SwapConfig calldata swapConfig, address swapper)
+    function verifyLimitOrder(ISwapperTypes.SwapConfig calldata /*swapConfig*/, address /*swapper*/)
         external
         view
         returns (OrderInfo memory)
     {
-        (DecoderCustomTypes.OneInchLimitOrder memory order, bytes memory extension) =
-            abi.decode(swapConfig.swapData, (DecoderCustomTypes.OneInchLimitOrder, bytes));
-
-        if (ERC20(order.makerAsset) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
-        if (ERC20(order.takerAsset) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
-        if (order.maker != swapper) revert OneInchAdapter__MakerNotSwapper();
-        if (order.makerTraits & _NEED_CHECK_EPOCH_MANAGER_FLAG != 0) revert OneInchAdapter__EpochManagerNotAllowed();
-        bool partialAllowed = order.makerTraits & _NO_PARTIAL_FILLS_FLAG == 0;
-        bool multipleAllowed = order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG != 0;
-        if (partialAllowed != multipleAllowed) revert OneInchAdapter__InvalidFillFlags();
-
-        //check if we have an extension and if we do, extract the custom receiver
-        if (order.makerTraits & _HAS_EXTENSION_FLAG != 0) {
-            _isValidExtension(extension, order.salt);
-            // order.receiver is the FeeTaker; the vault is the custom receiver embedded in the
-            // post-interaction, which _verifyPostInteractionData validates and returns.
-            if (order.receiver != feeTaker) revert OneInchAdapter__UnknownFeeTaker();
-            if (order.makerTraits & _POST_INTERACTION_CALL_FLAG == 0) revert OneInchAdapter__PostInteractionRequired();
-            address customReceiver = _verifyPostInteractionData(extension);
-            if (customReceiver != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
-        } else {
-            if (extension.length > 0) revert OneInchAdapter__UnexpectedExtension();
-            if (order.receiver != address(swapConfig.receiver)) revert Adapter__ReceiverMismatch();
-        }
-
-        bytes memory orderData = abi.encode(order);
-        bytes32 orderHash = _computeOrderHash(orderData);
-
-        return OrderInfo({
-            approvalTarget: router,
-            cancelTarget: router,
-            inputToken: order.makerAsset,
-            outputToken: order.takerAsset,
-            inputAmount: order.makingAmount,
-            outputAmount: order.takingAmount,
-            protocolHash: orderHash,
-            hook: address(0),
-            hookData: "",
-            context: ""
-        });
+        revert Adapter__LimitOrdersNotSupported();
     }
 
-    function cancelLimitOrder(ISwapperTypes.SwapConfig calldata swapConfig, address /*swapper*/, bytes calldata /*cancelData*/, bytes calldata /*context*/)
+    function cancelLimitOrder(ISwapperTypes.SwapConfig calldata /*swapConfig*/, address /*swapper*/, bytes calldata /*cancelData*/, bytes calldata /*context*/)
         external
         view
         returns (address, bytes memory)
     {
-        (DecoderCustomTypes.OneInchLimitOrder memory order,) =
-            abi.decode(swapConfig.swapData, (DecoderCustomTypes.OneInchLimitOrder, bytes));
-        bytes memory orderData = abi.encode(order);
-        bytes32 orderHash = _computeOrderHash(orderData);
-        return (router, abi.encodeWithSignature("cancelOrder(uint256,bytes32)", order.makerTraits, orderHash));
+        revert Adapter__LimitOrdersNotSupported();
     }
 
     /// @dev Reads on-chain fill state from whichever invalidator 1inch uses for this order's flags.
     ///      verifyLimitOrder restricts orders to two shapes: fill-or-kill (BitInvalidator) and
     ///      partial+multiple (RemainingInvalidator).
-    function filledAmount(ISwapperTypes.SwapConfig calldata swapConfig, address swapper, bytes calldata /*context*/)
+    function filledAmount(ISwapperTypes.SwapConfig calldata /*swapConfig*/, address /*swapper*/, bytes calldata /*context*/)
         external
         view
         returns (uint256)
     {
-        (DecoderCustomTypes.OneInchLimitOrder memory order,) =
-            abi.decode(swapConfig.swapData, (DecoderCustomTypes.OneInchLimitOrder, bytes));
-
-        bool useBitInvalidator =
-            order.makerTraits & _NO_PARTIAL_FILLS_FLAG != 0 || order.makerTraits & _ALLOW_MULTIPLE_FILLS_FLAG == 0;
-        
-        //orders that have either of the two bits set (or both) must route through here
-        //in our case, this would mean a full fill only, since we only allow FOK orders if either are set.
-        if (useBitInvalidator) {
-            uint256 nonce = (order.makerTraits >> _NONCE_OR_EPOCH_OFFSET) & _NONCE_OR_EPOCH_MASK;
-            // Pass the RAW nonce: 1inch's BitInvalidatorLib.checkSlot applies `nonce >> 8` internally to pick
-            // the invalidator word, so bitInvalidatorForOrder(maker, X) reads _raw[X >> 8]; the bit within that
-            // word is nonce & 0xff.
-            uint256 bit = 1 << (nonce & 0xff);
-            uint256 raw = IOneInchOrderMixin(router).bitInvalidatorForOrder(swapper, nonce);
-            return raw & bit != 0 ? order.makingAmount : 0;
-        }
-
-        bytes memory orderData = abi.encode(order);
-        bytes32 orderHash = _computeOrderHash(orderData);
-        uint256 remaining = IOneInchOrderMixin(router).rawRemainingInvalidatorForOrder(swapper, orderHash);
-        if (remaining == 0) return 0; // untouched
-        if (remaining == type(uint256).max) return order.makingAmount; // fully filled or cancelled
-        return order.makingAmount - ~remaining; // partial: ~remaining is the unfilled maker amount
+        revert Adapter__LimitOrdersNotSupported();
     }
 
     function version() external pure returns (string memory) {
@@ -454,10 +368,9 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token1 = IUniswapV3(pool).token1();
         uint24 fee = IUniswapV3(pool).fee();
         if (IUniswapV3Factory(univ3Factory).getPool(token0, token1, fee) != pool) revert OneInchAdapter__InvalidPool();
-        bool zeroForOne = (dex >> UNISWAP_V3_ZERO_FOR_ONE_OFFSET) & 1 == 1;
-        address inputToken = zeroForOne ? token0 : token1;
-        if (inputToken != tokenIn) revert OneInchAdapter__InvalidPool();
-        return zeroForOne ? token1 : token0;
+        // tokenIn must be one of the pool's tokens
+        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
+        return token0 == tokenIn ? token1 : token0;
     }
 
     /// @dev Curve has no single factory — validate via MetaRegistry which aggregates StableSwap/CryptoSwap/etc.
@@ -474,110 +387,4 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         if (tokenOut == address(0)) revert OneInchAdapter__InvalidPool();
         return tokenOut;
     }
-
-    /// @dev VERSION-SPECIFIC PARSER. The layout below — 81-byte postInteraction header (feeTaker(20) + flags(1)
-    ///      + integratorRecipient(20) + protocolRecipient(20) + customReceiver(20)) and a <=7-byte amount-getter
-    ///      fee config — matches 1inch's FeeTaker "new spec" (limit-order-protocol commit 22a18f7, Dec 2024 →
-    ///      master). It is NOT a stable 1inch invariant: `feeTaker` is a maker-chosen extension address that this
-    ///      adapter pins to ONE governance-set, per-chain, non-upgradeable immutable, and earlier/other FeeTaker
-    ///      versions use different header/config sizes. Because the pinned contract is non-upgradeable the layout
-    ///      cannot drift post-deploy, so all layout risk is at (re)deploy time: on any re-pin (new chain or
-    ///      FeeTaker version) these offsets AND the feeLen bound MUST be re-derived and fork-validated against the
-    ///      DEPLOYED bytecode, not GitHub master. NEVER raise the feeLen bound to >= 20 — a 20-byte tail lets
-    ///      AmountGetterBase call a nested strategist getter and drain the vault.
-    function _verifyPostInteractionData(bytes memory extension) internal view returns (address customReceiver) {
-        if (extension.length < 32) revert OneInchAdapter__ExtensionTooShort();
-        // offsets word: 8 packed uint32 cumulative END offsets, one per dynamic field.
-        // length[i] = end[i] - end[i-1]; a field is empty when its end equals the previous end.
-        uint256 offsets;
-        assembly {
-            offsets := mload(add(extension, 0x20))
-        }
-        
-        if (offsets & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 0: end[0] == 0
-        if ((offsets >> (32 * 1)) & 0xffffffff != 0) revert OneInchAdapter__UnsupportedExtensionField(); // field 1: end[1] == 0
-        // fields 4,5,6 (predicate, makerPermit, preInteraction) must each be empty: require
-        // end[4]==end[5]==end[6]==end[3]. Otherwise 1inch could execute an injected predicate/permit/
-        // pre-interaction field (it reads those when the matching maker-trait flag is set, which this adapter
-        // does not otherwise forbid).
-        uint256 end3 = (offsets >> (32 * 3)) & 0xffffffff;
-        if ((offsets >> (32 * 4)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
-        if ((offsets >> (32 * 5)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
-        if ((offsets >> (32 * 6)) & 0xffffffff != end3) revert OneInchAdapter__UnsupportedExtensionField();
-        // field 8 (customData) empty <=> concat length == end[7]
-        if (extension.length - 0x20 != (offsets >> (32 * 7)) & 0xffffffff) {
-            revert OneInchAdapter__UnsupportedExtensionField();
-        }
-
-        // Fields 2 (makingAmountData) and 3 (takingAmountData) are the amount getters: the router calls
-        // their first 20 bytes to compute fill amounts.
-        uint256 begin2 = (offsets >> (32 * 1)) & 0xffffffff; // end[1]
-        uint256 begin3 = (offsets >> (32 * 2)) & 0xffffffff; // end[2]
-        uint256 begin7 = (offsets >> (32 * 3)) & 0xffffffff; // end[3] (== end[6] = begin[7])
-
-        // each getter field must hold at least a 20-byte address
-        if (begin3 < begin2 + 20 || begin7 < begin3 + 20) revert OneInchAdapter__ExtensionFieldTooShort();
-        if (_addrAt(extension, begin2) != feeTaker) revert OneInchAdapter__GetterNotFeeTaker(); // field 2
-        if (_addrAt(extension, begin3) != feeTaker) revert OneInchAdapter__GetterNotFeeTaker(); // field 3
-        
-        //validate customReceiver
-        if (extension.length - 0x20 < begin7 + 81) revert OneInchAdapter__PostInteractionTooShort();
-        if (_addrAt(extension, begin7) != feeTaker) revert OneInchAdapter__UnknownFeeTaker();
-        if (_byteAt(extension, begin7 + 20) & 1 != 1) revert OneInchAdapter__NoCustomReceiver();
-        if (_addrAt(extension, begin7 + 21) != address(0)) revert OneInchAdapter__IntegratorFeeRecipientNotZero();
-        if (_addrAt(extension, begin7 + 41) != protocolFeeReceiver) revert OneInchAdapter__ProtocolFeeRecipientMismatch();
-
-        customReceiver = _addrAt(extension, begin7 + 61);
-        
-        //fees MUST be equal on a valid order 
-        uint256 end7 = extension.length - 0x20; // == end[7], enforced equal by the customData check above
-        uint256 getterLen = begin3 - begin2;
-        if (begin7 - begin3 != getterLen || !_rangesEqual(extension, begin2, begin3, getterLen)) {
-            revert OneInchAdapter__FeeMismatch();
-        }
-        uint256 feeLen = begin7 - begin3 - 20;
-        // Bound the amount-getter fee data so it cannot carry a nested getter. The getter is pinned to feeTaker
-        // (1inch AmountGetterWithFee), which parses its fee config and forwards any TRAILING bytes to
-        // AmountGetterBase — and AmountGetterBase treats the first 20 bytes of that tail as an IAmountGetter and
-        // CALLS it. A strategist could embed their own getter there to return a near-zero taking amount and drain
-        // the vault — the FeeTaker tail is a path that pinning the top-level getter does not close. A minimal
-        // empty-whitelist fee config is 7 bytes; 7 < 20, so no 20-byte getter tail can exist.
-        if (feeLen > 7) revert OneInchAdapter__FeeTailNotEmpty();
-        if (end7 - begin7 - 81 != feeLen || !_rangesEqual(extension, begin3 + 20, begin7 + 81, feeLen)) {
-            revert OneInchAdapter__FeeMismatch();
-        }
-        
-        //explicit return since 
-        return customReceiver;
-    }
-
-    function _addrAt(bytes memory extension, uint256 concatOffset) internal pure returns (address a) {
-        assembly {
-            a := shr(96, mload(add(add(extension, 0x40), concatOffset)))
-        }
-    }
-
-    function _byteAt(bytes memory extension, uint256 concatOffset) internal pure returns (uint8 b) {
-        assembly {
-            b := byte(0, mload(add(add(extension, 0x40), concatOffset)))
-        }
-    }
-
-    /// @notice True if the two `len`-byte ranges at `off1` and `off2` within the concat section are equal.
-    function _rangesEqual(bytes memory extension, uint256 off1, uint256 off2, uint256 len) internal pure returns (bool) {
-        bytes32 h1;
-        bytes32 h2;
-        assembly {
-            let base := add(extension, 0x40)
-            h1 := keccak256(add(base, off1), len)
-            h2 := keccak256(add(base, off2), len)
-        }
-        return h1 == h2;
-    }
-
-    function _isValidExtension(bytes memory extension, uint256 salt) internal pure {
-        if (extension.length == 0) revert OneInchAdapter__MissingExtension();
-        if (uint256(keccak256(extension)) & type(uint160).max != salt & type(uint160).max) revert OneInchAdapter__InvalidExtension();
-    }
-    
 }
