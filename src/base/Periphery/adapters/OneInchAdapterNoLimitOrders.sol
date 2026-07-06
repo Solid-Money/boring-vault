@@ -68,6 +68,7 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     uint256 private constant _NONCE_OR_EPOCH_MASK = type(uint40).max;
     //General Offsets
     uint256 private constant PROTOCOL_OFFSET = 253;
+    uint256 private constant UNISWAP_V3_ZERO_FOR_ONE_OFFSET = 247;
     //Curve Offsets
     uint256 private constant CURVE_TO_COINS_ARG_OFFSET = 216;
     uint256 private constant CURVE_FROM_COINS_ARG_OFFSET = 200;
@@ -368,9 +369,10 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address token1 = IUniswapV3(pool).token1();
         uint24 fee = IUniswapV3(pool).fee();
         if (IUniswapV3Factory(univ3Factory).getPool(token0, token1, fee) != pool) revert OneInchAdapter__InvalidPool();
-        // tokenIn must be one of the pool's tokens
-        if (token0 != tokenIn && token1 != tokenIn) revert OneInchAdapter__InvalidPool();
-        return token0 == tokenIn ? token1 : token0;
+        bool zeroForOne = (dex >> UNISWAP_V3_ZERO_FOR_ONE_OFFSET) & 1 == 1;
+        address inputToken = zeroForOne ? token0 : token1;
+        if (inputToken != tokenIn) revert OneInchAdapter__InvalidPool();
+        return zeroForOne ? token1 : token0;
     }
 
     /// @dev Curve has no single factory — validate via MetaRegistry which aggregates StableSwap/CryptoSwap/etc.
