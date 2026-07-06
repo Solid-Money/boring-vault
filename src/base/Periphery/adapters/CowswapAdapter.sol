@@ -93,6 +93,9 @@ contract CowswapAdapter is IAdapter {
     }
 
     /// @dev Returns the sell amount filled so far (partial or full) from the GPv2 settlement.
+    /// @dev Returns 0 after a solver calls `freeFilledAmountStorage`, including on an expired fully-settled order.
+    ///      Not exploitable: cancel re-runs `verifyLimitOrder` (reverts once expired) and a filled order reverts
+    ///      before expiry; an expired-unfilled order's principal is recovered by governance via `releaseFee` + `sweep`.
     function filledAmount(ISwapperTypes.SwapConfig calldata swapConfig, address swapper, bytes calldata /*context*/)
         external
         view

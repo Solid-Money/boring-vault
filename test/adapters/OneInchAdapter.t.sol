@@ -55,7 +55,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
     MockRateProvider usdRate;
     MockRateProvider ethRate;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         _setupChain("mainnet", 24592183);
 
@@ -909,11 +909,11 @@ contract OneInchAdapterTest is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
-    // M-03: a REAL, factory-registered UniV3 pool, but the declared tokenIn (USDT) is NOT one of its tokens.
-    // tokenOut is set to the pool's token0 (USDC), so the pre-fix silent `return token0` would have passed
-    // TokenOutMismatch — letting the V3 callback pull the pool's real input token via a standing allowance.
-    // The new membership guard must revert InvalidPool instead. (Distinct from PoolNotFromFactory, which
-    // fails the factory check first; here the pool is genuine and only the tokenIn check can fire.)
+    // A REAL, factory-registered UniV3 pool, but the declared tokenIn (USDT) is NOT one of its tokens.
+    // tokenOut is set to the pool's token0 (USDC), so without the membership check the counter-token would
+    // match — letting the V3 callback pull the pool's real input token via a standing allowance. The
+    // membership guard must revert InvalidPool. (Distinct from PoolNotFromFactory, which fails the factory
+    // check first; here the pool is genuine and only the tokenIn check can fire.)
     function testOneInchAdapter__RevertsUniswapV3TokenInNotInPool() external {
         deal(getAddress(sourceChain, "USDT"), getAddress(sourceChain, "boringVault"), 100e6);
 
@@ -954,6 +954,64 @@ contract OneInchAdapterTest is BaseTestIntegration {
             BoringSwapper.swap.selector,
             ISwapperTypes.SwapConfig({
                 tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "USDT"), getERC20(sourceChain, "USDC")),
+                adapter: oneInchAdapter,
+                quoteAsset: getAddress(sourceChain, "USDC"),
+                swapData: unoswapData,
+                slippageBps: 10,
+                receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
+            })
+        );
+        tx_.decodersAndSanitizers[0] = rawDataDecoderAndSanitizer;
+        tx_.decodersAndSanitizers[1] = rawDataDecoderAndSanitizer;
+
+        vm.expectRevert(abi.encodeWithSelector(OneInchAdapter.OneInchAdapter__InvalidPool.selector));
+        _submitManagerCall(manageProofs, tx_);
+    }
+
+    // A REAL, factory-registered UniV3 pool where tokenIn (USDC) IS a pool token, but the dex word's zeroForOne
+    // bit is left 0 so the router would sell the counter-token (WETH). Membership alone passes and returns WETH
+    // as tokenOut, matching the route — the direction guard must reject it because USDC is not the input side.
+    function testOneInchAdapter__RevertsUniswapV3TokenInNotInputSide() external {
+        deal(getAddress(sourceChain, "USDC"), getAddress(sourceChain, "boringVault"), 100e6);
+
+        // canonical WETH/USDC 0.05% pool — token0 = USDC, token1 = WETH (ordered by address)
+        address realPool = IUniswapV3Factory(getAddress(sourceChain, "uniV3Factory")).getPool(
+            getAddress(sourceChain, "USDC"), getAddress(sourceChain, "WETH"), 500
+        );
+
+        address[][] memory pairs = new address[][](1);
+        pairs[0] = new address[](2);
+        pairs[0][0] = getAddress(sourceChain, "USDC");
+        pairs[0][1] = getAddress(sourceChain, "WETH");
+
+        SwapKind[] memory kind = new SwapKind[](1);
+        kind[0] = SwapKind.BuyAndSell;
+
+        ManageLeaf[] memory leafs = new ManageLeaf[](16);
+        _addBoringSwapperLeafs(leafs, address(swapper), pairs, kind);
+        bytes32[][] memory manageTree = _generateMerkleTree(leafs);
+        manager.setManageRoot(address(this), manageTree[manageTree.length - 1][0]);
+
+        Tx memory tx_ = _getTxArrays(2);
+        tx_.manageLeafs[0] = leafs[0]; // approve token
+        tx_.manageLeafs[1] = leafs[1]; // swap USDC -> WETH
+        bytes32[][] memory manageProofs = _getProofsUsingTree(tx_.manageLeafs, manageTree);
+
+        tx_.targets[0] = getAddress(sourceChain, "USDC");
+        tx_.targets[1] = address(swapper);
+        tx_.targetData[0] = abi.encodeWithSignature("approve(address,uint256)", address(swapper), type(uint256).max);
+
+        // protocol byte 0x2c => UniV3; zeroForOne bit (247) left 0 => router sells token1 (WETH), but the route
+        // declares tokenIn = USDC (token0).
+        uint256 dex = uint256(uint160(realPool)) | (uint256(0x2c) << 248);
+        bytes memory unoswapData = abi.encodePacked(
+            bytes4(0x83800a8e), uint256(uint160(getAddress(sourceChain, "USDC"))), uint256(1e6), uint256(0), dex
+        );
+
+        tx_.targetData[1] = abi.encodeWithSelector(
+            BoringSwapper.swap.selector,
+            ISwapperTypes.SwapConfig({
+                tokenRoute: ISwapperTypes.TokenRoute(getERC20(sourceChain, "USDC"), getERC20(sourceChain, "WETH")),
                 adapter: oneInchAdapter,
                 quoteAsset: getAddress(sourceChain, "USDC"),
                 swapData: unoswapData,
@@ -1155,7 +1213,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // M-05: a FeeTaker extension order MUST set POST_INTERACTION_CALL_FLAG (bit 251); without it the router
+    // A FeeTaker extension order MUST set POST_INTERACTION_CALL_FLAG (bit 251); without it the router
     // never calls postInteraction, so the FeeTaker keeps the buyTokens and the vault gets nothing for its
     // sold makerAsset. Here makerTraits is FOK + HAS_EXTENSION with bit 251 omitted; salt binds and
     // receiver == feeTaker, so the only failing check is the post-interaction requirement.
@@ -1174,7 +1232,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.submitOrder(config);
     }
 
-    // M-06: fillOrder must reject takerTraits bit 255 (_MAKER_AMOUNT_FLAG). When set, the router reinterprets
+    // fillOrder must reject takerTraits bit 255 (_MAKER_AMOUNT_FLAG). When set, the router reinterprets
     // `amount` as makerAsset OUTPUT, so the swapper would feed a tokenOut-denominated number into price/rate-limit
     // checks that expect tokenIn — and could pull a pending order's principal. The order's taker/maker assets
     // match the route, so the only failing check is the maker-amount flag.
@@ -1208,9 +1266,8 @@ contract OneInchAdapterTest is BaseTestIntegration {
         swapper.swap(config);
     }
 
-    // I-04: the offsets word must bound the postInteraction field — CustomData (the block after it) must be
-    // empty. Pre-fix the parser read a fixed header from postInteractionStart without checking the field's
-    // end, so it could spill into CustomData and resolve a receiver from foreign bytes. Here we append extra
+    // The offsets word must bound the postInteraction field — CustomData (the block after it) must be empty,
+    // otherwise the parser could resolve the customReceiver from foreign CustomData bytes. Here we append extra
     // CustomData to a valid extension (without growing end[7]); the "CustomData empty" check must reject it.
     function testOneInchExtensionOrder_RevertTrailingCustomData() external {
         deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
@@ -1222,6 +1279,39 @@ contract OneInchAdapterTest is BaseTestIntegration {
             abi.encodePacked(_buildFeeTakerExtension(getAddress(sourceChain, "boringVault")), hex"deadbeef");
         // salt auto-binds to the tampered bytes, so _isValidExtension passes and we reach the offsets check
         (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, tampered);
+
+        vm.expectRevert(OneInchAdapter.OneInchAdapter__UnsupportedExtensionField.selector);
+        swapper.submitOrder(config);
+    }
+
+    // 1inch's AmountGetterBase treats any bytes trailing the fee config as a nested IAmountGetter and CALLS it,
+    // so an oversized fee blob (feeLen > 7) could embed a strategist getter that returns a near-zero taking
+    // amount and drains the vault. The fee-tail bound must reject any feeLen large enough to hold a 20-byte getter.
+    function testOneInchExtensionOrder_RevertFeeTailTooLong() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        // 20-byte tail = a would-be nested getter address; feeLen becomes 20 (> 7)
+        bytes memory extension = _buildFeeTakerExtensionWithFeeData(
+            getAddress(sourceChain, "boringVault"), abi.encodePacked(bytes20(address(0xBAD)))
+        );
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, extension);
+
+        vm.expectRevert(OneInchAdapter.OneInchAdapter__FeeTailNotEmpty.selector);
+        swapper.submitOrder(config);
+    }
+
+    // Fields 4/5/6 (predicate, makerPermit, preInteraction) must each be empty. This builds an extension where
+    // end[6]==end[3] holds but end[4] is bumped so field 4 (predicate) is non-empty; the per-slot
+    // end[4]/end[5]/end[6] checks must reject it.
+    function testOneInchExtensionOrder_RevertNonEmptyPredicateField() external {
+        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
+        vm.prank(getAddress(sourceChain, "boringVault"));
+        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
+
+        bytes memory extension = _buildFeeTakerExtensionBadPredicate(getAddress(sourceChain, "boringVault"));
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchExtensionConfig(1e18, 2000e6, extension);
 
         vm.expectRevert(OneInchAdapter.OneInchAdapter__UnsupportedExtensionField.selector);
         swapper.submitOrder(config);
@@ -1404,6 +1494,40 @@ contract OneInchAdapterTest is BaseTestIntegration {
         assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 1e18 - 1e14);
     }
 
+    // A FOK (BitInvalidator) order with nonceOrEpoch >= 256. 1inch's checkSlot shifts its argument (>>8)
+    // internally, so the adapter passes the RAW nonce (here nonce=300 => slot 1, bit 44). The mock is keyed on
+    // the raw nonce only — a query with the shifted slot (key 1) misses it and reads 0 from the real router,
+    // so this test guards the raw-nonce behavior.
+    function testOneInchLimitOrder_filledAmount_BitInvalidatorNonceOver255() external {
+        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchSwapConfig(1e18, 2000e6);
+        uint256 nonce = 300; // slot = 300>>8 = 1, bit = 1<<(300 & 0xff) = 1<<44
+        DecoderCustomTypes.OneInchLimitOrder memory order = DecoderCustomTypes.OneInchLimitOrder({
+            salt: 1,
+            maker: address(swapper),
+            receiver: getAddress(sourceChain, "boringVault"),
+            makerAsset: getAddress(sourceChain, "WETH"),
+            takerAsset: getAddress(sourceChain, "USDC"),
+            makingAmount: 1e18,
+            takingAmount: 2000e6,
+            makerTraits: (uint256(1) << 255) | (nonce << 120) // NO_PARTIAL_FILLS (FOK) + nonceOrEpoch = 300
+        });
+        config.swapData = abi.encode(order, bytes(""));
+
+        // Untouched: the fresh swapper has no invalidator state, so the real router returns 0 => filled 0.
+        assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 0);
+
+        // Full fill: the real router sets bit (nonce & 0xff) in _raw[nonce>>8] and returns that word when
+        // queried with the RAW nonce. Mock keyed on the raw nonce (300) mirrors that.
+        vm.mockCall(
+            ONEINCH_ROUTER,
+            abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), nonce),
+            abi.encode(uint256(1) << (nonce & 0xff))
+        );
+
+        // Fixed adapter passes the raw nonce -> reads the mocked word -> reports fully filled.
+        assertEq(OneInchAdapter(oneInchAdapter).filledAmount(config, address(swapper), ""), 1e18);
+    }
+
     function testOneInchLimitMask() external {
     }
 
@@ -1572,6 +1696,47 @@ contract OneInchAdapterTest is BaseTestIntegration {
         extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
     }
 
+    // Valid-shaped FeeTaker extension but with an arbitrary fee blob appended to BOTH amount getters and the
+    // postInteraction (kept byte-equal so the getter/tail consistency checks pass and we reach the fee-tail bound).
+    function _buildFeeTakerExtensionWithFeeData(address customReceiver, bytes memory feeData)
+        internal
+        view
+        returns (bytes memory extension)
+    {
+        address feeTaker = OneInchAdapter(oneInchAdapter).feeTaker();
+        address protocolFeeReceiver = OneInchAdapter(oneInchAdapter).protocolFeeReceiver();
+
+        bytes memory amountGetter = abi.encodePacked(feeTaker, feeData);
+        bytes memory postInteraction = abi.encodePacked(
+            feeTaker, bytes1(0x01), bytes20(address(0)), bytes20(protocolFeeReceiver), bytes20(customReceiver), feeData
+        );
+        uint256 getterLength = amountGetter.length;
+        uint256 postInteractionLength = postInteraction.length;
+        uint256 offsets = (getterLength << 64) | ((2 * getterLength) << 96) | ((2 * getterLength) << 128)
+            | ((2 * getterLength) << 160) | ((2 * getterLength) << 192)
+            | ((2 * getterLength + postInteractionLength) << 224);
+        extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
+    }
+
+    // Valid getters/postInteraction, but end[4] is bumped so field 4 (predicate) is non-empty while end[6]==end[3]
+    // still holds — a shape the per-slot end[4]/end[5]/end[6] checks must reject.
+    function _buildFeeTakerExtensionBadPredicate(address customReceiver) internal view returns (bytes memory extension) {
+        address feeTaker = OneInchAdapter(oneInchAdapter).feeTaker();
+        address protocolFeeReceiver = OneInchAdapter(oneInchAdapter).protocolFeeReceiver();
+
+        bytes memory amountGetter = abi.encodePacked(feeTaker); // feeLen 0
+        bytes memory postInteraction = abi.encodePacked(
+            feeTaker, bytes1(0x01), bytes20(address(0)), bytes20(protocolFeeReceiver), bytes20(customReceiver)
+        );
+        uint256 gl = amountGetter.length;
+        uint256 pil = postInteraction.length;
+        // end[2]=gl, end[3]=2gl, end[4]=2gl+7 (NON-EMPTY predicate), end[5]=end[6]=2gl (so end[6]==end[3] still holds),
+        // end[7]=2gl+pil (customData empty). Only the per-slot end[4] check can reject this.
+        uint256 offsets = (gl << 64) | ((2 * gl) << 96) | ((2 * gl + 7) << 128) | ((2 * gl) << 160) | ((2 * gl) << 192)
+            | ((2 * gl + pil) << 224);
+        extension = abi.encodePacked(bytes32(offsets), amountGetter, amountGetter, postInteraction);
+    }
+
     function _buildOneInchExtensionConfig(uint256 makingAmount, uint256 takingAmount, bytes memory extension)
         internal
         view
@@ -1583,7 +1748,7 @@ contract OneInchAdapterTest is BaseTestIntegration {
     }
 
     // Salt-bound extension order with arbitrary makerTraits, for exercising the extension flag checks
-    // (e.g. M-05's POST_INTERACTION requirement). Salt commits to the extension so _isValidExtension passes.
+    // (e.g. the POST_INTERACTION requirement). Salt commits to the extension so _isValidExtension passes.
     function _buildOneInchExtensionConfigWithTraits(
         uint256 makingAmount,
         uint256 takingAmount,
@@ -1674,13 +1839,14 @@ contract OneInchAdapterTest is BaseTestIntegration {
             order.makerTraits & (uint256(1) << 255) != 0 || order.makerTraits & (uint256(1) << 254) == 0;
 
         if (useBitInvalidator) {
-            // Fill-or-kill: binary. Set the order's nonce bit in its slot (a full fill).
+            // Fill-or-kill: binary. The fixed adapter passes the RAW nonce; 1inch's checkSlot shifts it (>>8)
+            // to index _raw[nonce>>8], the word that carries bit (nonce & 0xff) once filled. Keying the mock on
+            // the raw nonce mirrors that read exactly — a re-introduced `nonce >> 8` would query the wrong key.
             uint256 nonce = (order.makerTraits >> 120) & type(uint40).max;
-            uint256 slot = nonce >> 8;
             uint256 bitWord = uint256(1) << (nonce & 0xff);
             vm.mockCall(
                 ONEINCH_ROUTER,
-                abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), slot),
+                abi.encodeWithSignature("bitInvalidatorForOrder(address,uint256)", address(swapper), nonce),
                 abi.encode(bitWord)
             );
         } else {

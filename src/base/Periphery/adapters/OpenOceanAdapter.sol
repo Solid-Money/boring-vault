@@ -110,7 +110,7 @@ contract OpenOceanAdapter is IAdapter, BaseAdapter {
         ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
         if (ERC20(srcToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
 
-        address dstToken = _getUniV2DstToken(pools);
+        address dstToken = _getUniV2DstToken(pools, srcToken);
         if (ERC20(dstToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
 
         return (router, amount);
@@ -127,7 +127,7 @@ contract OpenOceanAdapter is IAdapter, BaseAdapter {
         ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
         if (ERC20(srcToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
 
-        address dstToken = _getUniV2DstToken(pools);
+        address dstToken = _getUniV2DstToken(pools, srcToken);
         if (ERC20(dstToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
 
         return (router, amount);
@@ -176,12 +176,19 @@ contract OpenOceanAdapter is IAdapter, BaseAdapter {
     /// @dev Derives the output token from the last pool in a UniV2 pools chain.
     ///      Reverts if WETH_MASK is set — that path delivers ETH, not an ERC20.
     ///      Validates every pool against the V2 factory so intermediate pools can't absorb tokens.
-    function _getUniV2DstToken(bytes32[] calldata pools) internal view returns (address) {
+    function _getUniV2DstToken(bytes32[] calldata pools, address srcToken) internal view returns (address) {
         for (uint256 i; i < pools.length; ++i) {
             uint256 rawPool = uint256(pools[i]);
             if (rawPool & WETH_MASK != 0) revert OpenOceanAdapter__WethFlagsNotAllowed();
             _validateV2Pool(address(uint160(rawPool)));
         }
+        // bind srcToken to the first pool's input side (REVERSE_MASK set => input is token1, else token0)
+        uint256 firstRaw = uint256(pools[0]);
+        address firstPool = address(uint160(firstRaw));
+        address firstInput =
+            firstRaw & REVERSE_MASK != 0 ? IUniswapV3(firstPool).token1() : IUniswapV3(firstPool).token0();
+        if (firstInput != srcToken) revert OpenOceanAdapter__InvalidPool();
+
         uint256 lastRaw = uint256(pools[pools.length - 1]);
         address lastPool = address(uint160(lastRaw));
         bool reversed = lastRaw & REVERSE_MASK != 0;
