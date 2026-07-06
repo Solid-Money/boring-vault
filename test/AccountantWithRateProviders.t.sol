@@ -157,6 +157,32 @@ contract AccountantWithRateProvidersTest is Test, MerkleTreeHelper {
         assertEq(lower_bound, 0.998e4, "Lower bound should be 0.9980e4");
     }
 
+    function testConstructorRevertsOnUpperBoundTooSmall() external {
+        // The constructor must reject an upper bound below 1e4, matching updateUpper.
+        vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__UpperBoundTooSmall.selector);
+        new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4 - 1, 0.999e4, 1, 0, 0
+        );
+    }
+
+    function testConstructorRevertsOnLowerBoundTooLarge() external {
+        // The constructor must reject a lower bound above 1e4, matching updateLower.
+        vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__LowerBoundTooLarge.selector);
+        new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1.001e4, 1e4 + 1, 1, 0, 0
+        );
+    }
+
+    function testConstructorAcceptsBoundaryBounds() external {
+        // upper == 1e4 and lower == 1e4 are the exact allowed boundaries (guards off-by-one).
+        AccountantWithRateProviders boundaryAccountant = new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4, 1e4, 1, 0, 0
+        );
+        (,,,,, uint16 upper_bound, uint16 lower_bound,,,,,) = boundaryAccountant.accountantState();
+        assertEq(upper_bound, 1e4, "upper boundary 1e4 accepted");
+        assertEq(lower_bound, 1e4, "lower boundary 1e4 accepted");
+    }
+
     function testUpdatePlatformFee() external {
         accountant.updatePlatformFee(0.09e4);
         (,,,,,,,,,, uint16 platform_fee,) = accountant.accountantState();
