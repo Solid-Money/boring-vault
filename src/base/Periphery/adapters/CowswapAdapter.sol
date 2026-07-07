@@ -24,7 +24,6 @@ contract CowswapAdapter is IAdapter {
     error CowswapAdapter__InvalidSellTokenBalance();
     error CowswapAdapter__InvalidBuyTokenBalance();
     error CowswapAdapter__NonEmptyAppData();
-    error CowswapAdapter__OrderExpired();
 
     //============================== Immutables ===============================
     
@@ -62,7 +61,6 @@ contract CowswapAdapter is IAdapter {
         if (ERC20(order.sellToken) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
         if (ERC20(order.buyToken) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
         if (order.receiver != (address(swapConfig.receiver))) revert Adapter__ReceiverMismatch();
-        if (order.validTo <= block.timestamp) revert CowswapAdapter__OrderExpired();
 
         bytes32 orderHash = _computeOrderHash(swapConfig.swapData);
 
@@ -93,9 +91,11 @@ contract CowswapAdapter is IAdapter {
     }
 
     /// @dev Returns the sell amount filled so far (partial or full) from the GPv2 settlement.
-    /// @dev Returns 0 after a solver calls `freeFilledAmountStorage`, including on an expired fully-settled order.
-    ///      Not exploitable: cancel re-runs `verifyLimitOrder` (reverts once expired) and a filled order reverts
-    ///      before expiry; an expired-unfilled order's principal is recovered by governance via `releaseFee` + `sweep`.
+    /// @dev Returns 0 after a solver calls `freeFilledAmountStorage`, including on an expired fully-settled order,
+    ///      making an on-chain filled order indistinguishable from an unfilled one. Cancels of expired orders are
+    ///      permitted, so this live value is not a reliable proof of non-fill: the off-chain bot MUST verify the
+    ///      true settled amount via the CoW API before cancel-refunding an expired order, and must never
+    ///      cancel-refund one that settled.
     function filledAmount(ISwapperTypes.SwapConfig calldata swapConfig, address swapper, bytes calldata /*context*/)
         external
         view
