@@ -25,6 +25,7 @@ jobs:
       LINEA_RPC_URL: https://linea-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
       MANTLE_RPC_URL: https://mantle-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
       HOLESKY_RPC_URL: https://holesky.infura.io/v3/${{ secrets.INFURA_API_KEY_0 }}
+      TEMPO_RPC_URL: https://tempo-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,3 +46,12 @@ jobs:
         run: |
           forge test -vv --skip SymbioticVaultIntegration --skip CreateTimelockTx
         id: test
+
+      # Tempo tests run against the native Tempo precompiles (network = "tempo", Foundry >= 1.7.0).
+      # The profiles partition the test set: default excludes test/**Tempo*, tempo runs only those.
+      - name: Run Forge tests (Tempo)
+        run: |
+          forge test -vv
+        env:
+          FOUNDRY_PROFILE: tempo
+        id: test-tempo
