@@ -190,6 +190,7 @@ invariant totalAssetsCovered(env e)
         require accountant_contract.getPendingVestingGains(e2) <= vault_contract.totalSupply();
         require vault_contract.totalSupply() > 0; //the initial state uses the lastSharePrice directly that could be incorrectly initialized
         require teller_contract.ONE_SHARE == 1000000;
+        require accountant_contract.ONE_SHARE == 1000000; // concrete ONE_SHARE avoids nonlinear-arith timeout
 
         nonSceneAddress(e2.msg.sender);
     }
@@ -212,9 +213,39 @@ filtered { f -> !ignoredMethod(f)
 }
 {
     preserved with (env e2) {
+        // Pin decimals to the harness's concrete 6-dec value so 10^decimals folds to a
+        // constant (1e6) everywhere (safeAssumptions, sharePriceMoreThanOneAsset) instead of
+        // being symbolic exponentiation — the main SMT cost driver for this rule.
+        require vault_contract.decimals() == 6;
         safeAssumptions();
-        requireAllInvariants_accountant(e2);
+        // Trimmed invariant set (vs requireAllInvariants_accountant): drop virtualPriceIsCorrect
+        // (lastVirtualSharePrice + a *10^27 term), exchangeRateLEhighwaterMark_unlessPaused
+        // (highwaterMark) and cumulativeSupplyBounded (cumulativeSupply) — none of that state
+        // appears in this invariant or the deposit/withdraw share math, so requiring them is
+        // pure nonlinear context bloat. Keep only what justifies the solvency bound.
+        requireInvariant sharePriceBoundedLower(e2);
+        requireInvariant sharePriceBoundedUpper(e2);
+        requireInvariant sharePriceMoreThanOneAsset();
+        requireInvariant exchangeRateEqlastSharePrice();
+        requireInvariant assetsMoreThanShares(e2);
+        requireInvariant totalAssetsCovered(e2);
+        requireInvariant vaultSolvency_1Asset(e2);
+        require accountant_contract.decimals == accountant_contract.base.decimals(e2);
+        require accountant_contract.base == ERC20Mock;
+        require teller_contract.assetData[ERC20Mock].sharePremium == 0;
+        require accountant_contract.getPendingVestingGains(e2) <= vault_contract.totalSupply();
         require e2.block.timestamp == e.block.timestamp;
+        require teller_contract.ONE_SHARE == 1000000;
+        require accountant_contract.ONE_SHARE == 1000000; // concrete ONE_SHARE avoids nonlinear-arith timeout
+        // Linearize the RHS symbolic*symbolic product totalSupply*getRateInQuoteSafe.
+        // Sound upper bound across both getRate() branches:
+        //   pendingGains>0: getRate = totalAssets.mulDivDown(ONE_SHARE, totalSupply),
+        //     so totalSupply*getRate <= totalAssets*ONE_SHARE (floor loses <= totalSupply-1);
+        //   pendingGains==0 / totalSupply==0: getRate = lastSharePrice, and
+        //     totalSupply*lastSharePrice <= (totalAssets+1)*ONE_SHARE is exactly sharePriceBoundedUpper.
+        // Feeding this bound collapses the nonlinear product to a linear term and avoids the timeout.
+        require vault_contract.totalSupply(e2) * accountant_contract.getRateInQuoteSafe(e2, ERC20Mock)
+            <= (accountant_contract.totalAssets(e2) + 1) * accountant_contract.ONE_SHARE;
         nonSceneAddress(e2.msg.sender);
     }
 
@@ -241,9 +272,13 @@ invariant virtualPriceIsCorrect()
     filtered { f -> !ignoredMethod(f) 
         && f.selector != sig:accountant_contract.postLoss(uint256).selector 
         }
-    { preserved with(env e) { 
-        safeAssumptions(); 
+    { preserved with(env e) {
+        safeAssumptions();
         requireAllInvariants_accountant(e);
+        // Pin ONE_SHARE to its concrete value (6-decimal harness, as totalAssetsCovered
+        // already assumes for the teller) so `* 10^27 / ONE_SHARE` is a constant divide,
+        // not symbolic nonlinear arithmetic — this is what times the rule out.
+        require accountant_contract.ONE_SHARE == 1000000;
     }
 }
 
