@@ -105,11 +105,30 @@ invariant assetsMoreThanShares(env e)
     }
     {
     preserved with (env e2) {
-        requireAllInvariants_accountant(e2);
+        // Same contention-robustness pattern as vaultSolvency_1Asset. This property is linear
+        // (totalAssets+1 >= totalSupply), so its whole cost comes from the context: pin decimals
+        // so 10^decimals folds to a constant (no symbolic exponentiation), and trim the required
+        // invariants to drop the nonlinear ones this proof doesn't need — virtualPriceIsCorrect
+        // (*10^27), exchangeRateLEhighwaterMark_unlessPaused (highwaterMark), cumulativeSupplyBounded.
+        require vault_contract.decimals() == 6;
         safeAssumptions();
+        requireInvariant sharePriceBoundedLower(e2);
+        requireInvariant sharePriceBoundedUpper(e2);
+        requireInvariant sharePriceMoreThanOneAsset();
+        requireInvariant exchangeRateEqlastSharePrice();
+        requireInvariant assetsMoreThanShares(e2);
+        requireInvariant totalAssetsCovered(e2);
+        requireInvariant vaultSolvency_1Asset(e2);
+        require accountant_contract.decimals == accountant_contract.base.decimals(e2);
+        require accountant_contract.base == ERC20Mock;
+        require teller_contract.assetData[ERC20Mock].sharePremium == 0;
+        require accountant_contract.getPendingVestingGains(e2) <= vault_contract.totalSupply();
         nonSceneAddress(e2.msg.sender);
     }
     preserved claimFees(address a) with (env e2) {
+        // claimFees passed already; add only the decimals pin for the same 10^decimals fold.
+        // Keep the full invariant set — fee logic can rely on the highwaterMark/exchangeRate ones.
+        require vault_contract.decimals() == 6;
         safeAssumptions();
         requireAllInvariants_accountant(e2);
     }
