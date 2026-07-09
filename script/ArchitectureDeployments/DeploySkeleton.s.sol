@@ -43,6 +43,9 @@ import {console} from "@forge-std/Test.sol";
 
 /**
  *  source .env && forge script script/ArchitectureDeployments/DeploySkeleton.s.sol:DeploySkeletonScript --sig "run(string)" config.json --with-gas-price 3000000000 --broadcast --slow --verify
+ *
+ *  Hardware wallet (Ledger): set "useHardwareWallet": true in the config's deploymentParameters, then:
+ *  forge script script/ArchitectureDeployments/DeploySkeleton.s.sol:DeploySkeletonScript --sig "run(string)" config.json --broadcast --slow --verify --ledger --sender <deploymentOwner>
  */
 contract DeploySkeletonScript is Script, ChainValues {
     struct AddressOrName {
@@ -241,6 +244,7 @@ contract DeploySkeletonScript is Script, ChainValues {
     error DeployError(string message);
 
     uint256 internal privateKey;
+    bool internal useHardwareWallet;
 
     string internal rawJson;
     string internal sourceChain;
@@ -303,7 +307,14 @@ contract DeploySkeletonScript is Script, ChainValues {
         } else {
             revert KeyNotFound(".deploymentParameters.logLevel");
         }
-        if (vm.keyExists(rawJson, ".deploymentParameters.privateKeyEnvName")) {
+        // Hardware wallet flow: when `useHardwareWallet` is true, we skip loading a private key.
+        // Run with: forge script ... --ledger --sender <deploymentOwner>
+        // Foundry's CLI handles signing via the Ledger; the script just broadcasts as `deploymentOwner`.
+        if (vm.keyExists(rawJson, ".deploymentParameters.useHardwareWallet")
+                && vm.parseJsonBool(rawJson, ".deploymentParameters.useHardwareWallet")) {
+            useHardwareWallet = true;
+            _log("Hardware wallet mode enabled.", 3);
+        } else if (vm.keyExists(rawJson, ".deploymentParameters.privateKeyEnvName")) {
             privateKey = vm.envUint(vm.parseJsonString(rawJson, ".deploymentParameters.privateKeyEnvName"));
             _log("Private key found in configuration file.", 3);
         } else {
@@ -366,7 +377,12 @@ contract DeploySkeletonScript is Script, ChainValues {
         // Get Deployer address from configuration file.
         deployer = Deployer(_handleAddressOrName(".deploymentParameters.deployerContractAddressOrName"));
 
-        vm.startBroadcast(privateKey);
+        if (useHardwareWallet) {
+            // Foundry derives the sender from the Ledger via --ledger --mnemonic-derivation-paths.
+            vm.startBroadcast();
+        } else {
+            vm.startBroadcast(privateKey);
+        }
 
         _deployRolesAuthority();
         _deployLens();

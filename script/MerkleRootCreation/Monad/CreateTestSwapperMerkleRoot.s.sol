@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: SEL-1.0
 // Copyright © 2025 Veda Tech Labs
 // Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
@@ -12,14 +13,14 @@ import {MerkleTreeHelper} from "test/resources/MerkleTreeHelper/MerkleTreeHelper
 import "forge-std/Script.sol";
 
 /**
- *  source .env && forge script script/MerkleRootCreation/Test/CreateTestSwapperMerkleRoot.s.sol --rpc-url $MAINNET_RPC_URL --gas-limit 1000000000000000000
+ *  source .env && forge script script/MerkleRootCreation/Monad/CreateTestSwapperMerkleRoot.s.sol --rpc-url $MONAD_RPC_URL --gas-limit 1000000000000000000
  */
 contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
     using FixedPointMathLib for uint256;
 
     //standard
     address public boringVault = 0x0Fc760EEbEFbF5FE3B452A9a52325c4376FEADFA;
-    address public rawDataDecoderAndSanitizer = 0x907cE330C7841C2bD31abCB8c77c97f1EFb5a770; 
+    address public rawDataDecoderAndSanitizer = 0xaBa0791af163d1A4EE8075500763B5b03b477047;
     address public managerAddress = 0x1AE3346BC6d3267b860De524D5E38E19679A1DB0;
     address public accountantAddress = 0xD1135B891143d3c5DfE158C6b4961937a27b8AE4;
     
@@ -34,16 +35,16 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
     }
 
     function generateStrategistMerkleRoot() public {
-        setSourceChainName(mainnet);
-        setAddress(false, mainnet, "boringVault", boringVault);
-        setAddress(false, mainnet, "managerAddress", managerAddress);
-        setAddress(false, mainnet, "accountantAddress", accountantAddress);
-        setAddress(false, mainnet, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
+        setSourceChainName(monad);
+        setAddress(false, monad, "boringVault", boringVault);
+        setAddress(false, monad, "managerAddress", managerAddress);
+        setAddress(false, monad, "accountantAddress", accountantAddress);
+        setAddress(false, monad, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
         ManageLeaf[] memory leafs = new ManageLeaf[](32);
 
         // ========================== Swapper ==========================
-        address swapper = 0xaBB0d47aFc22810038B1895b738bB77115Ca306f;
+        address swapper = 0x6b01D470d3c2E57070E2DCC23a2576bAa4e49F9b;
         address[][] memory pairs = new address[][](2);
         pairs[0] = new address[](2);
         pairs[0][0] = getAddress(sourceChain, "WETH");
@@ -64,10 +65,9 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
 
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
-        string memory filePath = "./leafs/Mainnet/TestSwapperMerkleRoot.json";
+        string memory filePath = "./leafs/Monad/TestSwapperMerkleRoot.json";
 
         _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
 
     }
-
 }

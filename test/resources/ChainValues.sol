@@ -45,6 +45,7 @@ contract ChainValues {
     string public constant tac = "tac";
     string public constant plasma = "plasma";
     string public constant inkSepolia = "inkSepolia";
+    string public constant monad = "monad";
 
     // Bridging constants.
     uint64 public constant ccipArbitrumChainSelector = 4949039107694359620;
@@ -154,6 +155,7 @@ contract ChainValues {
         _addBartioValues();
         _addTACTestnetValues();
         _addInkSepoliaValues();
+        _addMonadValues();
     }
 
     function _addMainnetValues() private {
@@ -161,6 +163,7 @@ contract ChainValues {
         // Liquid Ecosystem
         values[mainnet]["deployerAddress"] = 0x5F2F11ad8656439d5C14d9B351f8b09cDaC2A02d.toBytes32();
         values[mainnet]["deployerAddress2"] = 0xF3d0672a91Fd56C9ef04C79ec67d60c34c6148a0.toBytes32();
+        values[mainnet]["newDeployer"] = 0xe80F045fc6F551229f98FA21E0Db35784A590e05.toBytes32();
         values[mainnet]["dev0Address"] = 0x0463E60C7cE10e57911AB7bD1667eaa21de3e79b.toBytes32();
         values[mainnet]["dev1Address"] = 0xf8553c8552f906C19286F21711721E206EE4909E.toBytes32();
         values[mainnet]["etherfiOpsAddress"] = 0xC8111D00351765c64D301CDFc1848bf5Ff2E23A2.toBytes32();
@@ -942,7 +945,10 @@ contract ChainValues {
         // 1Inch
         values[mainnet]["aggregationRouterV5"] = 0x1111111254EEB25477B68fb85Ed929f73A960582.toBytes32();
         values[mainnet]["aggregationRouterV6"] = 0x111111125421cA6dc452d289314280a0f8842A65.toBytes32();
-        values[mainnet]["oneInchExecutor"] = 0x990636ecB3FF04d33D92e970d3d588bF5cD8d086.toBytes32();
+        values[mainnet]["oneInchExecutor"] = 0xa58BdD0Ab5EBBb8dC425090feA8FD0bA969c1668.toBytes32();
+        values[mainnet]["oneInchFeeTaker"] =  0xc0DFdB9E7a392c3dBBE7c6FBe8FBC1789C9FE05e.toBytes32();
+        values[mainnet]["oneInchFeeReceiver"] = 0x90CbE4BDd538D6e9b379bFF5fE72c3d67A521De5.toBytes32();
+
         values[mainnet]["wETHweETH5bps"] = 0x7A415B19932c0105c82FDB6b720bb01B0CC2CAe3.toBytes32();
 
         // Gearbox
@@ -3326,6 +3332,91 @@ contract ChainValues {
         values[plasma]["redSnwapperRouter"] = 0xAC4c6e212A361c968F1725b4d055b47E63F80b75.toBytes32();
         values[plasma]["redSnwapperExecutor"] = 0xd2b37aDE14708bf18904047b1E31F8166d39612b.toBytes32();
 
+    }
+
+
+    function _addMonadValues() private {
+        values[monad]["newDeployer"] = 0xe80F045fc6F551229f98FA21E0Db35784A590e05.toBytes32();
+        values[monad]["txBundlerAddress"] = 0xe80F045fc6F551229f98FA21E0Db35784A590e05.toBytes32();
+        values[monad]["dev1Address"] = 0xf8553c8552f906C19286F21711721E206EE4909E.toBytes32();
+        values[monad]["ETH"] = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE.toBytes32(); // Native
+        values[monad]["NATIVE"] = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE.toBytes32();
+        values[monad]["WMON"] = 0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A.toBytes32();
+        values[monad]["mUSD"] = 0xacA92E438df0B2401fF60dA7E4337B687a2435DA.toBytes32();
+        values[monad]["USDC"] = 0x754704Bc059F8C67012fEd69BC8A327a5aafb603.toBytes32();
+        values[monad]["WETH"] = 0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242.toBytes32();
+        values[monad]["steakhouseMUSDVault"] = 0xBEEF067C9D2591aCCAB7d1C336a41ca3bd45b8f5.toBytes32();
+        values[monad]["steakhouseUSDCVault"] = 0xBEEF0C61DA39F7EA2bFa7B0f9d6338A3a2DD2fF0.toBytes32();
+
+        values[monad]["balancerVault"] = address(1).toBytes32();
+        values[monad]["vauld"] = address(1).toBytes32();
+
+        // MPortal — same deterministic proxy address as mainnet.
+        values[monad]["mportalProxy"] = 0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd.toBytes32();
+
+        // UniV3
+        values[monad]["uniswapV3NonFungiblePositionManager"] = 0x7197E214c0b767cFB76Fb734ab638E2c192F4E53.toBytes32();
+        values[monad]["uniV3Router"] = 0xfE31F71C1b106EAc32F1A19239c9a9A72ddfb900.toBytes32();
+        // UniV4
+        values[monad]["uniswapV4PositionManager"] = 0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016.toBytes32();
+        values[monad]["uniV4UniversalRouter"] = 0x0D97Dc33264bfC1c226207428A79b26757fb9dc3.toBytes32();
+        values[monad]["uniV4PoolManager"] = 0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e.toBytes32();
+        values[monad]["uniV4PositionManager"] = 0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016.toBytes32();
+        values[monad]["permit2"] = 0x000000000022D473030F116dDEE9F6B43aC78BA3.toBytes32();
+        values[monad]["uniV4PositionDescriptor"] = 0x5770D2914355a6D0a39A70AeEa9bcCe55Df4201B.toBytes32();
+        values[monad]["uniV4Quoter"] = 0xa222Dd357A9076d1091Ed6Aa2e16C9742dD26891.toBytes32();
+        values[monad]["uniV4StateView"] = 0x77395F3b2E73aE90843717371294fa97cC419D64.toBytes32();
+        values[monad]["uniV4UniversalRouter_2_1_1"] = 0xFdf682F51FE81Aa4898F0AE2163d8A55c127fbC7.toBytes32();
+        values[monad]["uniV4_MON_WETH_poolId"] =
+            bytes32(0x3783b51e33900eb366a9e8473c76cda441e7170d2e5d96927f30c16a7add93aa);
+
+        // CCTP V2
+        values[monad]["usdcTokenMessengerV2"] = 0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d.toBytes32();
+        values[monad]["usdcMessageTransmitterV2"] = 0x81D40F21F12A8F0E3252Bccb954D722d4c464B64.toBytes32();
+
+        // Tokens
+        values[monad]["WETH"] = 0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242.toBytes32();
+        values[monad]["weth"] = 0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242.toBytes32();
+        values[monad]["wstETH"] = 0x10Aeaf63194db8d453d4D85a06E5eFE1dd0b5417.toBytes32();
+        values[monad]["WSTETH"] = 0x10Aeaf63194db8d453d4D85a06E5eFE1dd0b5417.toBytes32();
+        values[monad]["AUSD"] = 0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a.toBytes32();
+        values[monad]["ausdOFTAdapter"] = 0x9CaB7Ede13dc56652E44D2404E969C212f22689b.toBytes32();
+        values[monad]["LINK"] = 0x76f257B1DDA5cC71bee4eF637Fbdde4C801310A9.toBytes32();
+        values[monad]["ccipRouter"] = 0x33566fE5976AAa420F3d5C64996641Fc3858CaDB.toBytes32();
+
+        // Morpho
+        values[monad]["morphoBlue"] = 0xD5D960E8C380B724a48AC59E2DfF1b2CB4a1eAee.toBytes32();
+        values[monad]["steakhousePrimeETHVault"] = 0xbeef04b01e0275D4ac2e2986256BB14E3Ff6ef42.toBytes32();
+        values[monad]["morphoBlue_wstETH_WETH_marketId"] =
+            bytes32(0x8bdb7d2c5024d349772884afb3c5c409bc8de58ed63d79618bf48fb57b595060);
+
+        values[monad]["upshiftEarnAUSDVault"] = 0x36eDbF0C834591BFdfCaC0Ef9605528c75c406aA.toBytes32();
+
+        values[monad]["merklDistributor"] = 0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae.toBytes32();
+
+        // LayerZero
+        values[monad]["LayerZeroEndPoint"] = 0x6F475642a6e85809B1c36Fa62763669b1b48DD5B.toBytes32();
+        // ZRO is not deployed on Monad; use the sentinel placeholder.
+        values[monad]["ZRO"] = address(1).toBytes32();
+
+        // Wormhole
+        values[monad]["wormholeMultiTokenExecutor"] = 0xFEA937F7124E19124671f1685671d3f04a9Af4E4.toBytes32();
+        values[monad]["wormholeMultiTokenNtt"] = 0x36878C6FCa7e0E8a88F90dc410CfBBcA5B695C95.toBytes32();
+        // The Wormhole executor's payee + quote-signer are off-chain service identities; the same
+        // addresses sign across chains the executor supports.
+        values[monad]["wormholeMultiTokenExecutorPayee"] = 0x7D73bE2ac3edDc8C5c0A1418b410b9710d4AF40D.toBytes32();
+        values[monad]["wormholeExecutorQuoter"] = 0xa54008017941EcE968623a0Dd8Ee907E2b133596.toBytes32();
+        values[monad]["wormholeExecutorPayee"] = 0x6a8BFC410A3Cc7306d52872F116AFb12F1cec6C6.toBytes32();
+
+        //Lifi
+        values[monad]["lifi"] = 0x026F252016A7C47CDEf1F05a3Fc9E20C92a49C37.toBytes32();
+
+        //M0
+        values[monad]["m0OrderBook"] = 0xe39B012AB3b20E94a9beEa557eB0DE4171D4D3E4.toBytes32();
+        
+        //Swapper Oracles
+        values[monad]["usdcUsdRateProvider"] = 0xDe4c2aE69841538915e657fDc3010BdBBf45A13a.toBytes32();
+        values[monad]["wethUsdRateProvider"] = 0xf90AaeDaBb011A0a439090f3025d843F7A59c202.toBytes32();
     }
 
     

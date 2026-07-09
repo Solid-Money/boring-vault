@@ -148,13 +148,14 @@ import "forge-std/StdJson.sol";
 contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddresses, MerkleTreeHelper {
     Deployer public deployer = Deployer(deployerAddress);
     Deployer public bobDeployer = Deployer(0xF3d0672a91Fd56C9ef04C79ec67d60c34c6148a0);
+    Deployer public newDeployer = Deployer(0xe80F045fc6F551229f98FA21E0Db35784A590e05);
 
     string[] addressKeys;
 
     function setUp() external {
 
-        vm.createSelectFork("mainnet");
-        setSourceChainName("mainnet");
+        vm.createSelectFork("monad");
+        setSourceChainName("monad");
     }
 
     function run() external {
@@ -164,7 +165,7 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
 
         creationCode = type(BoringSwapperDecoder).creationCode;
         constructorArgs = abi.encode();
-        deployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
+        newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }
