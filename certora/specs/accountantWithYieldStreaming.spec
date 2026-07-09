@@ -200,8 +200,29 @@ invariant totalAssetsCovered(env e)
     }
 }
 
+// Helper lemma for vaultSolvency_1Asset's preserved block. That block feeds the prover a
+// linearizing upper bound on the symbolic product `totalSupply * getRateInQuoteSafe`; this rule
+// DISCHARGES that bound against the real implementation, so it is verified rather than merely
+// assumed. getRateInQuoteSafe(base) returns getRate() (AccountantWithYieldStreaming.getRate /
+// getRateInQuote), which is either `lastSharePrice` (when totalSupply==0 or pendingGains==0) or
+// `totalAssets.mulDivDown(ONE_SHARE, totalSupply)` (pendingGains>0). Both branches satisfy the
+// bound: the mulDivDown floor gives `totalSupply*getRate <= totalAssets*ONE_SHARE`, and the
+// lastSharePrice case is exactly sharePriceBoundedUpper. The assumptions below are a subset of
+// what that preserved block establishes, so proving it here justifies the `require` there.
+rule rateInQuoteSafeBoundedByAssets(env e)
+{
+    require vault_contract.decimals() == 6;
+    safeAssumptions();
+    requireInvariant sharePriceBoundedUpper(e);
+    require accountant_contract.base == ERC20Mock;
+    require accountant_contract.getPendingVestingGains(e) <= vault_contract.totalSupply();
+
+    assert vault_contract.totalSupply(e) * accountant_contract.getRateInQuoteSafe(e, ERC20Mock)
+        <= (accountant_contract.totalAssets(e) + 1) * accountant_contract.ONE_SHARE;
+}
+
 invariant vaultSolvency_1Asset(env e)
-    (userAssets(e, ERC20Mock, vault_contract) - accountant_contract.getPendingVestingGains(e)) * teller_contract.ONE_SHARE 
+    (userAssets(e, ERC20Mock, vault_contract) - accountant_contract.getPendingVestingGains(e)) * teller_contract.ONE_SHARE
         >= (vault_contract.totalSupply(e)) * (accountant_contract.getRateInQuoteSafe(e, ERC20Mock)) 
     
 filtered { f -> !ignoredMethod(f)
@@ -235,15 +256,13 @@ filtered { f -> !ignoredMethod(f)
         require teller_contract.assetData[ERC20Mock].sharePremium == 0;
         require accountant_contract.getPendingVestingGains(e2) <= vault_contract.totalSupply();
         require e2.block.timestamp == e.block.timestamp;
-        require teller_contract.ONE_SHARE == 1000000;
-        require accountant_contract.ONE_SHARE == 1000000; // concrete ONE_SHARE avoids nonlinear-arith timeout
-        // Linearize the RHS symbolic*symbolic product totalSupply*getRateInQuoteSafe.
-        // Sound upper bound across both getRate() branches:
-        //   pendingGains>0: getRate = totalAssets.mulDivDown(ONE_SHARE, totalSupply),
-        //     so totalSupply*getRate <= totalAssets*ONE_SHARE (floor loses <= totalSupply-1);
-        //   pendingGains==0 / totalSupply==0: getRate = lastSharePrice, and
-        //     totalSupply*lastSharePrice <= (totalAssets+1)*ONE_SHARE is exactly sharePriceBoundedUpper.
-        // Feeding this bound collapses the nonlinear product to a linear term and avoids the timeout.
+        // NB: teller/accountant ONE_SHARE are already pinned to 1e6 here — decimals()==6 (above)
+        // + safeAssumptions()'s `ONE_SHARE == 10^decimals()` collapse both — so no explicit pin.
+        // Linearize the RHS symbolic*symbolic product totalSupply*getRateInQuoteSafe with a sound
+        // upper bound. This is NOT a bare assumption: rule rateInQuoteSafeBoundedByAssets verifies
+        // it against the real getRateInQuoteSafe (mulDivDown floor on the pendingGains>0 branch;
+        // sharePriceBoundedUpper on the lastSharePrice branch). Feeding it collapses the nonlinear
+        // product to a linear term and avoids the timeout.
         require vault_contract.totalSupply(e2) * accountant_contract.getRateInQuoteSafe(e2, ERC20Mock)
             <= (accountant_contract.totalAssets(e2) + 1) * accountant_contract.ONE_SHARE;
         nonSceneAddress(e2.msg.sender);
