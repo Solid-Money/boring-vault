@@ -158,29 +158,33 @@ contract AccountantWithRateProvidersTest is Test, MerkleTreeHelper {
     }
 
     function testConstructorRevertsOnUpperBoundTooSmall() external {
-        // The constructor must reject an upper bound below 1e4, matching updateUpper.
+        // The constructor must reject an upper bound below the floor, matching updateUpper.
+        uint16 upper = accountant.MIN_ALLOWED_EXCHANGE_RATE_UPPER() - 1;
         vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__UpperBoundTooSmall.selector);
         new AccountantWithRateProviders(
-            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4 - 1, 0.999e4, 1, 0, 0
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), upper, 0.999e4, 1, 0, 0
         );
     }
 
     function testConstructorRevertsOnLowerBoundTooLarge() external {
-        // The constructor must reject a lower bound above 1e4, matching updateLower.
+        // The constructor must reject a lower bound above the ceiling, matching updateLower.
+        uint16 lower = accountant.MAX_ALLOWED_EXCHANGE_RATE_LOWER() + 1;
         vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__LowerBoundTooLarge.selector);
         new AccountantWithRateProviders(
-            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1.001e4, 1e4 + 1, 1, 0, 0
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1.001e4, lower, 1, 0, 0
         );
     }
 
     function testConstructorAcceptsBoundaryBounds() external {
-        // upper == 1e4 and lower == 1e4 are the exact allowed boundaries (guards off-by-one).
+        // upper == floor and lower == ceiling are the exact allowed boundaries (guards off-by-one).
+        uint16 upper = accountant.MIN_ALLOWED_EXCHANGE_RATE_UPPER();
+        uint16 lower = accountant.MAX_ALLOWED_EXCHANGE_RATE_LOWER();
         AccountantWithRateProviders boundaryAccountant = new AccountantWithRateProviders(
-            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4, 1e4, 1, 0, 0
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), upper, lower, 1, 0, 0
         );
         (,,,,, uint16 upper_bound, uint16 lower_bound,,,,,) = boundaryAccountant.accountantState();
-        assertEq(upper_bound, 1e4, "upper boundary 1e4 accepted");
-        assertEq(lower_bound, 1e4, "lower boundary 1e4 accepted");
+        assertEq(upper_bound, upper, "upper boundary accepted");
+        assertEq(lower_bound, lower, "lower boundary accepted");
     }
 
     function testUpdatePlatformFee() external {
