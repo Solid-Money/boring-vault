@@ -175,16 +175,59 @@ contract AccountantWithRateProvidersTest is Test, MerkleTreeHelper {
         );
     }
 
+    function testConstructorRevertsOnUpdateDelayTooLarge() external {
+        // The constructor must reject a delay above the ceiling, matching updateDelay.
+        uint24 delay = accountant.MAX_MINIMUM_UPDATE_DELAY_IN_SECONDS() + 1;
+        vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__UpdateDelayTooLarge.selector);
+        new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4, 1e4, delay, 0, 0
+        );
+    }
+
+    function testConstructorRevertsOnPlatformFeeTooLarge() external {
+        // The constructor must reject a platform fee above the ceiling, matching updatePlatformFee.
+        uint16 platformFee = accountant.MAX_PLATFORM_FEE() + 1;
+        vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__PlatformFeeTooLarge.selector);
+        new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4, 1e4, 1, platformFee, 0
+        );
+    }
+
+    function testConstructorRevertsOnPerformanceFeeTooLarge() external {
+        // The constructor must reject a performance fee above the ceiling, matching updatePerformanceFee.
+        uint16 performanceFee = accountant.MAX_PERFORMANCE_FEE() + 1;
+        vm.expectRevert(AccountantWithRateProviders.AccountantWithRateProviders__PerformanceFeeTooLarge.selector);
+        new AccountantWithRateProviders(
+            address(this), address(boringVault), payout_address, 1e18, address(WETH), 1e4, 1e4, 1, 0, performanceFee
+        );
+    }
+
     function testConstructorAcceptsBoundaryBounds() external {
-        // upper == floor and lower == ceiling are the exact allowed boundaries (guards off-by-one).
+        // The exact bound values are the allowed boundaries (guards off-by-one).
         uint16 upper = accountant.MIN_ALLOWED_EXCHANGE_RATE_UPPER();
         uint16 lower = accountant.MAX_ALLOWED_EXCHANGE_RATE_LOWER();
+        uint24 maxDelay = accountant.MAX_MINIMUM_UPDATE_DELAY_IN_SECONDS();
+        uint16 maxPlatformFee = accountant.MAX_PLATFORM_FEE();
+        uint16 maxPerformanceFee = accountant.MAX_PERFORMANCE_FEE();
         AccountantWithRateProviders boundaryAccountant = new AccountantWithRateProviders(
-            address(this), address(boringVault), payout_address, 1e18, address(WETH), upper, lower, 1, 0, 0
+            address(this),
+            address(boringVault),
+            payout_address,
+            1e18,
+            address(WETH),
+            upper,
+            lower,
+            maxDelay,
+            maxPlatformFee,
+            maxPerformanceFee
         );
-        (,,,,, uint16 upper_bound, uint16 lower_bound,,,,,) = boundaryAccountant.accountantState();
+        (,,,,, uint16 upper_bound, uint16 lower_bound,,, uint24 delay, uint16 platform_fee, uint16 performance_fee) =
+            boundaryAccountant.accountantState();
         assertEq(upper_bound, upper, "upper boundary accepted");
         assertEq(lower_bound, lower, "lower boundary accepted");
+        assertEq(delay, maxDelay, "delay boundary accepted");
+        assertEq(platform_fee, maxPlatformFee, "platform fee boundary accepted");
+        assertEq(performance_fee, maxPerformanceFee, "performance fee boundary accepted");
     }
 
     function testUpdatePlatformFee() external {
