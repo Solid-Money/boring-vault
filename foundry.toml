@@ -8,7 +8,9 @@ optimizer = true
 optimizer_runs = 200
 fs_permissions = [{ access = "read-write", path = "./" }]
 deny_warnings = false
+use_literal_content = true
 cbor_metadata=true
+memory_limit = 4294967296
 remappings = [
     "@solmate/=lib/solmate/src/",
     "@forge-std/=lib/forge-std/src/",
@@ -22,6 +24,17 @@ remappings = [
 [fuzz]
 runs = 8000
 seed = "0x0000000000000000000000000000000000000000000000000000000000000002"
+
+# CI profile: caps fuzz/invariant so the test job finishes fast (test.yml sets
+# FOUNDRY_PROFILE=ci). Without this, `--profile ci` is a no-op and fuzz runs 8000.
+[profile.ci.fuzz]
+runs = 256
+seed = "0x0000000000000000000000000000000000000000000000000000000000000002"
+
+[profile.ci.invariant]
+runs = 32
+depth = 100
+fail_on_revert = false
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
@@ -55,6 +68,8 @@ tac = "${TAC_RPC_URL}"
 plasma = "${PLASMA_RPC_URL}"
 inkSepolia= "${INK_SEPOLIA_RPC_URL}"
 xlayer="${XLAYER_RPC_URL}"
+mantle = "${MANTLE_RPC_URL}"
+sei = "${SEI_RPC_URL}"
 monad = "${MONAD_RPC_URL}"
 
 [etherscan]
@@ -89,13 +104,12 @@ xlayer = { key = "${ETHERSCAN_KEY", chain = 196, url = "https://www.oklink.com/a
 monad = { key = "${ETHERSCAN_KEY}", chain = 143, url = "https://api.etherscan.io/v2/api?chainid=143" }
 
 [fmt]
-FOUNDRY_FMT_LINE_LENGTH = 120
-FOUNDRY_FMT_TAB_WIDTH = 4
-FOUNDRY_FMT_BRACKET_SPACING = true
-FOUNDRY_FMT_INT_TYPES = "long"
-FOUNDRY_FMT_MULTILINE_FUNC_HEADER = "attributes_first"
-FOUNDRY_FMT_QUOTE_STYLE = "double"
-FOUNDRY_FMT_NUMBER_UNDERSCORE = "thousands"
-FOUNDRY_FMT_OVERRIDE_SPACING = true
-FOUNDRY_FMT_WRAP_COMMENTS = false
-FOUNDRY_FMT_IGNORE = []
+line_length = 160
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+multiline_func_header = "attributes_first"
+quote_style = "double"
+override_spacing = true
+wrap_comments = false
+ignore = ["test/resources/MerkleTreeHelper/MerkleTreeHelper.sol"]

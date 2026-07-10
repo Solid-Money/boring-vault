@@ -37,7 +37,7 @@ import {LiquidBeraEthDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/L
 import {SonicIncentivesHandlerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SonicIncentivesHandlerDecoderAndSanitizer.sol";
 import {AaveV3FullDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/AaveV3FullDecoderAndSanitizer.sol";
 import {EtherFiBtcDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/EtherFiBtcDecoderAndSanitizer.sol";
-import {SymbioticLRTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SymbioticLRTDecoderAndSanitizer.sol";
+//import {SymbioticLRTDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SymbioticLRTDecoderAndSanitizer.sol";
 import {SonicLBTCvSonicDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SonicLBTCvSonicDecoderAndSanitizer.sol";
 import {eBTCBerachainDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/eBTCBerachainDecoderAndSanitizer.sol";
 import {SonicBTCDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SonicBTCDecoderAndSanitizer.sol";
@@ -125,6 +125,7 @@ import {SentayUSDCInkDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/S
 import {SentayUSDCMainnetDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SentayUSDCMainnetDecoderAndSanitizer.sol";
 import {ITBBasePositionDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/ITB/ITBBasePositionDecoderAndSanitizer.sol";
 import {BoostedUSDCInkDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BoostedUSDCInkDecoderAndSanitizer.sol";
+import {KHypeDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/KHypeDecoderAndSanitizer.sol";
 import {WhopDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/WhopDecoderAndSanitizer.sol";
 import {TacDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/TacUSDTacDecoderAndSanitizer.sol";
 import {BoostedUSDCDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BoostedUSDCDecoderAndSanitizer.sol";
@@ -134,16 +135,27 @@ import {P1USDDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/P1USDDeco
 import {SentayETHMainnetDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SentayETHMainnetDecoderAndSanitizer.sol";
 import {GoldenGooseFillerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/FillerDecoderAndSanitizer.sol"; 
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol"; 
+import {LiquidVaultsOPDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/LiquidVaultsOPDecoderAndSanitizer.sol"; 
+import {StakedEtherFiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SymbioticLRTDecoderAndSanitizer.sol";
+import {LiquidUSDSeiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/LiquidUSDSeiDecoderAndSanitizer.sol";
+import {SentoraBTCMainnetDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SentoraBTCMainnetDecoderAndSanitizer.sol";
 
 import "forge-std/Script.sol";
 import "forge-std/StdJson.sol";
 
 /**
- *  source .env && forge script script/DeployDecoderAndSanitizer.s.sol:DeployDecoderAndSanitizerScript --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
+ *  Trezor:
+ *    source .env && forge script script/DeployDecoderAndSanitizer.s.sol:DeployDecoderAndSanitizerScript \
+ *      --rpc-url $MAINNET_RPC_URL --trezor --sender $TREZOR_ADDRESS --mnemonic-derivation-paths $DERIVATION_PATH \
+ *      --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
+ *
+ *  Private key (legacy):
+ *    source .env && forge script script/DeployDecoderAndSanitizer.s.sol:DeployDecoderAndSanitizerScript --broadcast --etherscan-api-key $ETHERSCAN_API_KEY --verify
  */
 /** *   --verify --verifier-url 'https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan'
  * @dev Optionally can change `--with-gas-price` to something more reasonable
  * @dev For Unichain verification, use appropriate block explorer when available
+ * @dev When using --trezor, also pass `--mnemonic-derivation-paths "m/44'/60'/0'/0/0"` if your Trezor is on a non-default account index
  */
 contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddresses, MerkleTreeHelper {
     Deployer public deployer = Deployer(deployerAddress);
@@ -154,8 +166,8 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
 
     function setUp() external {
 
-        vm.createSelectFork("monad");
-        setSourceChainName("monad");
+        setSourceChainName("mainnet");
+        vm.createSelectFork("mainnet");
     }
 
     function run() external {
@@ -163,9 +175,15 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
         bytes memory constructorArgs;
         vm.startBroadcast();
 
-        creationCode = type(BoringSwapperDecoder).creationCode;
-        constructorArgs = abi.encode();
-        newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
+        //creationCode = type(BoringSwapperDecoder).creationCode;
+        //constructorArgs = abi.encode();
+        //newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
+
+        creationCode = type(SentoraBTCMainnetDecoderAndSanitizer).creationCode;
+        constructorArgs = abi.encode(
+            getAddress(sourceChain, "uniswapV3NonFungiblePositionManager")
+        );
+        deployer.deployContract("Sentora BTC Mainnet Decoder And Sanitizer V0.2", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }

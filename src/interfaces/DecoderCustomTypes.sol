@@ -2,6 +2,7 @@
 // Copyright © 2025 Veda Tech Labs
 // Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
 // Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@c54949f556cbc9a5e752ef1d6e8c09d64f4975b7 — https://macroaudits.com/library/audits/sevenSeas-47
 pragma solidity 0.8.21;
 
 contract DecoderCustomTypes {
@@ -391,6 +392,13 @@ contract DecoderCustomTypes {
         uint256 value;
         uint256 gasLimit;
         bytes data;
+    }
+
+    // ========================================= HyperLend RewardsDistributor =========================================
+    struct Claim {
+        address token;
+        uint256 amount;
+        bytes32[] proof;
     }
 
     // ========================================= Linea Bridge =========================================
@@ -1007,6 +1015,17 @@ contract DecoderCustomTypes {
         uint128 amountOut;
         bytes32 recipient;
         bytes32 solver;
+    }
+
+    // ====================================== Etherfi =========================================
+
+    struct EtherFiWithdrawRequest {
+        address user;           // The user who created the request
+        uint96 amountOfEEth;    // Original eETH amount requested
+        uint96 shareOfEEth;     // eETH shares at time of request
+        uint96 amountWithFee;   // ETH amount the user receives after fee deduction (amountOfEEth - fee)
+        uint32 nonce;           // Unique nonce to prevent hash collisions
+        uint32 creationTime;    // Timestamp when request was created
     }
 
 }

@@ -45,19 +45,19 @@ contract DeployDeployerScript is Script, ContractNames, Test {
         //vm.createSelectFork("mainnet");
         privateKey = vm.envUint("TROGLOBYTE");
         vm.createSelectFork("xlayer");
+        // privateKey = vm.envUint("DEPLOYER_KEY");
+        vm.createSelectFork("mantle");
     }
 
     function run() external {
         bytes memory constructorArgs;
         bytes memory creationCode;
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast();
 
         deployer = new Deployer(troglobyte, Authority(address(0)));
         require(address(deployer) == deployerAddress);
         console.log("deployer address:", address(deployer));
-
-        require(address(deployer) == deployerAddress, "Deployer address mismatch");
-        console.log(address(deployer)); 
+        deployer = new Deployer(0x32E97eACfb62Ae1cC4d73CF702361292C761f8c4, Authority(address(0)));
 
         creationCode = type(RolesAuthority).creationCode;
         constructorArgs = abi.encode(troglobyte, address(0));
@@ -77,7 +77,7 @@ contract DeployDeployerScript is Script, ContractNames, Test {
 
         rolesAuthority.setRoleCapability(DEPLOYER_ROLE, address(deployer), Deployer.deployContract.selector, true);
         rolesAuthority.setRoleCapability(DEPLOYER_ROLE, address(deployer), Deployer.bundleTxs.selector, true);
-        rolesAuthority.setUserRole(dev0Address, DEPLOYER_ROLE, true);
+        // rolesAuthority.setUserRole(dev0Address, DEPLOYER_ROLE, true);
         rolesAuthority.setUserRole(dev1Address, DEPLOYER_ROLE, true);
         rolesAuthority.setUserRole(dev2Address, DEPLOYER_ROLE, true);
         rolesAuthority.setUserRole(dev3Address, DEPLOYER_ROLE, true);

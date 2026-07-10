@@ -19,12 +19,13 @@ contract CreateBoostedUSDCMerkleRoot is Script, MerkleTreeHelper {
 
     //standard
     address public boringVault = 0xDbD87325D7b1189Dcc9255c4926076fF4a96A271;
-    address public rawDataDecoderAndSanitizer = 0xF90D9b1690C09A16612A39E6676cE2D4101Ce63b;
+    address public rawDataDecoderAndSanitizer = 0xB44B0976dBE7b958Ef451ab102d47452aB3cB29B;
     address public managerAddress = 0xEd23b12e7700BeB638562A22ED65f74291901c25;
     address public accountantAddress = 0x62A88Bea6fe527b5DEfAA103A3f8b5010205aF92;
 
     address public odosOwnedDecoderAndSanitizer = 0x6149c711434C54A48D757078EfbE0E2B2FE2cF6a;
     address public oneInchOwnedDecoderAndSanitizer = 0x42842201E199E6328ADBB98e7C2CbE77561FAC88;
+    address public itbDecoderAndSanitizer = 0x2D7085602a85aFb417AE1dFcEc09C301FeC8Df36;
 
     function setUp() external {}
 
@@ -116,6 +117,38 @@ contract CreateBoostedUSDCMerkleRoot is Script, MerkleTreeHelper {
 
         // ========================== CCTP ==========================
         _addCCTPBridgeLeafs(leafs, cctpInkDomainId);
+        
+        // ========================== SGHO ==========================
+        _addSGHOLeafs(leafs);
+        _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "waEthUSDC")));
+        _addERC4626Leafs(leafs, ERC4626(getAddress(sourceChain, "waEthUSDT")));
+        _addGHOGSMLeafs(leafs, getAddress(sourceChain, "gsmUsdc"), getERC20(sourceChain, "waEthUSDC"));
+        _addGHOGSMLeafs(leafs, getAddress(sourceChain, "gsmUsdt"), getERC20(sourceChain, "waEthUSDT"));
+
+        // ========================== Position Manager ==========================
+        // Sentora PRIME main v2 (Morpho) — receipt vault sentoraPRIMEMain, token PYUSD
+        {
+            address primeMainV2PositionManager = 0x38Ae19114AB80b6EDE8B8fc22C6bc8b9fc6916be;
+            ERC20[] memory primeMainV2TokensUsed = new ERC20[](1);
+            primeMainV2TokensUsed[0] = getERC20(sourceChain, "PYUSD");
+            _addLeafsForITBPositionManagerLocal(leafs, primeMainV2PositionManager, primeMainV2TokensUsed, "Sentora PRIME Main v2 Morpho ITB Position Manager");
+        }
+
+        // Sentora PYUSD main v2 (Morpho) — receipt vault sentoraPYUSDMain, token PYUSD
+        {
+            address pyusdMainV2PositionManager = 0x8B84E1Dd4624e2EF9dc54184B245ab992C74D8d0;
+            ERC20[] memory pyusdMainV2TokensUsed = new ERC20[](1);
+            pyusdMainV2TokensUsed[0] = getERC20(sourceChain, "PYUSD");
+            _addLeafsForITBPositionManagerLocal(leafs, pyusdMainV2PositionManager, pyusdMainV2TokensUsed, "Sentora PYUSD Main v2 Morpho ITB Position Manager");
+        }
+
+        // Sentora RLUSD main v2 (Morpho) — receipt vault sentoraRLUSDMain, token RLUSD
+        {
+            address rlusdMainV2PositionManager = 0x7eD26B1bA3a9db0597Dc0296568e4A1e2770d5e0;
+            ERC20[] memory rlusdMainV2TokensUsed = new ERC20[](1);
+            rlusdMainV2TokensUsed[0] = getERC20(sourceChain, "RLUSD");
+            _addLeafsForITBPositionManagerLocal(leafs, rlusdMainV2PositionManager, rlusdMainV2TokensUsed, "Sentora RLUSD Main v2 Morpho ITB Position Manager");
+        }
 
         // ========================== Verify ==========================
 
@@ -126,5 +159,69 @@ contract CreateBoostedUSDCMerkleRoot is Script, MerkleTreeHelper {
         bytes32[][] memory manageTree = _generateMerkleTree(leafs);
 
         _generateLeafs(filePath, leafs, manageTree[manageTree.length - 1][0], manageTree);
+    }
+
+    function _addLeafsForITBPositionManagerLocal(
+        ManageLeaf[] memory leafs,
+        address itbPositionManager,
+        ERC20[] memory tokensUsed,
+        string memory itbContractName
+    ) internal {
+        // acceptOwnership
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "acceptOwnership()",
+            new address[](0),
+            string.concat("Accept ownership of the ", itbContractName, " contract"),
+            itbDecoderAndSanitizer
+        );
+
+        // removeExecutor
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "removeExecutor(address)",
+            new address[](0),
+            string.concat("Remove executor from the ", itbContractName, " contract"),
+            itbDecoderAndSanitizer
+        );
+
+        // Withdraw
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "withdraw(address,uint256)",
+            new address[](0),
+            string.concat("Withdraw from the ", itbContractName, " contract"),
+            itbDecoderAndSanitizer
+        );
+        // WithdrawAll
+        leafIndex++;
+        leafs[leafIndex] = ManageLeaf(
+            itbPositionManager,
+            false,
+            "withdrawAll(address)",
+            new address[](0),
+            string.concat("Withdraw all from the ", itbContractName, " contract"),
+            itbDecoderAndSanitizer
+        );
+
+        for (uint256 i; i < tokensUsed.length; ++i) {
+            // Transfer
+            leafIndex++;
+            leafs[leafIndex] = ManageLeaf(
+                address(tokensUsed[i]),
+                false,
+                "transfer(address,uint256)",
+                new address[](1),
+                string.concat("Transfer ", tokensUsed[i].symbol(), " to the ", itbContractName, " contract"),
+                itbDecoderAndSanitizer
+            );
+            leafs[leafIndex].argumentAddresses[0] = itbPositionManager;
+        }
     }
 }
