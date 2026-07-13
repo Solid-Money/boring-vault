@@ -19,6 +19,7 @@ docs/
 *.DS_Store
 broadcast/*
 #leafs/TemporaryLeafs.json
+dependencies/*
 
 CLAUDE.md
 .serena
@@ -28,5 +29,13 @@ decoder_regen_todos.txt
 
 tools/*
 
+# Node dependencies
 node_modules/
-tags
+test/limitOrders/
+test/limitOrders/*
+
+
+# certora
+.certora_internal/
+.properties-*/
+emv-*-certora-*/

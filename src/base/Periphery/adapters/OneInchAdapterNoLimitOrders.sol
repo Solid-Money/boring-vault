@@ -15,7 +15,7 @@ import {IUniswapV3Factory} from "src/interfaces/IUniswapV3Factory.sol";
 import {IOneInchOrderMixin} from "src/interfaces/IOneInchOrderMixin.sol";
 import {ICurveMetaRegistry} from "src/interfaces/ICurveMetaRegistry.sol";
 
-contract OneInchAdapter is IAdapter, BaseAdapter {
+contract OneInchAdapterNoLimitOrdersNoExecutor is IAdapter, BaseAdapter {
 
     //============================== Errors ===============================
 
@@ -39,7 +39,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     address public immutable univ3Factory;
     address public immutable curveMetaRegistry;
     bytes32 public immutable domainSeparator;
-    address[] public trustedExecutors; //effecively immutable
 
     //============================== Constants ===============================
     
@@ -80,7 +79,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         address _router,
         address _feeTaker,
         address _protocolFeeReceiver,
-        address[] memory _executors,
         address _univ2Factory,
         address _univ3Factory,
         address _curveMetaRegistry
@@ -88,7 +86,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         router = _router;
         feeTaker = _feeTaker;
         protocolFeeReceiver = _protocolFeeReceiver;
-        trustedExecutors = _executors;
         univ2Factory = _univ2Factory;
         univ3Factory = _univ3Factory;
         curveMetaRegistry = _curveMetaRegistry;
@@ -104,9 +101,9 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
     }
 
     //============================== V6 swap ===============================
-
+    
     function swap(
-        address executor,
+        address, /*executor*/
         DecoderCustomTypes.SwapDescription memory desc,
         bytes memory /*data*/
     )
@@ -114,15 +111,6 @@ contract OneInchAdapter is IAdapter, BaseAdapter {
         view
         returns (address, uint256)
     {
-        bool found;
-        for (uint256 i; i < trustedExecutors.length; ++i) {
-            if (executor == trustedExecutors[i]) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) revert OneInchAdapter__ExecutorMismatch();
-        if (desc.srcReceiver != payable(executor)) revert OneInchAdapter__SrcReceiverMismatch();
         if (desc.dstReceiver != payable(msg.sender)) revert OneInchAdapter__DstReceiverNotSwapper();
 
         ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
