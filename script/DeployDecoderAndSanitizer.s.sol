@@ -166,8 +166,8 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
 
     function setUp() external {
 
-        setSourceChainName("mainnet");
-        vm.createSelectFork("mainnet");
+        setSourceChainName("monad");
+        vm.createSelectFork("monad");
     }
 
     function run() external {
@@ -175,15 +175,15 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
         bytes memory constructorArgs;
         vm.startBroadcast();
 
-        //creationCode = type(BoringSwapperDecoder).creationCode;
-        //constructorArgs = abi.encode();
-        //newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.0", creationCode, constructorArgs, 0);
+        creationCode = type(BoringSwapperDecoder).creationCode;
+        constructorArgs = abi.encode();
+        newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.1", creationCode, constructorArgs, 0);
 
-        creationCode = type(SentoraBTCMainnetDecoderAndSanitizer).creationCode;
-        constructorArgs = abi.encode(
-            getAddress(sourceChain, "uniswapV3NonFungiblePositionManager")
-        );
-        deployer.deployContract("Sentora BTC Mainnet Decoder And Sanitizer V0.2", creationCode, constructorArgs, 0);
+        //creationCode = type(SentoraBTCMainnetDecoderAndSanitizer).creationCode;
+        //constructorArgs = abi.encode(
+        //    getAddress(sourceChain, "uniswapV3NonFungiblePositionManager")
+        //);
+        //deployer.deployContract("Sentora BTC Mainnet Decoder And Sanitizer V0.2", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }

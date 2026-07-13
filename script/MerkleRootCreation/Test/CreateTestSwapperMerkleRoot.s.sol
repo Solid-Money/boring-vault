@@ -19,7 +19,7 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
 
     //standard
     address public boringVault = 0xC395ef909560FFAe6c3A6e5bf05827FDb1c34f9c;
-    address public rawDataDecoderAndSanitizer = 0x907cE330C7841C2bD31abCB8c77c97f1EFb5a770; 
+    address public rawDataDecoderAndSanitizer = 0x69e987E905B61BdEcBEFe215E5D7AE5b7011e183; 
     address public managerAddress = 0xc69bd430B6C40Da716B6DABF4BBB48EeBBcCa2a1;
     address public accountantAddress = 0xb388b9A995f80AD454fD93A0C057Aaf297A35C4d;
     
