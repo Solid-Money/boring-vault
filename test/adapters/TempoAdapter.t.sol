@@ -9,6 +9,7 @@ import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
 import {TempoAdapter} from "src/base/Periphery/adapters/TempoAdapter.sol";
+import {TempoLimitOrderAdapter} from "src/base/Periphery/adapters/TempoLimitOrderAdapter.sol";
 import {TempoLimitOrderManager} from "src/base/Periphery/TempoLimitOrderManager.sol";
 import {ITempoLimitOrderManager} from "src/interfaces/ITempoLimitOrderManager.sol";
 import {ITempoStablecoinDEX, ITIP20} from "src/interfaces/ITempoStablecoinDEX.sol";
@@ -88,7 +89,8 @@ contract TempoAdapterTest is Test {
     PriceValidator public validator;
     RolesAuthority public rolesAuthority;
     FeeRegistry public feeRegistry;
-    TempoAdapter public adapter;
+    TempoAdapter public adapter; // market orders
+    TempoLimitOrderAdapter public limitAdapter; // limit orders (separate rollout)
     TempoLimitOrderManager public manager;
 
     ERC20 internal BASE; // TIP-20 quoted in QUOTE
@@ -130,10 +132,13 @@ contract TempoAdapterTest is Test {
         rolesAuthority.setRoleCapability(ADMIN_ROLE, address(swapper), BoringSwapper.releaseFee.selector, true);
 
         // ---- Tempo integration under test ----
-        manager = new TempoLimitOrderManager(address(DEX), address(this), Authority(address(0)));
-        adapter = new TempoAdapter(address(DEX), address(manager));
+        manager = new TempoLimitOrderManager(address(DEX), address(swapper), address(this), Authority(address(0)));
+        adapter = new TempoAdapter(address(DEX));
+        limitAdapter = new TempoLimitOrderAdapter(address(DEX), address(manager));
         registry.put(address(adapter), "TEMPO");
+        registry.put(address(limitAdapter), "TEMPO_LIMIT");
         swapper.setApprovedAdapter(address(adapter), true);
+        swapper.setApprovedAdapter(address(limitAdapter), true);
 
         // routes both directions, no rate limit
         swapper.setRouteConfig(BASE, QUOTE, 50, 0, 0);
@@ -316,6 +321,24 @@ contract TempoAdapterTest is Test {
         assertEq(amount, 500e6, "pull amount = amountIn");
     }
 
+    /// rollout separation: each adapter serves exactly one flow, so limit orders can ship (or be
+    /// paused) independently of market swaps via per-adapter approvals
+    function testAdapterSplit_FlowsAreMutuallyExclusive() external {
+        // market adapter rejects the limit-order flow outright
+        (ISwapperTypes.SwapConfig memory limitConfig,) = _limitConfig(false, 10, 200e6, "s1");
+        limitConfig.adapter = address(adapter);
+        vm.expectRevert(IAdapter.Adapter__LimitOrdersNotSupported.selector);
+        swapper.submitOrder(limitConfig);
+
+        // limit adapter mirrors no market selectors, so market swapData dies at pre-flight
+        ISwapperTypes.SwapConfig memory marketConfig = _marketConfig(
+            BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1))
+        );
+        marketConfig.adapter = address(limitAdapter);
+        vm.expectRevert();
+        swapper.swap(marketConfig);
+    }
+
     // ======================================= verifyLimitOrder (unit) =======================================
 
     /// OrderInfo shape for an ask: escrow base exactly, conservative round-down output
@@ -323,7 +346,7 @@ contract TempoAdapterTest is Test {
         // amount 100_000_001 at tick 10 (price 1.0001): floor output = 100_010_001
         (ISwapperTypes.SwapConfig memory config, bytes32 expectedKey) = _limitConfig(false, 10, 100_000_001, "salt-1");
 
-        IAdapter.OrderInfo memory info = adapter.verifyLimitOrder(config, address(swapper));
+        IAdapter.OrderInfo memory info = limitAdapter.verifyLimitOrder(config, address(swapper));
 
         assertEq(info.approvalTarget, address(manager), "I2: approvalTarget = manager");
         assertEq(info.cancelTarget, address(manager), "I2: cancelTarget = manager");
@@ -349,7 +372,7 @@ contract TempoAdapterTest is Test {
         // 100_000_001 * 100_010 / 100_000 = 100_010_001.0001 -> ceil = 100_010_002
         (ISwapperTypes.SwapConfig memory config,) = _limitConfigRoute(true, 10, 100_000_001, "salt-1", QUOTE, BASE);
 
-        IAdapter.OrderInfo memory info = adapter.verifyLimitOrder(config, address(swapper));
+        IAdapter.OrderInfo memory info = limitAdapter.verifyLimitOrder(config, address(swapper));
 
         assertEq(info.inputToken, address(QUOTE), "bid escrows quote");
         assertEq(info.outputToken, address(BASE));
@@ -361,33 +384,33 @@ contract TempoAdapterTest is Test {
         // unaligned tick
         (ISwapperTypes.SwapConfig memory config,) = _limitConfig(false, 15, 200e6, "s");
         vm.expectRevert(TempoDexMath.TempoDexMath__TickNotAligned.selector);
-        adapter.verifyLimitOrder(config, address(swapper));
+        limitAdapter.verifyLimitOrder(config, address(swapper));
 
         // out-of-bounds tick
         (config,) = _limitConfig(false, 2010, 200e6, "s");
         vm.expectRevert(TempoDexMath.TempoDexMath__TickOutOfBounds.selector);
-        adapter.verifyLimitOrder(config, address(swapper));
+        limitAdapter.verifyLimitOrder(config, address(swapper));
 
         // below the DEX maker minimum ($100)
         (config,) = _limitConfig(false, 10, 99_999_999, "s");
-        vm.expectRevert(TempoAdapter.TempoAdapter__BelowMinimumOrderSize.selector);
-        adapter.verifyLimitOrder(config, address(swapper));
+        vm.expectRevert(TempoLimitOrderAdapter.TempoLimitOrderAdapter__BelowMinimumOrderSize.selector);
+        limitAdapter.verifyLimitOrder(config, address(swapper));
 
         // I3: ask must route base -> quote; a bid-shaped route is a mismatch
         (config,) = _limitConfigRoute(false, 10, 200e6, "s", QUOTE, BASE);
         vm.expectRevert(IAdapter.Adapter__TokenInMismatch.selector);
-        adapter.verifyLimitOrder(config, address(swapper));
+        limitAdapter.verifyLimitOrder(config, address(swapper));
     }
 
     /// I5: hash is a pure function of swapData — deterministic across calls, unique per salt
     function testVerifyLimitOrder_HashDeterminism() external {
         (ISwapperTypes.SwapConfig memory config,) = _limitConfig(false, 10, 200e6, "salt-a");
-        bytes32 h1 = adapter.verifyLimitOrder(config, address(swapper)).protocolHash;
-        bytes32 h2 = adapter.verifyLimitOrder(config, address(swapper)).protocolHash;
+        bytes32 h1 = limitAdapter.verifyLimitOrder(config, address(swapper)).protocolHash;
+        bytes32 h2 = limitAdapter.verifyLimitOrder(config, address(swapper)).protocolHash;
         assertEq(h1, h2, "deterministic");
 
         (ISwapperTypes.SwapConfig memory config2,) = _limitConfig(false, 10, 200e6, "salt-b");
-        assertTrue(adapter.verifyLimitOrder(config2, address(swapper)).protocolHash != h1, "salt varies hash");
+        assertTrue(limitAdapter.verifyLimitOrder(config2, address(swapper)).protocolHash != h1, "salt varies hash");
     }
 
     // ======================================== Limit order lifecycle ========================================
@@ -424,7 +447,7 @@ contract TempoAdapterTest is Test {
         assertEq(address(swapper.getOrderRecord(orderId).tokenIn), address(BASE));
 
         // I9: nothing filled yet
-        assertEq(adapter.filledAmount(config, address(swapper), abi.encode(key)), 0);
+        assertEq(limitAdapter.filledAmount(config, address(swapper), abi.encode(key)), 0);
     }
 
     /// state transition OPEN -> CANCELLED unfilled: full principal returns to the vault
@@ -473,7 +496,7 @@ contract TempoAdapterTest is Test {
         DEX.swapExactAmountIn(address(QUOTE), address(BASE), 60e6, 59e6);
 
         // I9: filledAmount tracks the DEX exactly and is monotone
-        assertEq(adapter.filledAmount(config, address(swapper), abi.encode(key)), 60e6, "filled 60");
+        assertEq(limitAdapter.filledAmount(config, address(swapper), abi.encode(key)), 60e6, "filled 60");
 
         // permissionless harvest (I7: proceeds can only go to the vault)
         vm.prank(keeper);
@@ -509,7 +532,7 @@ contract TempoAdapterTest is Test {
         vm.prank(taker);
         DEX.swapExactAmountIn(address(BASE), address(QUOTE), 60e6, 1);
 
-        uint256 filled = adapter.filledAmount(config, address(swapper), abi.encode(key));
+        uint256 filled = limitAdapter.filledAmount(config, address(swapper), abi.encode(key));
         assertEq(filled, 60e6 * 100_010 / 100_000, "filled input in quote units");
 
         // cancel without harvesting first: cancel must harvest + refund in one flow
@@ -538,7 +561,7 @@ contract TempoAdapterTest is Test {
         DEX.swapExactAmountIn(address(QUOTE), address(BASE), 200e6, 199e6); // consumes the whole ask
 
         // order deleted on the DEX -> reported fully filled (R5 safe polarity)
-        assertEq(adapter.filledAmount(config, address(swapper), abi.encode(key)), 200e6);
+        assertEq(limitAdapter.filledAmount(config, address(swapper), abi.encode(key)), 200e6);
 
         vm.expectRevert(BoringSwapper.BoringSwapper__OrderAlreadyFilled.selector);
         swapper.cancelOrder(orderId, config, "");
@@ -575,7 +598,15 @@ contract TempoAdapterTest is Test {
     // =========================================== Manager (unit) ===========================================
 
     function testManager_PlaceOrder_Guards() external {
+        // placeOrder is pinned to the swapper — nobody else can place, regardless of funds
         ITIP20Test(address(BASE)).mint(address(this), 500e6);
+        BASE.approve(address(manager), type(uint256).max);
+        vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__NotSwapper.selector);
+        manager.placeOrder("k", address(BASE), false, 10, 200e6, address(boringVault));
+
+        // remaining guards, exercised as the pinned swapper
+        ITIP20Test(address(BASE)).mint(address(swapper), 500e6);
+        vm.startPrank(address(swapper));
         BASE.approve(address(manager), type(uint256).max);
 
         vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__InvalidReceiver.selector);
@@ -584,6 +615,7 @@ contract TempoAdapterTest is Test {
         manager.placeOrder("k", address(BASE), false, 10, 200e6, address(boringVault));
         vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__KeyAlreadyUsed.selector);
         manager.placeOrder("k", address(BASE), false, 10, 200e6, address(boringVault));
+        vm.stopPrank();
     }
 
     /// I8: records are owner-scoped — another caller cannot touch our key
@@ -602,15 +634,17 @@ contract TempoAdapterTest is Test {
     }
 
     function testManager_CancelOrder_ClosedIsTerminal() external {
-        ITIP20Test(address(BASE)).mint(address(this), 500e6);
+        ITIP20Test(address(BASE)).mint(address(swapper), 500e6);
+        vm.startPrank(address(swapper));
         BASE.approve(address(manager), type(uint256).max);
         manager.placeOrder("k", address(BASE), false, 10, 200e6, address(boringVault));
 
         manager.cancelOrder("k");
         vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__OrderClosed.selector);
         manager.cancelOrder("k");
+        vm.stopPrank();
         vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__OrderClosed.selector);
-        manager.harvest(address(this), "k");
+        manager.harvest(address(swapper), "k");
     }
 
     /// walletBuffer accounting (§3.2): placing an ask while the manager holds unharvested internal
@@ -683,7 +717,7 @@ contract TempoAdapterTest is Test {
         assertEq(DEX.balanceOf(address(manager), address(BASE)), 200e6, "refund stranded internally");
 
         // R5 safe polarity: deleted order reads as fully filled -> swapper refuses to cancel-refund
-        assertEq(adapter.filledAmount(config, address(swapper), abi.encode(key)), 200e6);
+        assertEq(limitAdapter.filledAmount(config, address(swapper), abi.encode(key)), 200e6);
         vm.expectRevert(BoringSwapper.BoringSwapper__OrderAlreadyFilled.selector);
         swapper.cancelOrder(orderId, config, "");
 
@@ -743,7 +777,7 @@ contract TempoAdapterTest is Test {
         );
         config = ISwapperTypes.SwapConfig({
             tokenRoute: ISwapperTypes.TokenRoute(tokenIn, tokenOut),
-            adapter: address(adapter),
+            adapter: address(limitAdapter),
             quoteAsset: address(QUOTE),
             swapData: swapData,
             slippageBps: 10,

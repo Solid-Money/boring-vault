@@ -31,6 +31,7 @@ interface ITempoLimitOrderManager {
         uint128 harvestedBase;
     }
 
+    /// @notice Callable only by the manager's pinned swapper.
     function placeOrder(bytes32 key, address base, bool isBid, int16 tick, uint128 amount, address receiver)
         external
         returns (uint128 dexOrderId);

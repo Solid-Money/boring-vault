@@ -23,7 +23,8 @@ import {TempoDexMath} from "src/helper/TempoDexMath.sol";
 /// receiver (the vault).
 ///
 /// Trust/permission model:
-/// - `placeOrder` is permissionless; a record binds the caller's own funds to the caller.
+/// - `placeOrder` is callable ONLY by the pinned swapper (surface reduction — no other flow needs
+///   it; this also structurally enforces the one-manager-per-swapper deployment topology).
 /// - `harvest` is permissionless; it can only pay `record.receiver`.
 /// - `cancelOrder` is owner-only (the swapper calls it via the adapter's cancelTarget).
 /// - `rescueStale` is auth-gated and can only pay `record.receiver`.
@@ -32,6 +33,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
 
     //============================== Errors ===============================
 
+    error TempoLimitOrderManager__NotSwapper();
     error TempoLimitOrderManager__KeyAlreadyUsed();
     error TempoLimitOrderManager__OrderNotFound();
     error TempoLimitOrderManager__OrderClosed();
@@ -64,6 +66,8 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
     //============================== Immutables ===============================
 
     ITempoStablecoinDEX public immutable tempoDex;
+    /// @notice The only address allowed to place orders (a BoringSwapper). One manager per swapper.
+    address public immutable swapper;
 
     //============================== State ===============================
 
@@ -81,15 +85,16 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
 
     //============================== Constructor ===============================
 
-    constructor(address _tempoDex, address _owner, Authority _authority) Auth(_owner, _authority) {
+    constructor(address _tempoDex, address _swapper, address _owner, Authority _authority) Auth(_owner, _authority) {
         tempoDex = ITempoStablecoinDEX(_tempoDex);
+        swapper = _swapper;
     }
 
     //============================== Order Lifecycle ===============================
 
     /// @notice Escrows from the caller and places a limit order on the DEX with this contract as
-    ///         maker. Called by the swapper as the submit-time hook; `msg.sender` is the record
-    ///         owner and the only address `cancelOrder` will honor for `key`.
+    ///         maker. Callable ONLY by the pinned swapper (as the submit-time hook); `msg.sender`
+    ///         is the record owner and the only address `cancelOrder` will honor for `key`.
     /// @param key       unique identifier (the adapter uses the swapper protocolHash)
     /// @param base      base token of the pair; `amount` is denominated in it
     /// @param isBid     true = buy base with quote (escrow quote), false = sell base (escrow base)
@@ -101,6 +106,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
         nonReentrant
         returns (uint128 dexOrderId)
     {
+        if (msg.sender != swapper) revert TempoLimitOrderManager__NotSwapper();
         if (orders[msg.sender][key].dexOrderId != 0) revert TempoLimitOrderManager__KeyAlreadyUsed();
         if (receiver == address(0)) revert TempoLimitOrderManager__InvalidReceiver();
         TempoDexMath.validateTick(tick);
