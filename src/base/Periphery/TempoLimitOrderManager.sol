@@ -146,10 +146,10 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
         // other orders) is re-attributed to the wallet funds it left behind (see walletBuffer).
         uint128 internalBefore = tempoDex.balanceOf(address(this), escrowToken);
 
-        ERC20(escrowToken).safeApprove(address(tempoDex), escrowAmount);
+        // No approve: since T5, protocol precompiles (incl. the DEX) have implicit approval to
+        // pull TIP-20s (verified against the T7 precompiles). Balance checks, TIP-403 policies,
+        // and the standard Transfer event still apply. Requires a T5+ execution environment.
         dexOrderId = tempoDex.place(base, amount, isBid, tick);
-        // reset any allowance the DEX did not consume (it consumed internal balance instead)
-        ERC20(escrowToken).safeApprove(address(tempoDex), 0);
 
         uint128 internalConsumed = internalBefore - tempoDex.balanceOf(address(this), escrowToken);
         if (internalConsumed > 0) walletBuffer[escrowToken] += internalConsumed;

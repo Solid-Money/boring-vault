@@ -100,6 +100,15 @@ jobs:
             --skip ScrollBridgeIntegration
         id: test
 
+      # Use nightly Foundry for Tempo tests because stable heavily lags network upgrades
+      # (stable's embedded Tempo precompiles are pre-T5; this nightly is T7-aware).
+      # Pinned to the exact build validated against the suite; bump deliberately after
+      # Tempo network upgrades or Foundry releases, re-running the Tempo suite.
+      - name: Install Foundry (nightly, for Tempo precompiles)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly-2aff07c3641f097de6de91e2eb542383302687b1
+
       # Tempo tests run against the native Tempo precompiles (network = "tempo", Foundry >= 1.7.0).
       # The profiles partition the test set: default excludes test/**Tempo*, tempo runs only those.
       - name: Run Forge tests (Tempo)
