@@ -55,13 +55,9 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
         uint128 inputAmount,
         address receiver
     );
-    event TempoOrderHarvested(
-        address indexed owner, bytes32 indexed key, address token, uint128 proceeds, address receiver
-    );
+    event TempoOrderHarvested(address indexed owner, bytes32 indexed key, address token, uint128 proceeds, address receiver);
     event TempoOrderCancelled(address indexed owner, bytes32 indexed key, address token, uint128 refund);
-    event TempoOrderRescued(
-        address indexed owner, bytes32 indexed key, address token, uint128 amount, address receiver
-    );
+    event TempoOrderRescued(address indexed owner, bytes32 indexed key, address token, uint128 amount, address receiver);
 
     //============================== Immutables ===============================
 
@@ -132,10 +128,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
     }
 
     /// @dev Pulls the escrow from the caller and places the order on the DEX.
-    function _escrowAndPlace(address base, address quote, bool isBid, int16 tick, uint128 amount)
-        internal
-        returns (uint128 dexOrderId, uint128 escrowAmount)
-    {
+    function _escrowAndPlace(address base, address quote, bool isBid, int16 tick, uint128 amount) internal returns (uint128 dexOrderId, uint128 escrowAmount) {
         address escrowToken;
         (escrowToken, escrowAmount) = isBid ? (quote, TempoDexMath.baseToQuoteUp(amount, tick)) : (base, amount);
 
@@ -235,10 +228,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
     ///      proceeds to the receiver. Returns the live remaining amount (0 if the DEX order is
     ///      deleted). Proceeds for asks use aggregate ceil, which never exceeds the sum of the
     ///      DEX's per-fill ceil credits — attribution can only under-claim (dust stays internal).
-    function _harvest(address owner, bytes32 key, OrderRecord storage record)
-        internal
-        returns (uint128 proceeds, uint128 remaining)
-    {
+    function _harvest(address owner, bytes32 key, OrderRecord storage record) internal returns (uint128 proceeds, uint128 remaining) {
         remaining = _remainingOf(record.dexOrderId);
 
         uint128 filledBase = record.amount - remaining;
@@ -248,8 +238,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
 
         // bid maker is credited base 1:1; ask maker is credited quote at ceil(fill * price)
         address token;
-        (token, proceeds) =
-            record.isBid ? (record.base, delta) : (record.quote, TempoDexMath.baseToQuoteUp(delta, record.tick));
+        (token, proceeds) = record.isBid ? (record.base, delta) : (record.quote, TempoDexMath.baseToQuoteUp(delta, record.tick));
 
         _payout(token, proceeds, record.receiver);
 

@@ -28,14 +28,9 @@ import {Test, console} from "@forge-std/Test.sol";
 // ============================ Tempo predeploy surfaces (test-only) ============================
 
 interface ITIP20Factory {
-    function createToken(
-        string memory name,
-        string memory symbol,
-        string memory currency,
-        address quoteToken,
-        address admin,
-        bytes32 salt
-    ) external returns (address);
+    function createToken(string memory name, string memory symbol, string memory currency, address quoteToken, address admin, bytes32 salt)
+        external
+        returns (address);
 }
 
 interface ITIP20Test {
@@ -117,8 +112,7 @@ contract TempoAdapterTest is Test {
         registry = new AdapterRegistry();
         feeRegistry = new FeeRegistry(address(this), 1000);
         validator = new PriceValidator();
-        swapper =
-            new BoringSwapper(address(this), registry, feeRegistry, boringVault, IPriceValidator(address(validator)));
+        swapper = new BoringSwapper(address(this), registry, feeRegistry, boringVault, IPriceValidator(address(validator)));
 
         swapper.setAuthority(rolesAuthority);
         rolesAuthority.setUserRole(address(this), ADMIN_ROLE, true);
@@ -187,11 +181,7 @@ contract TempoAdapterTest is Test {
         uint256 vaultBaseBefore = BASE.balanceOf(address(boringVault));
         uint256 vaultQuoteBefore = QUOTE.balanceOf(address(boringVault));
 
-        swapper.swap(
-            _marketConfig(
-                BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 495e6))
-            )
-        );
+        swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 495e6))));
 
         // tick 0 => 1:1, no rounding
         assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore - 500e6, "vault base spent");
@@ -215,11 +205,7 @@ contract TempoAdapterTest is Test {
         uint256 vaultQuoteBefore = QUOTE.balanceOf(address(boringVault));
 
         // buy exactly 200e6 base, authorize up to 1bp of input headroom (within 10bps slippage)
-        swapper.swap(
-            _marketConfig(
-                QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 200_020_000))
-            )
-        );
+        swapper.swap(_marketConfig(QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 200_020_000))));
 
         assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore + 200e6, "vault received exact output");
         // tick 0: input needed is exactly 200e6; the 20_000 headroom pulled must come back as dust
@@ -237,11 +223,7 @@ contract TempoAdapterTest is Test {
         DEX.place(address(BASE), 1_000e6, false, 0);
 
         vm.expectRevert(PriceValidator.PriceValidator__ExceedsMaxSlippage.selector);
-        swapper.swap(
-            _marketConfig(
-                QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 210e6))
-            )
-        );
+        swapper.swap(_marketConfig(QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 210e6))));
     }
 
     /// failure path §4.8: DEX revert (output below min) surfaces as SwapFailed, no funds move
@@ -252,11 +234,7 @@ contract TempoAdapterTest is Test {
         uint256 vaultBaseBefore = BASE.balanceOf(address(boringVault));
 
         vm.expectRevert(BoringSwapper.BoringSwapper__SwapFailed.selector);
-        swapper.swap(
-            _marketConfig(
-                BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 501e6))
-            )
-        );
+        swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 501e6))));
 
         assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore, "no funds moved on failed swap");
     }
@@ -264,23 +242,17 @@ contract TempoAdapterTest is Test {
     /// failure path §4.8: no liquidity at all
     function testSwap_RevertInsufficientLiquidity() external {
         vm.expectRevert(BoringSwapper.BoringSwapper__SwapFailed.selector);
-        swapper.swap(
-            _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1)))
-        );
+        swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1))));
     }
 
     /// I3: calldata token endpoints must match the approved route
     function testSwap_RevertTokenMismatch() external {
         // swapData sells QUOTE but the route says BASE -> QUOTE
         vm.expectRevert(IAdapter.Adapter__TokenInMismatch.selector);
-        swapper.swap(
-            _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(QUOTE), address(BASE), 500e6, 1)))
-        );
+        swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(QUOTE), address(BASE), 500e6, 1))));
 
         vm.expectRevert(IAdapter.Adapter__TokenOutMismatch.selector);
-        swapper.swap(
-            _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(BASE), 500e6, 1)))
-        );
+        swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(BASE), 500e6, 1))));
     }
 
     /// I1: the adapter mirrors ONLY the two swap selectors — maker/balance DEX calls cannot be
@@ -302,17 +274,11 @@ contract TempoAdapterTest is Test {
 
     /// I1/I2: mirrored selectors match the DEX ABI exactly and the adapter pins the DEX target
     function testAdapter_MarketSelectorAndTarget() external {
-        assertEq(
-            TempoAdapter.swapExactAmountIn.selector, ITempoStablecoinDEX.swapExactAmountIn.selector, "selector mirror"
-        );
-        assertEq(
-            TempoAdapter.swapExactAmountOut.selector, ITempoStablecoinDEX.swapExactAmountOut.selector, "selector mirror"
-        );
+        assertEq(TempoAdapter.swapExactAmountIn.selector, ITempoStablecoinDEX.swapExactAmountIn.selector, "selector mirror");
+        assertEq(TempoAdapter.swapExactAmountOut.selector, ITempoStablecoinDEX.swapExactAmountOut.selector, "selector mirror");
 
         // simulate the swapper's appended-calldata staticcall
-        ISwapperTypes.SwapConfig memory config = _marketConfig(
-            BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1))
-        );
+        ISwapperTypes.SwapConfig memory config = _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1)));
         bytes memory appended = abi.encodePacked(config.swapData, abi.encode(config), uint256(config.swapData.length));
         (bool ok, bytes memory ret) = address(adapter).staticcall(appended);
         assertTrue(ok, "adapter staticcall");
@@ -331,9 +297,8 @@ contract TempoAdapterTest is Test {
         swapper.submitOrder(limitConfig);
 
         // limit adapter mirrors no market selectors, so market swapData dies at pre-flight
-        ISwapperTypes.SwapConfig memory marketConfig = _marketConfig(
-            BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1))
-        );
+        ISwapperTypes.SwapConfig memory marketConfig =
+            _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1)));
         marketConfig.adapter = address(limitAdapter);
         vm.expectRevert();
         swapper.swap(marketConfig);
@@ -359,10 +324,7 @@ contract TempoAdapterTest is Test {
         assertEq(abi.decode(info.context, (bytes32)), expectedKey, "context carries the key");
         assertEq(
             info.hookData,
-            abi.encodeCall(
-                ITempoLimitOrderManager.placeOrder,
-                (expectedKey, address(BASE), false, int16(10), uint128(100_000_001), address(boringVault))
-            ),
+            abi.encodeCall(ITempoLimitOrderManager.placeOrder, (expectedKey, address(BASE), false, int16(10), uint128(100_000_001), address(boringVault))),
             "hookData places via manager"
         );
     }
@@ -541,9 +503,7 @@ contract TempoAdapterTest is Test {
         // proceeds: bid maker receives filled base 1:1
         assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore + 60e6, "base proceeds harvested");
         // refund: escrow - filled, exactly — no wei lost anywhere (I6/I6a)
-        assertEq(
-            QUOTE.balanceOf(address(boringVault)), vaultQuoteBefore - escrow + (escrow - filled), "exact quote refund"
-        );
+        assertEq(QUOTE.balanceOf(address(boringVault)), vaultQuoteBefore - escrow + (escrow - filled), "exact quote refund");
         assertEq(DEX.balanceOf(address(manager), address(QUOTE)), 0, "manager internal clean");
         assertEq(DEX.balanceOf(address(manager), address(BASE)), 0, "manager internal clean");
     }
@@ -654,8 +614,7 @@ contract TempoAdapterTest is Test {
         uint256 vaultBaseBefore = BASE.balanceOf(address(boringVault));
 
         // order1: bid 150e6 base at peg (escrow 150e6 quote)
-        (ISwapperTypes.SwapConfig memory bidConfig, bytes32 bidKey) =
-            _limitConfigRoute(true, 0, 150e6, "bid", QUOTE, BASE);
+        (ISwapperTypes.SwapConfig memory bidConfig, bytes32 bidKey) = _limitConfigRoute(true, 0, 150e6, "bid", QUOTE, BASE);
         swapper.submitOrder(bidConfig);
 
         // fully fill it: manager now holds 150e6 BASE in INTERNAL DEX balance (unharvested)
@@ -741,11 +700,7 @@ contract TempoAdapterTest is Test {
 
     // ============================================== Helpers ==============================================
 
-    function _marketConfig(ERC20 tokenIn, ERC20 tokenOut, bytes memory swapData)
-        internal
-        view
-        returns (ISwapperTypes.SwapConfig memory)
-    {
+    function _marketConfig(ERC20 tokenIn, ERC20 tokenOut, bytes memory swapData) internal view returns (ISwapperTypes.SwapConfig memory) {
         return ISwapperTypes.SwapConfig({
             tokenRoute: ISwapperTypes.TokenRoute(tokenIn, tokenOut),
             adapter: address(adapter),
@@ -757,11 +712,7 @@ contract TempoAdapterTest is Test {
     }
 
     /// ask-shaped route (base -> quote) by default
-    function _limitConfig(bool isBid, int16 tick, uint128 amount, bytes32 salt)
-        internal
-        view
-        returns (ISwapperTypes.SwapConfig memory config, bytes32 key)
-    {
+    function _limitConfig(bool isBid, int16 tick, uint128 amount, bytes32 salt) internal view returns (ISwapperTypes.SwapConfig memory config, bytes32 key) {
         return _limitConfigRoute(isBid, tick, amount, salt, BASE, QUOTE);
     }
 
@@ -770,11 +721,8 @@ contract TempoAdapterTest is Test {
         view
         returns (ISwapperTypes.SwapConfig memory config, bytes32 key)
     {
-        bytes memory swapData = abi.encode(
-            DecoderCustomTypes.TempoLimitOrder({
-                base: address(BASE), isBid: isBid, tick: tick, amount: amount, salt: uint256(salt)
-            })
-        );
+        bytes memory swapData =
+            abi.encode(DecoderCustomTypes.TempoLimitOrder({base: address(BASE), isBid: isBid, tick: tick, amount: amount, salt: uint256(salt)}));
         config = ISwapperTypes.SwapConfig({
             tokenRoute: ISwapperTypes.TokenRoute(tokenIn, tokenOut),
             adapter: address(limitAdapter),
