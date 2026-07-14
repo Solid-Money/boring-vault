@@ -680,22 +680,82 @@ contract TempoAdapterTest is Test {
         vm.expectRevert(BoringSwapper.BoringSwapper__OrderAlreadyFilled.selector);
         swapper.cancelOrder(orderId, config, "");
 
-        // restore policy, then auth-gated rescue routes the principal to the VAULT only
+        // restore policy, then auth-gated rescue routes the principal to the VAULT only.
+        // rescue takes the fill/refund SPLIT (base filled since last harvest) — 0 here (unfilled)
         ITIP20Test(address(BASE)).changeTransferPolicyId(originalPolicy);
 
         vm.prank(makeAddr("rando"));
         vm.expectRevert("UNAUTHORIZED");
-        manager.rescueStale(address(swapper), key, 200e6);
+        manager.rescueStale(address(swapper), key, 0);
 
-        vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__RescueExceedsPrincipal.selector);
+        vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__RescueExceedsUnattributed.selector);
         manager.rescueStale(address(swapper), key, 200e6 + 1);
 
-        manager.rescueStale(address(swapper), key, 200e6);
+        manager.rescueStale(address(swapper), key, 0);
         assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore, "principal recovered to vault");
         assertTrue(manager.getOrderRecord(address(swapper), key).closed);
+        assertEq(DEX.balanceOf(address(manager), address(BASE)), 0, "manager internal clean");
 
         vm.expectRevert(TempoLimitOrderManager.TempoLimitOrderManager__OrderClosed.selector);
-        manager.rescueStale(address(swapper), key, 1);
+        manager.rescueStale(address(swapper), key, 0);
+    }
+
+    /// The reviewer-flagged gap: partial fill, then harvest, then MORE fills, then stale-cancel.
+    /// The un-harvested fill proceeds and the remainder refund both sit in internal balance;
+    /// harvest mis-attributes the cancelled remainder as filled and fails closed; the
+    /// conservation-based rescue recovers BOTH legs exactly — refund of the un-filled remainder
+    /// in the escrow token plus proceeds of the un-harvested fills — without touching any other
+    /// order's balance.
+    function testStaleCancel_PartialFill_RescueRecoversBothLegs() external {
+        uint256 vaultBaseBefore = BASE.balanceOf(address(boringVault));
+        uint256 vaultQuoteBefore = QUOTE.balanceOf(address(boringVault));
+
+        // ask 200e6 at peg (tick 0 => exact 1:1 arithmetic throughout)
+        (ISwapperTypes.SwapConfig memory config, bytes32 key) = _limitConfig(false, 0, 200e6, "s1");
+        uint256 orderId = swapper.orders();
+        swapper.submitOrder(config);
+        uint128 dexOrderId = manager.getOrderRecord(address(swapper), key).dexOrderId;
+
+        // fill 30e6 and harvest it (attributed); then fill another 60e6 (UN-harvested)
+        vm.prank(taker);
+        DEX.swapExactAmountIn(address(QUOTE), address(BASE), 30e6, 29e6);
+        vm.prank(keeper);
+        assertEq(manager.harvest(address(swapper), key), 30e6, "first fill harvested");
+        vm.prank(taker);
+        DEX.swapExactAmountIn(address(QUOTE), address(BASE), 60e6, 59e6);
+
+        // manager gets policy-blocked; rando stale-cancels the order
+        uint64 originalPolicy = ITIP20Test(address(BASE)).transferPolicyId();
+        uint64 blockPolicy = REGISTRY_403.createPolicy(address(this), POLICY_BLACKLIST);
+        REGISTRY_403.modifyPolicyBlacklist(blockPolicy, address(manager), true);
+        ITIP20Test(address(BASE)).changeTransferPolicyId(blockPolicy);
+        vm.prank(makeAddr("rando"));
+        DEX.cancelStaleOrder(dexOrderId);
+
+        // stranded internal balances: 110e6 base remainder refund + 60e6 quote un-harvested proceeds
+        assertEq(DEX.balanceOf(address(manager), address(BASE)), 110e6, "remainder refund stranded");
+        assertEq(DEX.balanceOf(address(manager), address(QUOTE)), 60e6, "fill proceeds stranded");
+
+        // harvest mis-attributes the cancelled remainder as filled and FAILS CLOSED: it computes
+        // 170e6 quote proceeds but only 60e6 exist, so the DEX withdraw reverts
+        vm.prank(keeper);
+        vm.expectRevert(ITempoStablecoinDEX.InsufficientBalance.selector);
+        manager.harvest(address(swapper), key);
+
+        // swapper-side cancel stays blocked (deleted order reads fully filled — safe polarity)
+        vm.expectRevert(BoringSwapper.BoringSwapper__OrderAlreadyFilled.selector);
+        swapper.cancelOrder(orderId, config, "");
+
+        // restore policy; rescue with the true split: 60e6 base filled since last harvest
+        ITIP20Test(address(BASE)).changeTransferPolicyId(originalPolicy);
+        manager.rescueStale(address(swapper), key, 60e6);
+
+        // both legs land at the vault exactly: base = -200 escrow +110 refund; quote = +30 +60
+        assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore - 200e6 + 110e6, "refund leg exact");
+        assertEq(QUOTE.balanceOf(address(boringVault)), vaultQuoteBefore + 30e6 + 60e6, "proceeds legs exact");
+        assertEq(DEX.balanceOf(address(manager), address(BASE)), 0, "no residue");
+        assertEq(DEX.balanceOf(address(manager), address(QUOTE)), 0, "no residue");
+        assertTrue(manager.getOrderRecord(address(swapper), key).closed);
     }
 
     // ============================================== Helpers ==============================================

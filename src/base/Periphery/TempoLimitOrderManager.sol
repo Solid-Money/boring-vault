@@ -40,7 +40,7 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
     error TempoLimitOrderManager__InvalidReceiver();
     error TempoLimitOrderManager__RefundShortfall(uint128 measured, uint128 expected);
     error TempoLimitOrderManager__OrderStillActive();
-    error TempoLimitOrderManager__RescueExceedsPrincipal();
+    error TempoLimitOrderManager__RescueExceedsUnattributed();
 
     //============================== Events ===============================
 
@@ -57,7 +57,9 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
     );
     event TempoOrderHarvested(address indexed owner, bytes32 indexed key, address token, uint128 proceeds, address receiver);
     event TempoOrderCancelled(address indexed owner, bytes32 indexed key, address token, uint128 refund);
-    event TempoOrderRescued(address indexed owner, bytes32 indexed key, address token, uint128 amount, address receiver);
+    event TempoOrderRescued(
+        address indexed owner, bytes32 indexed key, address refundToken, uint128 refundAmount, address proceedsToken, uint128 proceedsAmount, address receiver
+    );
 
     //============================== Immutables ===============================
 
@@ -198,22 +200,41 @@ contract TempoLimitOrderManager is ITempoLimitOrderManager, Auth, ReentrancyGuar
 
     /// @notice Recovery for stale-cancelled orders (third party called the DEX's
     ///         `cancelStaleOrder` while this contract was blocked by a TIP-403 policy): the
-    ///         escrow refund sits in this contract's internal DEX balance with no record-driven
-    ///         path out. Auth determines `refundAmount` from DEX events off-chain; funds can only
-    ///         go to the order's recorded receiver.
-    function rescueStale(address owner, bytes32 key, uint128 refundAmount) external requiresAuth {
+    ///         escrow refund AND any unharvested fill proceeds sit in this contract's internal
+    ///         DEX balance with no record-driven path out.
+    /// @dev Conservation-based: auth supplies only the SPLIT — `filledSinceHarvest`, the base
+    ///      units filled between the last harvest and the stale cancel (determined off-chain from
+    ///      OrderFilled events). Both payout legs are derived from it: the un-filled remainder is
+    ///      refunded in the escrow token and the filled part is paid in the proceeds token, so for
+    ///      ANY split the total paid out equals what the stale cancel + unharvested fills actually
+    ///      credited for this order (up to rounding dust). Overdrawing other orders' balances is
+    ///      impossible by construction; funds can only go to the order's recorded receiver.
+    function rescueStale(address owner, bytes32 key, uint128 filledSinceHarvest) external requiresAuth {
         OrderRecord storage record = orders[owner][key];
         if (record.dexOrderId == 0) revert TempoLimitOrderManager__OrderNotFound();
         if (record.closed) revert TempoLimitOrderManager__OrderClosed();
-        if (refundAmount > record.inputAmount) revert TempoLimitOrderManager__RescueExceedsPrincipal();
+        uint128 unattributed = record.amount - record.harvestedBase;
+        if (filledSinceHarvest > unattributed) revert TempoLimitOrderManager__RescueExceedsUnattributed();
         // only orders the DEX has already deleted can be rescued
         if (_remainingOf(record.dexOrderId) != 0) revert TempoLimitOrderManager__OrderStillActive();
 
         record.closed = true;
-        address escrowToken = record.isBid ? record.quote : record.base;
-        _payout(escrowToken, refundAmount, record.receiver);
 
-        emit TempoOrderRescued(owner, key, escrowToken, refundAmount, record.receiver);
+        // refund leg: the stale cancel credited exactly the escrow of the un-filled remainder
+        // (same rounding as the DEX refund: bids Up, asks exact)
+        uint128 refundBase = unattributed - filledSinceHarvest;
+        (address escrowToken, uint128 refundAmount) =
+            record.isBid ? (record.quote, TempoDexMath.baseToQuoteUp(refundBase, record.tick)) : (record.base, refundBase);
+
+        // proceeds leg: same attribution math as _harvest (bid makers earn base 1:1, ask makers
+        // earn quote at ceil per fill — aggregate ceil never exceeds the credited sum)
+        (address proceedsToken, uint128 proceedsAmount) =
+            record.isBid ? (record.base, filledSinceHarvest) : (record.quote, TempoDexMath.baseToQuoteUp(filledSinceHarvest, record.tick));
+
+        _payout(escrowToken, refundAmount, record.receiver);
+        _payout(proceedsToken, proceedsAmount, record.receiver);
+
+        emit TempoOrderRescued(owner, key, escrowToken, refundAmount, proceedsToken, proceedsAmount, record.receiver);
     }
 
     //============================== Views ===============================

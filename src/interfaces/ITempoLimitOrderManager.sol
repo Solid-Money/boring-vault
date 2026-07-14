@@ -38,7 +38,10 @@ interface ITempoLimitOrderManager {
 
     function cancelOrder(bytes32 key) external returns (uint128 refund);
 
-    function rescueStale(address owner, bytes32 key, uint128 refundAmount) external;
+    /// @notice Conservation-based stale-cancel recovery: auth supplies only the fill/refund split
+    ///         (`filledSinceHarvest`, in base units); both payout legs derive from it and go to
+    ///         the order's recorded receiver.
+    function rescueStale(address owner, bytes32 key, uint128 filledSinceHarvest) external;
 
     function getOrderRecord(address owner, bytes32 key) external view returns (OrderRecord memory);
 }
