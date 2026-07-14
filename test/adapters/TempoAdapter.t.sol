@@ -273,7 +273,7 @@ contract TempoAdapterTest is Test {
     }
 
     /// I1/I2: mirrored selectors match the DEX ABI exactly and the adapter pins the DEX target
-    function testAdapter_MarketSelectorAndTarget() external {
+    function testAdapter_MarketSelectorAndTarget() external view {
         assertEq(TempoAdapter.swapExactAmountIn.selector, ITempoStablecoinDEX.swapExactAmountIn.selector, "selector mirror");
         assertEq(TempoAdapter.swapExactAmountOut.selector, ITempoStablecoinDEX.swapExactAmountOut.selector, "selector mirror");
 
@@ -307,7 +307,7 @@ contract TempoAdapterTest is Test {
     // ======================================= verifyLimitOrder (unit) =======================================
 
     /// OrderInfo shape for an ask: escrow base exactly, conservative round-down output
-    function testVerifyLimitOrder_Ask_OrderInfo() external {
+    function testVerifyLimitOrder_Ask_OrderInfo() external view {
         // amount 100_000_001 at tick 10 (price 1.0001): floor output = 100_010_001
         (ISwapperTypes.SwapConfig memory config, bytes32 expectedKey) = _limitConfig(false, 10, 100_000_001, "salt-1");
 
@@ -330,7 +330,7 @@ contract TempoAdapterTest is Test {
     }
 
     /// OrderInfo shape for a bid: escrow = ceil(amount * price) in quote — I6 rounding replication
-    function testVerifyLimitOrder_Bid_EscrowRoundsUp() external {
+    function testVerifyLimitOrder_Bid_EscrowRoundsUp() external view {
         // 100_000_001 * 100_010 / 100_000 = 100_010_001.0001 -> ceil = 100_010_002
         (ISwapperTypes.SwapConfig memory config,) = _limitConfigRoute(true, 10, 100_000_001, "salt-1", QUOTE, BASE);
 
@@ -365,7 +365,7 @@ contract TempoAdapterTest is Test {
     }
 
     /// I5: hash is a pure function of swapData — deterministic across calls, unique per salt
-    function testVerifyLimitOrder_HashDeterminism() external {
+    function testVerifyLimitOrder_HashDeterminism() external view {
         (ISwapperTypes.SwapConfig memory config,) = _limitConfig(false, 10, 200e6, "salt-a");
         bytes32 h1 = limitAdapter.verifyLimitOrder(config, address(swapper)).protocolHash;
         bytes32 h2 = limitAdapter.verifyLimitOrder(config, address(swapper)).protocolHash;
