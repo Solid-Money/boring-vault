@@ -41,11 +41,11 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
         setAddress(false, monad, "accountantAddress", accountantAddress);
         setAddress(false, monad, "rawDataDecoderAndSanitizer", rawDataDecoderAndSanitizer);
 
-        ManageLeaf[] memory leafs = new ManageLeaf[](32);
+        ManageLeaf[] memory leafs = new ManageLeaf[](64);
 
         // ========================== Swapper ==========================
         address swapper = 0x6b01D470d3c2E57070E2DCC23a2576bAa4e49F9b;
-        address[][] memory pairs = new address[][](2);
+        address[][] memory pairs = new address[][](3);
         pairs[0] = new address[](2);
         pairs[0][0] = getAddress(sourceChain, "WETH");
         pairs[0][1] = getAddress(sourceChain, "USDC");
@@ -54,9 +54,14 @@ contract CreateTestSwapperMerkleRoot is Script, MerkleTreeHelper {
         pairs[1][0] = getAddress(sourceChain, "mUSD");
         pairs[1][1] = getAddress(sourceChain, "USDC");
 
-        SwapKind[] memory kind = new SwapKind[](2);
+        pairs[2] = new address[](2);
+        pairs[2][0] = getAddress(sourceChain, "mUSD");
+        pairs[2][1] = getAddress(sourceChain, "WMON");
+
+        SwapKind[] memory kind = new SwapKind[](3);
         kind[0] = SwapKind.BuyAndSell;
         kind[1] = SwapKind.BuyAndSell;
+        kind[2] = SwapKind.BuyAndSell;
 
         _addBoringSwapperLeafs(leafs, swapper, pairs, kind);
 

@@ -41,8 +41,7 @@ contract M0Adapter is IAdapter {
         view
         returns (OrderInfo memory)
     {
-        //DecoderCustomTypes.GPv2OrderData memory order =
-        //   abi.decode(swapConfig.swapData, (DecoderCustomTypes.GPv2OrderData));
+
         DecoderCustomTypes.OrderParams memory order =
              abi.decode(swapConfig.swapData, (DecoderCustomTypes.OrderParams));
         
