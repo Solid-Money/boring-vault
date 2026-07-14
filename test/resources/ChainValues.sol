@@ -81,6 +81,9 @@ contract ChainValues {
     uint32 public constant layerZeroPlasmaEndpointId = 30383;
     uint32 public constant layerZeroSeiEndpointId = 30280;
 
+    uint32 public constant wormholeMainnetChainId = 2;
+    uint32 public constant wormholeMonadChainId = 48;
+
     uint32 public constant cctpMainnetDomainId = 0;
     uint32 public constant cctpInkDomainId = 21;
     uint32 public constant cctpHyperEVMDomainId = 19;
@@ -1399,6 +1402,13 @@ contract ChainValues {
         values[mainnet]["SUSDEOFTAdapter"] = 0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2.toBytes32();
         values[mainnet]["wstUSROFTAdapter"] = 0xab17c1fE647c37ceb9b96d1c27DD189bf8451978.toBytes32();
         values[mainnet]["PYUSDOFTAdapter"] = 0xa2C323fE5A74aDffAd2bf3E007E36bb029606444.toBytes32();
+
+        // Wormhole
+        values[mainnet]["wormholeMultiTokenExecutor"] = 0x03dB430D830601DB368991eE55DAa9A708df7912.toBytes32();
+        values[mainnet]["wormholeMultiTokenNtt"] = 	0x556790e948b9920A8868bCAFcC87D25e82e8a075.toBytes32();
+        values[mainnet]["wormholeMultiTokenExecutorPayee"] = 0x7D73bE2ac3edDc8C5c0A1418b410b9710d4AF40D.toBytes32();
+        values[mainnet]["wormholeExecutorQuoter"] = 0xa54008017941EcE968623a0Dd8Ee907E2b133596.toBytes32();
+        values[mainnet]["wormholeExecutorPayee"] = 0x6a8BFC410A3Cc7306d52872F116AFb12F1cec6C6.toBytes32();
 
         // Stargate OFTs
         values[mainnet]["stargateUSDC"] = 0xc026395860Db2d07ee33e05fE50ed7bD583189C7.toBytes32();
@@ -3476,6 +3486,7 @@ contract ChainValues {
         //Swapper Oracles
         values[monad]["usdcUsdRateProvider"] = 0xDe4c2aE69841538915e657fDc3010BdBBf45A13a.toBytes32();
         values[monad]["wethUsdRateProvider"] = 0xf90AaeDaBb011A0a439090f3025d843F7A59c202.toBytes32();
+
     }
 
     function _addSeiValues() private {

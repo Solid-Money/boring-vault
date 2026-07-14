@@ -37,3 +37,5 @@ test/limitOrders/*
 .certora_internal/
 .properties-*/
 emv-*-certora-*/
+
+test/fixtures/
