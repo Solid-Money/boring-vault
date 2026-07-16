@@ -3,6 +3,11 @@ name: Certora_FV_B
 on:
   - pull_request
 
+# Cancel superseded runs so pushes don't stack batches onto the shared Certora cloud pool.
+concurrency:
+  group: certora-fv-b-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FOUNDRY_PROFILE: ci
   CONFIGS: |
