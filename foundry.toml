@@ -35,6 +35,17 @@ runs = 32
 depth = 100
 fail_on_revert = false
 
+# Nightly profile: deep fuzz/invariant run for the scheduled nightly-fuzz.yml
+# (FOUNDRY_PROFILE=nightly). Higher intensity than CI.
+[profile.nightly.fuzz]
+runs = 16000
+# No fixed seed: explore fresh fuzz inputs each night (CI keeps its seed pinned).
+
+[profile.nightly.invariant]
+runs = 256
+depth = 500
+fail_on_revert = false
+
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
 polygon = "${MATIC_RPC_URL}"
