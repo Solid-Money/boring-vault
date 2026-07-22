@@ -18,6 +18,7 @@ import {OneInchAdapterNoLimitOrdersNoExecutor} from "src/base/Periphery/adapters
 import {OpenOceanAdapter} from "src/base/Periphery/adapters/OpenOceanAdapter.sol";
 import {LifiAdapter} from "src/base/Periphery/adapters/LifiAdapter.sol";
 import {M0Adapter} from "src/base/Periphery/adapters/M0Adapter.sol";
+import {GenericRateProviderWithStalenessCheck} from "src/helper/GenericRateProviderWithStalenessCheck.sol";
 import {RolesAuthority} from "@solmate/auth/authorities/RolesAuthority.sol";
 import {Deployer} from "src/helper/Deployer.sol";
 import {FeeRegistry} from "src/base/Periphery/FeeRegistry.sol";
@@ -127,29 +128,54 @@ contract DeployBoringSwapperTestSuite is Script, MerkleTreeHelper {
         //address[] memory ethRateProviders = new address[](1);
         //ethRateProviders[0] = getAddress(sourceChain, "wethUsdRateProvider");
 
-        Deployer.Tx[] memory txs = new Deployer.Tx[](2);
-        //txs[0] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSignature("setAuthority(address)", rolesAuthority), value: 0 });
-        //txs[1] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, uniswapV3Adapter, true), value: 0 });
-        //txs[2] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, cowswapAdapter,   true), value: 0 });
-        //txs[3] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, oneInchAdapter,   true), value: 0 });
-        //txs[4] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, oneInchAdapterNoLimitOrdersNoExecutor,   true), value: 0 });
-        //txs[5] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, openOceanAdapter, true), value: 0 });
-        //txs[1] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, lifiAdapter,      true), value: 0 });
-        //txs[2] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setApprovedAdapter.selector, m0Adapter,        true), value: 0 });
-        //txs[3] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setTokenOracle.selector, getERC20(sourceChain, "USDC"), usdQuoteAsset, _makeOracleConfig(usdRateProviders[0], address(0), false)), value: 0 });
-        //txs[4] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setTokenOracle.selector, getERC20(sourceChain, "WETH"), usdQuoteAsset, _makeOracleConfig(ethRateProviders[0], address(0), false)), value: 0 });
-        //txs[5] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setBaseAssetOracle.selector, getERC20(sourceChain, "USDC"), usdQuoteAsset, usdRateProviders), value: 0 });
-        //txs[6] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setBaseAssetOracle.selector, getERC20(sourceChain, "WETH"), usdQuoteAsset, ethRateProviders), value: 0 });
-        // USDC -> WETH route: 10% (1000 bps) slippage cap, rate-limit capacity/refill normalized to 18 decimals.
-        //txs[7] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "USDC"), getERC20(sourceChain, "WETH"), 1000, 100_000_000e18, 100_000e18), value: 0 });
-        // mUSD -> USDC route: 10% (1000 bps) slippage cap, rate-limit capacity/refill normalized to 18 decimals.
-        txs[0] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "mUSD"), getERC20(sourceChain, "USDC"), 1000, 100_000_000e18, 100_000e18), value: 0 });
-        // WMON -> mUSD route: 10% (1000 bps) slippage cap, rate-limit capacity/refill normalized to 18 decimals.
-        txs[1] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "WMON"), getERC20(sourceChain, "mUSD"), 1000, 100_000_000e18, 100_000e18), value: 0 });
+        // ---- BigSwappa config: USDC <-> mUSD limit orders via m0, 5 bps, $2m/24h bucket ----
+        // M0 adapter and setAuthority are already set on-chain from the deploy run.
+        address usdQuoteAsset = getAddress(sourceChain, "USDC");
+
+        // Client-specified 8-decimal Chainlink feeds, wrapped and scaled to 18-decimal output.
+        address usdcRateProvider = _deployChainlinkRateProvider(0xf5F15f188AbCB0d165D1Edb7f37F7d6fA2fCebec);
+        address musdRateProvider = _deployChainlinkRateProvider(0x78470CDDC272E0540757fFbd5160D7877a060681);
+        console.log("USDC RateProvider:", usdcRateProvider);
+        console.log("mUSD RateProvider:", musdRateProvider);
+
+        address[] memory usdcRateProviders = new address[](1);
+        usdcRateProviders[0] = usdcRateProvider;
+        address[] memory musdRateProviders = new address[](1);
+        musdRateProviders[0] = musdRateProvider;
+
+        Deployer.Tx[] memory txs = new Deployer.Tx[](6);
+        txs[0] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setTokenOracle.selector, getERC20(sourceChain, "USDC"), usdQuoteAsset, _makeOracleConfig(usdcRateProviders[0], address(0), false)), value: 0 });
+        txs[1] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setBaseAssetOracle.selector, getERC20(sourceChain, "USDC"), usdQuoteAsset, usdcRateProviders), value: 0 });
+        txs[2] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setTokenOracle.selector, getERC20(sourceChain, "mUSD"), usdQuoteAsset, _makeOracleConfig(musdRateProviders[0], address(0), false)), value: 0 });
+        txs[3] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setBaseAssetOracle.selector, getERC20(sourceChain, "mUSD"), usdQuoteAsset, musdRateProviders), value: 0 });
+        // 5 bps slippage, 2,000,000 capacity, 23.148149/s refill (2m / 86400s), normalized to 18 decimals.
+        txs[4] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "USDC"), getERC20(sourceChain, "mUSD"), 5, 2_000_000e18, 23148149e12), value: 0 });
+        txs[5] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "mUSD"), getERC20(sourceChain, "USDC"), 5, 2_000_000e18, 23148149e12), value: 0 });
+
+        // ---- Previous route config (kept for reference) ----
+        //txs[0] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "mUSD"), getERC20(sourceChain, "USDC"), 1000, 100_000_000e18, 100_000e18), value: 0 });
+        //txs[1] = Deployer.Tx({ target: address(swapper), data: abi.encodeWithSelector(BoringSwapper.setRouteConfig.selector, getERC20(sourceChain, "WMON"), getERC20(sourceChain, "mUSD"), 1000, 100_000_000e18, 100_000e18), value: 0 });
 
         Deployer(getAddress(sourceChain, "newDeployer")).bundleTxs(txs);
 
         vm.stopBroadcast();
+    }
+
+    function _deployChainlinkRateProvider(address feed) internal returns (address) {
+        return address(new GenericRateProviderWithStalenessCheck(
+            GenericRateProviderWithStalenessCheck.ConstructorArgs({
+                target: feed,
+                selector: 0x50d25bcd,
+                staticArgument0: 0, staticArgument1: 0, staticArgument2: 0, staticArgument3: 0,
+                staticArgument4: 0, staticArgument5: 0, staticArgument6: 0, staticArgument7: 0,
+                signed: true,
+                inputDecimals: 8,
+                outputDecimals: 18,
+                maxStaleness: 21600,
+                lastUpdateSelector: 0x8205bf6a,
+                lastUpdateOffset: 0
+            })
+        ));
     }
 
     function _makeOracleConfig(address rateProvider, address intermediary, bool skipValidation)
