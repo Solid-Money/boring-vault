@@ -22,7 +22,7 @@ contract CreateLiquidUsdMerkleRootScript is Script, MerkleTreeHelper {
     address public boringVault = 0x08c6F91e2B681FaF5e17227F2a44C307b3C1364C;
     address public managerAddress = 0x7b57Ad1A0AA89583130aCfAD024241170D24C13C;
     address public accountantAddress = 0xc315D6e14DDCDC7407784e2Caf815d131Bc1D3E7;
-    address public rawDataDecoderAndSanitizer = 0x58D28BB88400b889C4a1b754d930a743323F5Ada;
+    address public rawDataDecoderAndSanitizer = 0x1e686bb8962E2Ae3493587b7298aE772B9dC621D;
 
     function setUp() external {}
 
@@ -67,6 +67,9 @@ contract CreateLiquidUsdMerkleRootScript is Script, MerkleTreeHelper {
             localTokens,
             remoteTokens
         );
+
+        // ===================== EtherFi Debt Manager ==========================
+        _addEtherFiDebtManagerLeafs(leafs);
 
         // CCTP Bridge
         _addCCTPBridgeLeafs(leafs, cctpMainnetDomainId);

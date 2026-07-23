@@ -17,14 +17,19 @@ env:
 # the Slack alert below. Only needs CERTORAKEY (no GitHub App / PR scopes).
 jobs:
   fv:
-    name: Verified Rules (${{ matrix.scenario }})
+    name: Verified Rules (${{ matrix.branch }} / ${{ matrix.scenario }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:
-      # Run every scenario even if one fails (these were 5 separate workflows).
+      # Scheduled runs only fire from the default branch, so cover both main and dev
+      # from this one workflow via a branch axis crossed with the scenario axis
+      # (branch × scenario = 10 jobs). fail-fast off so one failure doesn't cancel the rest.
       fail-fast: false
       matrix:
+        branch: [main, dev]
+        scenario: [A, B, C, D, E]
+        # configs attach per-scenario (each include entry extends both branch combos).
         include:
           - scenario: A
             configs: |
@@ -51,6 +56,7 @@ jobs:
               certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule sharePriceBoundedLower
               certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule totalAssetsCovered
               certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule vaultSolvency_1Asset
+              certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule rateInQuoteSafeBoundedByAssets
               certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule virtualPriceIsCorrect
               certora/confs/accountantWithYieldStreaming.conf --verify AccountantWithYieldStreaming:certora/specs/accountantWithYieldStreaming.spec --rule accountantDecimalsCorrect --rule cumulativeSupplyBounded --rule exchangeRateLEqlastSharePrice --rule exchangeRateLEhighwaterMark_unlessPaused --rule exchangeRateEqlastSharePrice --rule integrityOfVestYield --rule lastVestingUpdateNeverDecreases
               certora/confs/scenarioC.conf --verify "TellerWithYieldStreaming:certora/specs/teller_integrity.spec"
@@ -70,6 +76,7 @@ jobs:
       - name: checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ matrix.branch }}
           submodules: recursive
 
       - name: yarn install
@@ -130,4 +137,4 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
-            {"text": "🌙❌ *nightly-certora* scenario ${{ matrix.scenario }} failed — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+            {"text": "🌙❌ *nightly-certora* [${{ matrix.branch }}] scenario ${{ matrix.scenario }} failed — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
