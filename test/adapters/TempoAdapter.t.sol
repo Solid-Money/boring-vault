@@ -63,7 +63,7 @@ contract MockRateProvider is IRateProvider {
 ///   FOUNDRY_PROFILE=tempo forge test
 ///
 /// Coverage maps to the design doc:
-/// - user flows (§4.1): market exact-in/exact-out, limit submit/fill/harvest/cancel
+/// - user flows (§4.1): market exact-in, limit submit/fill/harvest/cancel
 /// - state transitions (§4.2): OPEN -> FILLED / CANCELLED / STRANDED->rescued
 /// - invariants (§4.3): I1 selector surface, I2/I3 target+endpoint pinning, I5 hash determinism,
 ///   I6/I6a rounding + measured refunds, I7 fund destinations, I8 maker exclusivity, I9 monotone fills
@@ -194,38 +194,6 @@ contract TempoAdapterTest is Test {
         assertEq(BASE.allowance(address(swapper), address(DEX)), 0, "allowance reset");
     }
 
-    /// user flow §4.1 market exact-out: only the computed input is consumed; the rest of
-    /// maxAmountIn returns to the vault as dust. maxAmountIn must sit within the route's
-    /// slippage bound because the validator prices the WORST-CASE pull (§3.1).
-    function testSwap_ExactOut_UnspentInputReturnsToVault() external {
-        vm.prank(lp);
-        DEX.place(address(BASE), 1_000e6, false, 0); // lp asks base at peg
-
-        uint256 vaultBaseBefore = BASE.balanceOf(address(boringVault));
-        uint256 vaultQuoteBefore = QUOTE.balanceOf(address(boringVault));
-
-        // buy exactly 200e6 base, authorize up to 1bp of input headroom (within 10bps slippage)
-        swapper.swap(_marketConfig(QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 200_020_000))));
-
-        assertEq(BASE.balanceOf(address(boringVault)), vaultBaseBefore + 200e6, "vault received exact output");
-        // tick 0: input needed is exactly 200e6; the 20_000 headroom pulled must come back as dust
-        assertEq(QUOTE.balanceOf(address(boringVault)), vaultQuoteBefore - 200e6, "only computed input spent");
-        assertEq(QUOTE.balanceOf(address(swapper)), 0, "dust returned");
-        // I4: exact-out leaves no internal DEX balance on the swapper either
-        assertEq(DEX.balanceOf(address(swapper), address(QUOTE)), 0, "no internal balance");
-        assertEq(DEX.balanceOf(address(swapper), address(BASE)), 0, "no internal balance");
-    }
-
-    /// §3.1 conservative direction: the price validator sees maxAmountIn as the input amount, so
-    /// an over-generous maxAmountIn is rejected even though the DEX would pull less
-    function testSwap_ExactOut_ExcessiveMaxInputRejected() external {
-        vm.prank(lp);
-        DEX.place(address(BASE), 1_000e6, false, 0);
-
-        vm.expectRevert(PriceValidator.PriceValidator__ExceedsMaxSlippage.selector);
-        swapper.swap(_marketConfig(QUOTE, BASE, abi.encodeCall(DEX.swapExactAmountOut, (address(QUOTE), address(BASE), 200e6, 210e6))));
-    }
-
     /// failure path §4.8: DEX revert (output below min) surfaces as SwapFailed, no funds move
     function testSwap_RevertOutputBelowMin_NoFundsMove() external {
         vm.prank(lp);
@@ -255,15 +223,16 @@ contract TempoAdapterTest is Test {
         swapper.swap(_marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(BASE), 500e6, 1))));
     }
 
-    /// I1: the adapter mirrors ONLY the two swap selectors — maker/balance DEX calls cannot be
-    /// smuggled through the market-swap flow
-    function testSwap_AdapterExposesNoMakerSelectors() external {
-        bytes[] memory forbidden = new bytes[](5);
-        forbidden[0] = abi.encodeCall(DEX.place, (address(BASE), 200e6, false, 0));
-        forbidden[1] = abi.encodeCall(DEX.placeFlip, (address(BASE), 200e6, false, 0, -10));
-        forbidden[2] = abi.encodeCall(DEX.withdraw, (address(BASE), 1));
-        forbidden[3] = abi.encodeCall(DEX.cancel, (uint128(1)));
-        forbidden[4] = abi.encodeCall(DEX.createPair, (address(BASE)));
+    /// I1: the adapter mirrors ONLY the exact-input swap selector — unsupported market,
+    /// maker, and balance DEX calls cannot be smuggled through the market-swap flow.
+    function testSwap_AdapterExposesNoUnsupportedSelectors() external {
+        bytes[] memory forbidden = new bytes[](6);
+        forbidden[0] = abi.encodeCall(DEX.swapExactAmountOut, (address(BASE), address(QUOTE), 200e6, 210e6));
+        forbidden[1] = abi.encodeCall(DEX.place, (address(BASE), 200e6, false, 0));
+        forbidden[2] = abi.encodeCall(DEX.placeFlip, (address(BASE), 200e6, false, 0, -10));
+        forbidden[3] = abi.encodeCall(DEX.withdraw, (address(BASE), 1));
+        forbidden[4] = abi.encodeCall(DEX.cancel, (uint128(1)));
+        forbidden[5] = abi.encodeCall(DEX.createPair, (address(BASE)));
 
         for (uint256 i; i < forbidden.length; i++) {
             // adapter has no matching function => pre-flight staticcall reverts
@@ -275,7 +244,6 @@ contract TempoAdapterTest is Test {
     /// I1/I2: mirrored selectors match the DEX ABI exactly and the adapter pins the DEX target
     function testAdapter_MarketSelectorAndTarget() external view {
         assertEq(TempoAdapter.swapExactAmountIn.selector, ITempoStablecoinDEX.swapExactAmountIn.selector, "selector mirror");
-        assertEq(TempoAdapter.swapExactAmountOut.selector, ITempoStablecoinDEX.swapExactAmountOut.selector, "selector mirror");
 
         // simulate the swapper's appended-calldata staticcall
         ISwapperTypes.SwapConfig memory config = _marketConfig(BASE, QUOTE, abi.encodeCall(DEX.swapExactAmountIn, (address(BASE), address(QUOTE), 500e6, 1)));

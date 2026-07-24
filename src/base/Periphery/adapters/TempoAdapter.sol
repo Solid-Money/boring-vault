@@ -13,7 +13,7 @@ import {BaseAdapter} from "src/base/Periphery/adapters/BaseAdapter.sol";
 ///         predeploy). Limit orders live in the separate TempoLimitOrderAdapter so they can be
 ///         approved/rolled out independently of market swaps.
 ///
-/// Mirrors the DEX's two taker selectors and nothing else. The DEX has no recipient parameter —
+/// Mirrors the DEX's exact-input taker selector and nothing else. The DEX has no recipient parameter —
 /// output tokens are transferred to the caller, which is the swapper, so the post-flight
 /// balance-delta check works unmodified. Routing (direct pair or multi-hop through quote
 /// tokens / pathUSD) happens inside the DEX; the adapter only pins the route endpoints.
@@ -48,28 +48,6 @@ contract TempoAdapter is IAdapter, BaseAdapter {
         if (ERC20(tokenOut) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
 
         return (TEMPO_DEX, amountIn);
-    }
-
-    /// @notice Mirrors ITempoStablecoinDEX.swapExactAmountOut — buy a fixed output amount.
-    /// @dev maxAmountIn is the pull/approval amount; the DEX only draws the computed input and
-    ///      the swapper returns unspent tokenIn to the vault as dust. The price validator and
-    ///      rate limiter both see maxAmountIn — the conservative direction.
-    function swapExactAmountOut(
-        address tokenIn,
-        address tokenOut,
-        uint128,
-        /*amountOut*/
-        uint128 maxAmountIn
-    )
-        external
-        view
-        returns (address, uint256)
-    {
-        ISwapperTypes.SwapConfig memory swapConfig = _getAppendedSwapConfig();
-        if (ERC20(tokenIn) != swapConfig.tokenRoute.tokenIn) revert Adapter__TokenInMismatch();
-        if (ERC20(tokenOut) != swapConfig.tokenRoute.tokenOut) revert Adapter__TokenOutMismatch();
-
-        return (TEMPO_DEX, maxAmountIn);
     }
 
     //============================== Limit Orders (unsupported) ===============================
