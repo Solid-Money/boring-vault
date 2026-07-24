@@ -22,6 +22,8 @@ dependencies/*
 CLAUDE.md
 .serena
 flatten.sol
+swapper_todos.txt
+decoder_regen_todos.txt
 
 tools/*
 

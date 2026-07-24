@@ -134,6 +134,7 @@ import {FullFluidDexDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Fu
 import {P1USDDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/P1USDDecoderAndSanitizer.sol";
 import {SentayETHMainnetDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SentayETHMainnetDecoderAndSanitizer.sol";
 import {GoldenGooseFillerDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/FillerDecoderAndSanitizer.sol"; 
+import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol"; 
 import {LiquidVaultsOPDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/LiquidVaultsOPDecoderAndSanitizer.sol"; 
 import {StakedEtherFiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/SymbioticLRTDecoderAndSanitizer.sol";
 import {LiquidUSDSeiDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/LiquidUSDSeiDecoderAndSanitizer.sol";
@@ -159,12 +160,14 @@ import "forge-std/StdJson.sol";
 contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddresses, MerkleTreeHelper {
     Deployer public deployer = Deployer(deployerAddress);
     Deployer public bobDeployer = Deployer(0xF3d0672a91Fd56C9ef04C79ec67d60c34c6148a0);
+    Deployer public newDeployer = Deployer(0xe80F045fc6F551229f98FA21E0Db35784A590e05);
 
     string[] addressKeys;
 
     function setUp() external {
-        vm.createSelectFork("mainnet");
-        setSourceChainName("mainnet");
+
+        setSourceChainName("monad");
+        vm.createSelectFork("monad");
     }
 
     function run() external {
@@ -172,11 +175,15 @@ contract DeployDecoderAndSanitizerScript is Script, ContractNames, MainnetAddres
         bytes memory constructorArgs;
         vm.startBroadcast();
 
-        creationCode = type(SentoraBTCMainnetDecoderAndSanitizer).creationCode;
-        constructorArgs = abi.encode(
-            getAddress(sourceChain, "uniswapV3NonFungiblePositionManager")
-        );
-        deployer.deployContract("Sentora BTC Mainnet Decoder And Sanitizer V0.2", creationCode, constructorArgs, 0);
+        creationCode = type(BoringSwapperDecoder).creationCode;
+        constructorArgs = abi.encode();
+        newDeployer.deployContract("Boring Swapper Decoder and Sanitizer V0.1", creationCode, constructorArgs, 0);
+
+        //creationCode = type(SentoraBTCMainnetDecoderAndSanitizer).creationCode;
+        //constructorArgs = abi.encode(
+        //    getAddress(sourceChain, "uniswapV3NonFungiblePositionManager")
+        //);
+        //deployer.deployContract("Sentora BTC Mainnet Decoder And Sanitizer V0.2", creationCode, constructorArgs, 0);
         
         vm.stopBroadcast();
     }

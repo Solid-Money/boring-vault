@@ -7,6 +7,7 @@ evm_version = 'cancun'
 optimizer = true
 optimizer_runs = 200
 fs_permissions = [{ access = "read-write", path = "./" }]
+deny_warnings = false
 use_literal_content = true
 cbor_metadata=true
 memory_limit = 4294967296
@@ -77,6 +78,7 @@ katana = "${KATANA_RPC_URL}"
 tac = "${TAC_RPC_URL}"
 plasma = "${PLASMA_RPC_URL}"
 inkSepolia= "${INK_SEPOLIA_RPC_URL}"
+xlayer="${XLAYER_RPC_URL}"
 mantle = "${MANTLE_RPC_URL}"
 sei = "${SEI_RPC_URL}"
 monad = "${MONAD_RPC_URL}"
@@ -109,6 +111,8 @@ sonicMainnet = { key = "${ETHERSCAN_KEY}", chain = 146, url = "https://api.ether
 ink = { key = "${INKSCAN_KEY}", chain = 57073, url = "https://explorer.inkonchain.com/api" }
 #linea = { key = "${LINEASCAN_KEY}", chain = 59144, url = "https://api.etherscan.io/v2/api?chainid=59144" }
 plasma = { key = "${ETHERSCAN_KEY}", chain = 9745, url = "https://api.etherscan.io/v2/api?chainid=9745" }
+xlayer = { key = "${ETHERSCAN_KEY", chain = 196, url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER" }
+monad = { key = "${ETHERSCAN_KEY}", chain = 143, url = "https://api.etherscan.io/v2/api?chainid=143" }
 
 [fmt]
 line_length = 160
