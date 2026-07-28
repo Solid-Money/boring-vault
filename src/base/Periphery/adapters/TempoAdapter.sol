@@ -2,6 +2,7 @@
 // Copyright © 2025 Veda Tech Labs
 // Derived from Boring Vault Software © 2025 Veda Tech Labs (TEST ONLY – NO COMMERCIAL USE)
 // Licensed under Software Evaluation License, Version 1.0
+// Last audited: boring-vault@68694c5594146666f6ffeb301aa61286c99e8484 — file:audit/0xmacro-veda-96.pdf
 pragma solidity 0.8.21;
 
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
