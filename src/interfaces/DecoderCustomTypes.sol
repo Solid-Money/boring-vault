@@ -1017,19 +1017,6 @@ contract DecoderCustomTypes {
         bytes32 solver;
     }
 
-    // ========================================= TEMPO =========================================
-
-    /// @notice swapData schema for Tempo stablecoin DEX limit orders.
-    /// @dev `amount` is always denominated in the BASE token (DEX convention, for both bids and asks).
-    ///      `salt` only feeds the protocol hash so otherwise-identical orders can be resubmitted.
-    struct TempoLimitOrder {
-        address base;
-        bool isBid;
-        int16 tick;
-        uint128 amount;
-        uint256 salt;
-    }
-
     // ====================================== Etherfi =========================================
 
     struct EtherFiWithdrawRequest {

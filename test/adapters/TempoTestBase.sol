@@ -9,8 +9,6 @@ import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol";
 import {TempoAdapter} from "src/base/Periphery/adapters/TempoAdapter.sol";
-import {TempoLimitOrderAdapter} from "src/base/Periphery/adapters/TempoLimitOrderAdapter.sol";
-import {TempoLimitOrderManager} from "src/base/Periphery/TempoLimitOrderManager.sol";
 import {ITempoStablecoinDEX, ITIP20} from "src/interfaces/ITempoStablecoinDEX.sol";
 import {PriceValidator} from "src/base/Periphery/adapters/price/PriceValidator.sol";
 import {IPriceValidator} from "src/interfaces/IPriceValidator.sol";
@@ -68,8 +66,6 @@ abstract contract TempoTestBase is Test {
     RolesAuthority public rolesAuthority;
     FeeRegistry public feeRegistry;
     TempoAdapter public adapter;
-    TempoLimitOrderAdapter public limitAdapter;
-    TempoLimitOrderManager public manager;
 
     ERC20 internal BASE;
     ERC20 internal QUOTE;
@@ -109,13 +105,9 @@ abstract contract TempoTestBase is Test {
         rolesAuthority.setRoleCapability(ADMIN_ROLE, address(swapper), BoringSwapper.releaseFee.selector, true);
 
         // ---- Tempo integration ----
-        manager = new TempoLimitOrderManager(address(DEX), address(swapper), address(this), Authority(address(0)));
         adapter = new TempoAdapter(address(DEX));
-        limitAdapter = new TempoLimitOrderAdapter(address(DEX), address(manager));
         registry.put(address(adapter), "TEMPO");
-        registry.put(address(limitAdapter), "TEMPO_LIMIT");
         swapper.setApprovedAdapter(address(adapter), true);
-        swapper.setApprovedAdapter(address(limitAdapter), true);
 
         // routes both directions, no rate limit
         swapper.setRouteConfig(BASE, QUOTE, 50, 0, 0);
@@ -163,29 +155,6 @@ abstract contract TempoTestBase is Test {
             slippageBps: 10,
             receiver: boringVault
         });
-    }
-
-    /// ask-shaped route (base -> quote) by default
-    function _limitConfig(bool isBid, int16 tick, uint128 amount, bytes32 salt) internal view returns (ISwapperTypes.SwapConfig memory config, bytes32 key) {
-        return _limitConfigRoute(isBid, tick, amount, salt, BASE, QUOTE);
-    }
-
-    function _limitConfigRoute(bool isBid, int16 tick, uint128 amount, bytes32 salt, ERC20 tokenIn, ERC20 tokenOut)
-        internal
-        view
-        returns (ISwapperTypes.SwapConfig memory config, bytes32 key)
-    {
-        bytes memory swapData =
-            abi.encode(DecoderCustomTypes.TempoLimitOrder({base: address(BASE), isBid: isBid, tick: tick, amount: amount, salt: uint256(salt)}));
-        config = ISwapperTypes.SwapConfig({
-            tokenRoute: ISwapperTypes.TokenRoute(tokenIn, tokenOut),
-            adapter: address(limitAdapter),
-            quoteAsset: address(QUOTE),
-            swapData: swapData,
-            slippageBps: 10,
-            receiver: boringVault
-        });
-        key = keccak256(abi.encode(block.chainid, address(manager), swapData));
     }
 
     function _makeOracleConfig(address rateProvider) internal pure returns (BoringSwapper.RateProviderConfig memory) {
