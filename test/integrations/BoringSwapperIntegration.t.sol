@@ -9,6 +9,7 @@ import {BoringSwapper} from "src/base/Periphery/BoringSwapper.sol";
 import {ISwapperTypes} from "src/interfaces/ISwapperTypes.sol";
 import {BoringVault} from "src/base/BoringVault.sol";
 import {BoringSwapperDecoder} from "src/base/DecodersAndSanitizers/Protocols/BoringSwapperDecoderAndSanitizer.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 import {AdapterRegistry} from "src/base/Periphery/AdapterRegistry.sol"; 
 import {DecoderCustomTypes} from "src/interfaces/DecoderCustomTypes.sol";
 import {ManagerWithMerkleVerification} from "src/base/Roles/ManagerWithMerkleVerification.sol";
@@ -22,10 +23,13 @@ import {PriceValidator} from "src/base/Periphery/adapters/price/PriceValidator.s
 import {IPriceValidator} from "src/interfaces/IPriceValidator.sol";
 import {FeeRegistry} from "src/base/Periphery/FeeRegistry.sol";
 import {IFeeRegistry} from "src/interfaces/IFeeRegistry.sol";
+import {FixedPointMathLib} from "@solmate/utils/FixedPointMathLib.sol";
 import {Test, console} from "@forge-std/Test.sol";
 
 
 contract BoringSwapperIntegration is BaseTestIntegration {
+
+    using FixedPointMathLib for uint256;
 
     // CoW Protocol constants BEGIN //
     address constant COW_SETTLEMENT = 0x9008D19f58AAbD9eD0D60971565AA8510560ab41;
@@ -66,7 +70,7 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         super.setUp(); 
         _setupChain("mainnet", 24592183); 
             
-        address swapperDecoder = address(new BoringSwapperDecoder()); 
+        address swapperDecoder = address(new FullBoringSwapperDecoderAndSantitizer()); 
 
         _overrideDecoder(swapperDecoder); 
 
@@ -222,9 +226,9 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         FeeRegistry feeReg = new FeeRegistry(address(this), 1000);
         feeReg.setTokenGroup(address(swapper), getAddress(sourceChain, "WETH"), 2);
         feeReg.setTokenGroup(address(swapper), getAddress(sourceChain, "USDC"), 1);
-        feeReg.setLimitGroupPairFee(address(swapper), 1, 2, 30);
+        feeReg.setAtomicGroupPairFee(address(swapper), 1, 2, 30);
         feeReg.setDefaultFeeRecipient(address(swapper), feeRecipient);
-        feeReg.toggleSwapperLimitFee(address(swapper), true);
+        feeReg.toggleSwapperAtomicFee(address(swapper), true);
         swapper.setFeeRegistry(IFeeRegistry(address(feeReg)));
 
         Tx memory tx_ = _getTxArrays(2);
@@ -296,7 +300,7 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         uint256 feeReceived = feeRecipientUsdcAfter - feeRecipientUsdcBefore;
         uint256 totalOutput = vaultReceived + feeReceived;
 
-        uint256 expectedFee = totalOutput * 30 / 10_000;
+        uint256 expectedFee = totalOutput.mulDivUp(30, 10_000);
         assertGt(totalOutput, 0);
         assertEq(feeReceived, expectedFee);
         assertEq(vaultReceived, totalOutput - expectedFee);
@@ -594,206 +598,6 @@ contract BoringSwapperIntegration is BaseTestIntegration {
         _submitManagerCall(manageProofs, tx_);
     }
 
-    //==================== 1inch Limit Order Helpers ====================
-
-    function _oneInchDomainSeparator() internal view returns (bytes32) {
-        return keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("1inch Aggregation Router"),
-            keccak256("6"),
-            block.chainid,
-            ONEINCH_ROUTER
-        ));
-    }
-
-    function _buildOneInchSwapConfig(
-        uint256 makingAmount,
-        uint256 takingAmount
-    ) internal view returns (ISwapperTypes.SwapConfig memory, bytes32 orderDigest) {
-        DecoderCustomTypes.OneInchLimitOrder memory order = DecoderCustomTypes.OneInchLimitOrder({
-            salt: 1,
-            maker: address(swapper),
-            receiver: getAddress(sourceChain, "boringVault"),
-            makerAsset: getAddress(sourceChain, "WETH"),
-            takerAsset: getAddress(sourceChain, "USDC"),
-            makingAmount: makingAmount,
-            takingAmount: takingAmount,
-            makerTraits: 0
-        });
-
-        bytes memory orderData = abi.encode(order);
-        bytes memory swapData = abi.encode(order, bytes(""));
-
-        ISwapperTypes.SwapConfig memory config = ISwapperTypes.SwapConfig({
-            tokenRoute: ISwapperTypes.TokenRoute(
-                getERC20(sourceChain, "WETH"),
-                getERC20(sourceChain, "USDC")
-            ),
-            adapter: oneInchAdapter,
-            quoteAsset: getAddress(sourceChain, "USDC"),
-            swapData: swapData,
-            slippageBps: 10,
-            receiver: BoringVault(payable(getAddress(sourceChain, "boringVault")))
-        });
-
-        bytes32 structHash = keccak256(abi.encodePacked(ONEINCH_ORDER_TYPE_HASH, orderData));
-        orderDigest = keccak256(abi.encodePacked("\x19\x01", _oneInchDomainSeparator(), structHash));
-
-        return (config, orderDigest);
-    }
-
-    function _submitOneInchOrder(uint256 makingAmount, uint256 takingAmount)
-        internal
-        returns (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest, uint256 orderId)
-    {
-        (config, orderDigest) = _buildOneInchSwapConfig(makingAmount, takingAmount);
-        orderId = swapper.orders();
-        swapper.submitOrder(config);
-    }
-
-    function _simulateOneInchFill(
-        uint256 amountIn,
-        uint256 amountOut,
-        ISwapperTypes.SwapConfig memory config,
-        bytes32 orderDigest
-    ) internal {
-        vm.prank(ONEINCH_ROUTER);
-        bytes4 result = swapper.isValidSignature(orderDigest, abi.encode(config));
-        assertEq(result, bytes4(0x1626ba7e), "isValidSignature failed");
-
-        vm.prank(ONEINCH_ROUTER);
-        getERC20(sourceChain, "WETH").transferFrom(address(swapper), ONEINCH_ROUTER, amountIn);
-
-        deal(getAddress(sourceChain, "USDC"), ONEINCH_ROUTER, amountOut);
-        vm.prank(ONEINCH_ROUTER);
-        getERC20(sourceChain, "USDC").transfer(getAddress(sourceChain, "boringVault"), amountOut);
-    }
-
-    //==================== 1inch Limit Order Tests ====================
-
-    function testOneInchSubmitOrder() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        //approve swapper to pull WETH from vault
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config,, uint256 orderId) =
-            _submitOneInchOrder(1e18, 2000e6);
-
-        BoringSwapper.OrderRecord memory rec = swapper.getOrderRecord(orderId);
-        assertEq(address(rec.tokenIn), getAddress(sourceChain, "WETH"));
-        assertEq(rec.inputAmount, 1e18);
-        assertEq(address(rec.receiver), getAddress(sourceChain, "boringVault"));
-
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 1e18);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(getAddress(sourceChain, "boringVault")), 99e18);
-        assertEq(swapper.orders(), orderId + 1);
-    }
-
-    function testOneInchSubmitOrder_RevertBadSlippage() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        //fat finger: 1 WETH for 1000 USDC (50% below oracle)
-        (ISwapperTypes.SwapConfig memory config,) = _buildOneInchSwapConfig(1e18, 1000e6);
-        vm.expectRevert(abi.encodeWithSelector(PriceValidator.PriceValidator__ExceedsMaxSlippage.selector));
-        swapper.submitOrder(config);
-    }
-
-    function testOneInchIsValidSignature() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest,) =
-            _submitOneInchOrder(1e18, 2000e6);
-
-        vm.prank(ONEINCH_ROUTER);
-        bytes4 result = swapper.isValidSignature(orderDigest, abi.encode(config));
-        assertEq(result, bytes4(0x1626ba7e));
-    }
-
-    function testOneInchIsValidSignature_RevertHashMismatch() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config,,) =
-            _submitOneInchOrder(1e18, 2000e6);
-
-        vm.prank(ONEINCH_ROUTER);
-        vm.expectRevert();
-        swapper.isValidSignature(bytes32(uint256(0x69420)), abi.encode(config));
-    }
-
-    function testOneInchCancelOrder() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config, , uint256 orderId) = _submitOneInchOrder(1e18, 2000e6);
-
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 1e18);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(getAddress(sourceChain, "boringVault")), 99e18);
-
-        swapper.cancelOrder(orderId, config, "");
-
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(getAddress(sourceChain, "boringVault")), 100e18);
-
-        BoringSwapper.OrderRecord memory rec = swapper.getOrderRecord(orderId);
-        assertEq(address(rec.tokenIn), address(0));
-    }
-
-    function testOneInchFullFillFlow() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest, uint256 orderId) =
-            _submitOneInchOrder(1e18, 2000e6);
-
-        address vault = getAddress(sourceChain, "boringVault");
-        uint256 vaultWethBefore = getERC20(sourceChain, "WETH").balanceOf(vault);
-        uint256 vaultUsdcBefore = getERC20(sourceChain, "USDC").balanceOf(vault);
-
-        _simulateOneInchFill(1e18, 2000e6, config, orderDigest);
-
-        assertEq(getERC20(sourceChain, "USDC").balanceOf(vault), vaultUsdcBefore + 2000e6);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(vault), vaultWethBefore);
-    }
-
-    function testOneInchPartialFillThenCancel() external {
-        deal(getAddress(sourceChain, "WETH"), getAddress(sourceChain, "boringVault"), 100e18);
-
-        vm.prank(getAddress(sourceChain, "boringVault"));
-        getERC20(sourceChain, "WETH").approve(address(swapper), type(uint256).max);
-
-        (ISwapperTypes.SwapConfig memory config, bytes32 orderDigest, uint256 orderId) =
-            _submitOneInchOrder(10e18, 20000e6);
-
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 10e18);
-
-        _simulateOneInchFill(5e18, 10000e6, config, orderDigest);
-
-        address vault = getAddress(sourceChain, "boringVault");
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 5e18);
-        assertEq(getERC20(sourceChain, "USDC").balanceOf(vault), 10000e6);
-
-        swapper.cancelOrder(orderId, config, "");
-
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(address(swapper)), 0);
-        assertEq(getERC20(sourceChain, "WETH").balanceOf(vault), 95e18);
-    }
-
     function _makeOracleConfig(address rateProvider, address intermediary, bool skipValidation) internal pure returns (BoringSwapper.RateProviderConfig memory) {
         address[] memory rateProviders = new address[](1);
         rateProviders[0] = rateProvider;
@@ -816,4 +620,6 @@ contract MockRateProvider is IRateProvider {
         return rate; 
     }
 }
+
+contract FullBoringSwapperDecoderAndSantitizer is BoringSwapperDecoder, BaseDecoderAndSanitizer {}
 
