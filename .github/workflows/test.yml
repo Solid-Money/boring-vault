@@ -16,6 +16,10 @@ jobs:
 
     name: Foundry project
     runs-on: ubuntu-latest
+    # Explicit ceiling (the default is 6h). Note: the historical ~30-min deaths
+    # were the runner OOMing during compilation (VM killed with "runner received
+    # a shutdown signal"), not a timeout — see the swap step below.
+    timeout-minutes: 90
     env:
       MAINNET_RPC_URL: https://eth-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
       ARBITRUM_RPC_URL: https://arb-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
@@ -25,6 +29,7 @@ jobs:
       LINEA_RPC_URL: https://linea-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
       MANTLE_RPC_URL: https://mantle-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
       HOLESKY_RPC_URL: https://eth-holesky.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
+      TEMPO_RPC_URL: https://tempo-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
       BERA_CHAIN_RPC_URL: ${{ secrets.BERA_CHAIN_RPC_URL }}
       BOB_RPC_URL: ${{ secrets.BOB_RPC_URL }}
       DERIVE_RPC_URL: ${{ secrets.DERIVE_RPC_URL }}
@@ -49,6 +54,25 @@ jobs:
         with:
           version: stable
 
+      # [profile.ci] and [profile.nightly] in foundry.toml must skip the same
+      # sources so PR CI and nightly-fuzz test the same code — fail fast if the
+      # two lists drift apart.
+      - name: Check ci/nightly skip lists are in sync
+        run: |
+          diff <(forge config --json | jq '(.skip // []) | sort') \
+               <(FOUNDRY_PROFILE=nightly forge config --json | jq '(.skip // []) | sort')
+
+      # Full recompiles (any PR touching MerkleTreeHelper/ChainValues dirties
+      # ~all test compilation units) peak >11 GB in a single solc pipeline; the
+      # 16 GB runner OOMs and the VM is killed mid-build. Swap on /mnt (~60 GB
+      # free) absorbs the peak so the build completes instead of dying.
+      - name: Add swap for solc memory peak
+        run: |
+          sudo fallocate -l 16G /mnt/swapfile2
+          sudo chmod 600 /mnt/swapfile2
+          sudo mkswap /mnt/swapfile2
+          sudo swapon /mnt/swapfile2
+
       # Cache forge's compilation output so same-branch pushes only recompile
       # changed files. Restore + save are split (not the combined actions/cache)
       # because the combined action only saves on job success, and this job
@@ -71,7 +95,7 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build --skip script
+          forge build
         id: build
 
       # Persist the compiled artifacts even though the test step below fails on
@@ -86,15 +110,26 @@ jobs:
           key: ${{ steps.forge-cache.outputs.cache-primary-key }}
 
       - name: Run Forge tests
-        # Berachain, Corn and Scroll vaults are being deprecated (ETHFI-35),
-        # so their integration suites are skipped in CI.
+        # script/ and the deprecated Berachain/Scroll suites (ETHFI-35) are
+        # excluded via `skip` in [profile.ci] (foundry.toml), so the build and
+        # test steps compile the exact same source set — no --skip flags here.
         run: |
-          forge test -vv \
-            --skip SymbioticVaultIntegration --skip CreateTimelockTx \
-            --skip GoldiVaultIntegration --skip BGTRewardVaultIntegration \
-            --skip KodiakIslandIntegration --skip KodiakSwappingIntegration \
-            --skip InfraredIntegration --skip HoneyIntegration \
-            --skip DolomiteFinanceIntegration --skip BerachainPOLIntegration \
-            --skip BeraborrowIntegration --skip BeraETHIntegration \
-            --skip ScrollBridgeIntegration
+          forge test -vv
         id: test
+
+      # Use nightly Foundry for Tempo tests because stable heavily lags network upgrades
+      # (stable's embedded Tempo precompiles are pre-T5; this nightly is T7-aware).
+      # We can't pin an exact nightly version because they are periodically deleted.
+      - name: Install Foundry (nightly, for Tempo precompiles)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      # Tempo tests run against the native Tempo precompiles (network = "tempo", Foundry >= 1.7.0).
+      # The profiles partition the test set: default excludes test/**Tempo*, tempo runs only those.
+      - name: Run Forge tests (Tempo)
+        run: |
+          forge test -vv
+        env:
+          FOUNDRY_PROFILE: tempo
+        id: test-tempo
