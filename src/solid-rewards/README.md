@@ -96,6 +96,29 @@ which Safe is charged, so a Safe holding that role could charge any other
 subscriber. The Safe's side of this is its own mandate, set by `subscribe`, and
 nothing more.
 
+**[DEPLOYMENT.md](./DEPLOYMENT.md) is the full runbook** — toolchain, the
+pre-flight checks that matter because three constructor arguments are immutable,
+the exact role-grant transactions, the backend and app-config wiring, the order
+the four repos go out in, and the kill switches.
+
+## Ownership
+
+Both contracts are `solmate/Auth`, constructed as `Auth(OWNER, Authority(0))`:
+owned, not permissionless, and not ownerless. `OWNER` should be the Safe
+multisig — the deployer EOA holds nothing once the constructor has run.
+
+The owner can retune (`lockDuration`, `minLockShares`, `maxChargeAmount`), pause,
+and rescue stray tokens. The owner **cannot** take a locked position (`rescue`
+is barred from `totalLockedShares`), extend a lock already taken (each lock
+snapshots its own `unlocksAt`), block a withdrawal (`pause` gates `lock` only),
+redirect the money or change the billed asset (both immutable), or bill outside
+a user's own mandate.
+
+`lock`, `withdraw`, every view, and `subscribe`/`cancel`/`resume` need no
+permission — a Safe can only ever speak for itself. `withdrawFor(account)` is
+deliberately callable by anyone, and always pays `account` rather than the
+caller, so a keeper can return a matured position without the user coming back.
+
 ## Tests
 
 ```
