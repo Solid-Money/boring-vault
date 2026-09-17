@@ -124,6 +124,8 @@ contract SolidSubscriptionModule is Auth, IPausable {
     error SolidSubscriptionModule__TooSoon(uint64 nextChargeDueAt);
     error SolidSubscriptionModule__AlreadyCharged(address safe, bytes32 billingId);
     error SolidSubscriptionModule__TransferFailed(address safe);
+    error SolidSubscriptionModule__NotSettled(address safe, uint256 expected, uint256 received);
+    error SolidSubscriptionModule__InvalidAddress();
 
     //============================== EVENTS ===============================
 
@@ -142,6 +144,12 @@ contract SolidSubscriptionModule is Auth, IPausable {
     constructor(address _owner, address _billingToken, address _revenueTreasury, uint128 _maxChargeAmount)
         Auth(_owner, Authority(address(0)))
     {
+        // The treasury and the token can never be changed, so a zero or
+        // codeless value here is unfixable rather than inconvenient.
+        if (_owner == address(0) || _billingToken.code.length == 0 || _revenueTreasury == address(0)) {
+            revert SolidSubscriptionModule__InvalidAddress();
+        }
+
         billingToken = ERC20(_billingToken);
         revenueTreasury = _revenueTreasury;
         maxChargeAmount = _maxChargeAmount;
@@ -281,6 +289,8 @@ contract SolidSubscriptionModule is Auth, IPausable {
         chargeCleared[safe][billingId] = true;
         subscription.lastChargedAt = uint64(block.timestamp);
 
+        uint256 treasuryBefore = billingToken.balanceOf(revenueTreasury);
+
         bool ok = ISafe(safe).execTransactionFromModule(
             address(billingToken),
             0,
@@ -288,6 +298,26 @@ contract SolidSubscriptionModule is Auth, IPausable {
             ISafe.Operation.Call
         );
         if (!ok) revert SolidSubscriptionModule__TransferFailed(safe);
+
+        // Settlement is measured, not taken on trust, because neither thing
+        // read so far actually proves payment:
+        //
+        //  - `safe` is whatever address subscribed. Nothing here can tell a
+        //    real Safe from a contract that answers `isModuleEnabled` and
+        //    `execTransactionFromModule` with `true` and moves nothing — and
+        //    such a contract could hold a balance so `canCharge` passed too.
+        //    Without this line it would collect a `Charged` receipt and a spent
+        //    billing id for free, and anything granting membership on that
+        //    receipt would be giving the tier away.
+        //  - `ok` is the success of the *call*, not of the transfer. An ERC-20
+        //    that returns `false` instead of reverting — or returns nothing at
+        //    all — leaves `ok` true with the balance untouched.
+        //
+        // The treasury's own balance answers both at once, and is the only
+        // thing that actually means "we were paid". Deliberately `<` rather
+        // than `!=`: a token that delivers more than asked is not a failure.
+        uint256 received = billingToken.balanceOf(revenueTreasury) - treasuryBefore;
+        if (received < amount) revert SolidSubscriptionModule__NotSettled(safe, amount, received);
 
         emit Charged(safe, billingId, amount, uint64(block.timestamp));
     }

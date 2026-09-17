@@ -95,7 +95,7 @@ deployment** — it is present for other work in the repo.
 Run the tests before anything else:
 
 ```bash
-forge test --match-path "test/Solid*.t.sol"     # 49 tests, no fork needed
+forge test --match-path "test/Solid*.t.sol"     # 58 tests, no fork needed
 ```
 
 If a full `forge build` fails, it is not you: `script/GigaDeployDecoderAndSanitizer.s.sol`
@@ -104,6 +104,50 @@ and `script/DeployDecodersAndSanitizersWithNoConstructorArgs.s.sol` import
 `LombardBtcMinterDecoderAndSanitizer.sol`. It builds on a case-insensitive
 filesystem and breaks on Linux/CI. Unrelated to these contracts, and
 `--match-path` steps around it.
+
+### Two Fuse warnings you will see, and why neither is a problem
+
+**`EIP-3855 is not supported ... Unsupported Chain IDs: 122`**
+
+Forge checks the chain for PUSH0 (EIP-3855, a Shanghai opcode) and warns because
+solc ≥ 0.8.20 emits it *by default*. This repo does not compile by default:
+`foundry.toml` pins `evm_version = 'london'`, which predates PUSH0, so the
+compiler cannot emit the opcode at all. The warning is about the chain, not
+about this bytecode.
+
+Verify rather than trust it — walk the deployed runtime code as opcodes,
+skipping push immediates, and count `0x5f`:
+
+```bash
+cast code $MODULE --rpc-url fuse > /tmp/code.hex
+# both contracts return 0
+```
+
+Both `SolidTierLock` and `SolidSubscriptionModule` contain **zero** PUSH0
+opcodes when built with this profile. What would break is raising
+`evm_version` — don't, for Fuse.
+
+**`failed to fetch block ... missing field 'mixHash'`**
+
+Fuse runs Nethermind with Aura (PoA), whose block headers carry `step` and
+`signature` in place of `mixHash` and `nonce`. Alloy — the RPC layer under
+forge/cast — expects a post-merge header and fails to deserialise. **This is a
+receipt-fetching failure, not a transaction failure.** `forge script` has
+already broadcast by the time it happens; the progress line showing `2/2 txes`
+and `1/2 receipts` means both transactions are on chain and forge lost track of
+one of them.
+
+Do not re-run the script — you will deploy a second copy. Confirm on chain
+instead:
+
+```bash
+cast code $LOCK --rpc-url fuse | head -c 20      # non-empty == deployed
+cast call $LOCK "owner()(address)" --rpc-url fuse
+```
+
+`cast call`, `cast send` and `eth_getLogs` are unaffected; it is only the block
+header parse. Re-running with `--resume` will hit the same wall, so treat the
+on-chain read as the source of truth and record the addresses by hand.
 
 ---
 
@@ -119,9 +163,12 @@ source .env
 cast call $SOFUSE_VAULT "decimals()(uint8)"        --rpc-url fuse   # expect 18
 cast call $SOFUSE_VAULT "symbol()(string)"         --rpc-url fuse
 
-# The accountant must answer getRate(). A revert here means the wrong address,
-# and the lock's USD display is dead on arrival.
+# The accountant must answer getRate() — a revert means the wrong address, and
+# the lock's USD display is dead on arrival — AND it must price THIS vault.
+# There are two soFUSE vaults on Fuse with identical names and symbols, so this
+# second line is the one that catches the mistake that is actually easy to make.
 cast call $SOFUSE_ACCOUNTANT "getRate()(uint256)"  --rpc-url fuse
+cast call $SOFUSE_ACCOUNTANT "vault()(address)"    --rpc-url fuse   # == $SOFUSE_VAULT
 
 # The billing asset must be 6-decimal USDC.e — and MAX_CHARGE_AMOUNT is in ITS
 # base units, so this decides whether 500000000 means $500 or $500,000,000,000.
@@ -136,16 +183,30 @@ cast code $REVENUE_TREASURY --rpc-url fuse | head -c 20
 cast code $OWNER --rpc-url fuse | head -c 20       # non-empty for a Safe
 ```
 
-Known-good Fuse values at the time of writing:
+**There are two soFUSE vaults on Fuse, each with its own accountant, and they
+are not interchangeable.** Both are called "Solid Fuse" and both use the symbol
+soFUSE, so the only way to tell them apart is `totalSupply()` — or, better,
+`accountant.vault()`, which names the vault an accountant actually prices.
+
+| | QA | Production |
+| --- | --- | --- |
+| soFUSE vault | `0xDA737B0C12a08D85C973F10f25459F07F2BB2882` | `0xb33c8F0b0816fd147FCF896C594a3ef408845e2C` |
+| its accountant | `0xc864e169a1d40b957170E6c848BbcE49f28b361B` | `0xb29B5F760d38587f7F4C896C458B9EEB5CAd9C0C` |
+| supply, at time of writing | ~5,025 | ~27,878,092 |
+
+Pairing a vault with the other one's accountant compiles, deploys and returns a
+plausible number — it is simply the wrong rate, and `lockedAssetsOf` will price
+every position with it. **Always check `accountant.vault()` against the vault
+you are passing**, which is what the pre-flight below does.
+
+Common to both:
 
 | | |
 | --- | --- |
-| soFUSE vault (share token) | `0xDA737B0C12a08D85C973F10f25459F07F2BB2882` |
-| soFUSE accountant | `0xb29B5F760d38587f7F4C896C458B9EEB5CAd9C0C` |
 | USDC.e (6 dp) | `0xc6Bc407706B7140EE8Eef2f86F9504651b63e7f9` |
-| Revenue wallet | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
-| Owner Safe | `0xbA308F2919Aa20FbD58fc7406451077FE32F1f29` |
-| `FuseRolesAuthority` (live) | `0x058Ca721E21492AD72979f9Fb52410F6da588800` |
+| Revenue wallet (prod) | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
+| Owner Safe (prod) | `0xbA308F2919Aa20FbD58fc7406451077FE32F1f29` |
+| `FuseRolesAuthority` (owned by that Safe) | `0x058Ca721E21492AD72979f9Fb52410F6da588800` |
 
 Re-derive them from helm (`SOFUSE_VAULT_ADDRESS_FUSE`,
 `SOFUSE_ACCOUNTANT_ADDRESS_FUSE`, `REVENUE_WALLET_ADDRESS`) rather than trusting
@@ -209,14 +270,30 @@ nobody meant.
 
 ### Which address gets the role
 
-**The backend's ERC-4337 smart account** — the address `AAOperationsService`
-logs at boot:
+**The backend's ERC-4337 smart account** — not the EOA that signs, and never a
+user Safe.
+
+`AAOperationsService` logs it as `Smart Account ready on chain 122: 0x…`, but
+**only once something has actually used chain 122** — the per-chain client is
+lazily initialised on first use, so an environment that has never submitted a
+UserOp on Fuse has never logged the line. That is why it shows up on prod and
+not on QA.
+
+Ask for it instead of waiting for it. The admins-service already exposes it:
 
 ```
-Smart Account ready on chain 122: 0x…
+GET /admin/v1/wallets/status        (admins-service, behind FirebaseAuthGuard)
 ```
 
-Not the EOA that signs, and never a user Safe.
+Look for the entry named **"Direct Deposit Smart Account"** (QA) or **"Direct
+Deposit AA Wallet"** (prod) — same account, different label. The handler calls
+`getSmartAccountAddressAsync` across chains 1, 122, 137, 8453 and 42161, which
+*forces* the lazy init, so hitting this endpoint both returns the address and
+makes the boot log appear from then on. It is also the Wallets page in the admin
+dashboard, if you would rather click than curl.
+
+The address is derived from `SMART_ACCOUNT_SIGNER_KEY`, so **QA and prod have
+different ones** — never copy prod's address into a QA role grant.
 
 `TierBillingService` submits through `aaOperations.execute(...)`, so at the
 module `msg.sender` is that smart account. The EOA only signs the UserOperation
@@ -244,33 +321,53 @@ cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
   $MODULE 0x1e1d709a --rpc-url fuse     # 0x00…00 = nothing holds charge() yet
 ```
 
-### The three transactions
+### The four transactions
 
-All three are sent **by the owner Safe**, in order. `charge` is `0x1e1d709a`.
+Four transactions from three distinct calls — `setAuthority` is sent twice,
+once to each contract. All are sent **by whoever owns the contracts** (see §0),
+in this order. `charge` is `0x1e1d709a`.
+
+| # | to | call |
+| --- | --- | --- |
+| 1 | `$LOCK` | `setAuthority($AUTH)` |
+| 2 | `$MODULE` | `setAuthority($AUTH)` |
+| 3 | `$AUTH` | `setRoleCapability(4, $MODULE, 0x1e1d709a, true)` |
+| 4 | `$AUTH` | `setUserRole($BILLER_ACCOUNT, 4, true)` |
+
+1 and 2 must land before 4 means anything — a role granted on an authority no
+contract consults does nothing.
+
+**Note on `$AUTH`:** the authority is a separate contract with its own owner.
+`setAuthority` (1 and 2) is sent by the owner of *your* contracts;
+`setRoleCapability` and `setUserRole` (3 and 4) are sent by the owner of the
+**authority**. If you deployed with an owner that does not own
+`0x058Ca721…588800` — which is the prod Safe — you cannot use that authority
+without the Safe signing for you. Deploy your own instead:
 
 ```bash
-BILLER_ACCOUNT=0x…   # the backend smart account from the boot log
-ROLE=4
-
-# 1. Point both contracts at the authority. Until this lands, step 3 grants a
-#    role nothing consults.
-cast calldata "setAuthority(address)" $AUTH                 # -> to: $LOCK, and again to: $MODULE
-
-# 2. Let the role call charge() on the module, and nothing else.
-cast calldata "setRoleCapability(uint8,address,bytes4,bool)" $ROLE $MODULE 0x1e1d709a true   # -> to: $AUTH
-
-# 3. Give the backend's smart account that role.
-cast calldata "setUserRole(address,uint8,bool)" $BILLER_ACCOUNT $ROLE true                   # -> to: $AUTH
+forge create src/fuse/FuseRolesAuthority.sol:FuseRolesAuthority \
+  --rpc-url fuse --private-key $PRIVATE_KEY \
+  --constructor-args $OWNER 0x0000000000000000000000000000000000000000
 ```
 
-**From the Safe UI:** open the Safe at `$OWNER`, use **Transaction Builder**,
-and for each step paste the target address and the hex from `cast calldata`
-above into the custom-data field (value 0). Batch all four calls (two
-`setAuthority`, one `setRoleCapability`, one `setUserRole`) into a single
-multisend so the window where the authority is attached but the role is not
-never exists. Collect signatures and execute.
+Calldata for the four:
 
-**From an EOA owner** (QA only, if `OWNER` is not a multisig there):
+```bash
+BILLER_ACCOUNT=0x…   # the backend smart account — see "Which address gets the role"
+ROLE=4
+
+cast calldata "setAuthority(address)" $AUTH
+cast calldata "setRoleCapability(uint8,address,bytes4,bool)" $ROLE $MODULE 0x1e1d709a true
+cast calldata "setUserRole(address,uint8,bool)" $BILLER_ACCOUNT $ROLE true
+```
+
+**From a Safe owner** (production): open the Safe at `$OWNER`, use **Transaction
+Builder**, and paste each target address with its hex into the custom-data field
+(value 0). Batch all four into a single multisend so the window where the
+authority is attached but the role is not never exists. Collect signatures and
+execute.
+
+**From an EOA owner** (QA, where `OWNER` is an EOA — no Safe involved at all):
 
 ```bash
 cast send $LOCK   "setAuthority(address)" $AUTH --rpc-url fuse --private-key $PRIVATE_KEY

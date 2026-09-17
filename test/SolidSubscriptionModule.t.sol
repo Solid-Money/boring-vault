@@ -5,6 +5,8 @@ import {Test} from "@forge-std/Test.sol";
 import {RolesAuthority, Authority} from "@solmate/auth/authorities/RolesAuthority.sol";
 
 import {SolidSubscriptionModule} from "src/solid-rewards/SolidSubscriptionModule.sol";
+import {MockCounterfeitSafe} from "test/mocks/MockCounterfeitSafe.sol";
+import {MockFeeOnTransferERC20} from "test/mocks/MockFeeOnTransferERC20.sol";
 import {MockMintableERC20} from "test/mocks/MockMintableERC20.sol";
 import {MockSafe} from "test/mocks/MockSafe.sol";
 
@@ -438,5 +440,129 @@ contract SolidSubscriptionModuleTest is Test {
         _charge(keccak256("2026"), amount);
         assertEq(usdc.balanceOf(treasury), amount, "exactly the requested amount");
         assertEq(usdc.balanceOf(address(safe)), safeBefore - amount, "and only from the Safe");
+    }
+
+    //============================== SETTLEMENT ===============================
+
+    /**
+     * The audit's one exploitable finding, and the reason `charge` now measures
+     * the treasury's balance instead of believing what it was told.
+     *
+     * Everything the module could read before this came from the address being
+     * charged: `isModuleEnabled` and the boolean from
+     * `execTransactionFromModule`. A contract that returns `true` from both and
+     * forwards nothing satisfied every check and walked away with a `Charged`
+     * event and a spent billing id, having paid nothing — and anything that
+     * granted a membership on that receipt was giving the tier away.
+     */
+    function testACounterfeitSafeCannotFakeSettlement() external {
+        MockCounterfeitSafe fake = new MockCounterfeitSafe();
+        usdc.mint(address(fake), 10_000e6); // so even the balance check passes
+
+        fake.execute(
+            address(module), abi.encodeCall(SolidSubscriptionModule.subscribe, (PLAN_PRICE, YEAR))
+        );
+
+        // It looks perfectly chargeable from the outside.
+        (bool allowed,) = module.canCharge(address(fake), PLAN_PRICE);
+        assertTrue(allowed, "the counterfeit passes every pre-flight check");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidSubscriptionModule.SolidSubscriptionModule__NotSettled.selector, address(fake), PLAN_PRICE, 0
+            )
+        );
+        vm.prank(biller);
+        module.charge(address(fake), keccak256("2026"), PLAN_PRICE);
+
+        // And because the whole call reverted, it burned nothing either.
+        assertFalse(module.chargeCleared(address(fake), keccak256("2026")), "the billing id is still unspent");
+        assertEq(module.subscriptionOf(address(fake)).lastChargedAt, 0, "and the clock never started");
+        assertEq(usdc.balanceOf(treasury), 0, "the treasury was never paid");
+    }
+
+    /**
+     * The same measurement covers a token that under-delivers. `ok` is the
+     * success of the call, not the size of the transfer, so a fee-on-transfer
+     * or rebasing token reports success having moved less than was asked for.
+     */
+    function testATokenThatUnderDeliversIsNotAcceptedAsPayment() external {
+        MockFeeOnTransferERC20 lossy = new MockFeeOnTransferERC20("Lossy", "LOSS", 6, 100); // 1%
+        SolidSubscriptionModule lossyModule =
+            new SolidSubscriptionModule(address(this), address(lossy), treasury, ORG_CEILING);
+
+        RolesAuthority lossyAuthority = new RolesAuthority(address(this), Authority(address(0)));
+        lossyAuthority.setRoleCapability(
+            BILLER_ROLE, address(lossyModule), SolidSubscriptionModule.charge.selector, true
+        );
+        lossyAuthority.setUserRole(biller, BILLER_ROLE, true);
+        lossyModule.setAuthority(lossyAuthority);
+
+        MockSafe lossySafe = new MockSafe();
+        lossy.mint(address(lossySafe), 10_000e6);
+        lossySafe.enableModule(address(lossyModule));
+        lossySafe.execute(
+            address(lossyModule), abi.encodeCall(SolidSubscriptionModule.subscribe, (PLAN_PRICE, YEAR))
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidSubscriptionModule.SolidSubscriptionModule__NotSettled.selector,
+                address(lossySafe),
+                PLAN_PRICE,
+                PLAN_PRICE - (PLAN_PRICE / 100)
+            )
+        );
+        vm.prank(biller);
+        lossyModule.charge(address(lossySafe), keccak256("2026"), PLAN_PRICE);
+    }
+
+    /// A genuine Safe is unaffected — the treasury really is paid in full.
+    function testAGenuineSafeStillSettles() external {
+        _charge(keccak256("2026"), PLAN_PRICE);
+        assertEq(usdc.balanceOf(treasury), PLAN_PRICE, "the treasury holds the fee");
+    }
+
+    //============================== CONSTRUCTOR ===============================
+
+    function testConstructorRejectsAnUnusableTreasuryOrToken() external {
+        vm.expectRevert(SolidSubscriptionModule.SolidSubscriptionModule__InvalidAddress.selector);
+        new SolidSubscriptionModule(address(this), address(usdc), address(0), ORG_CEILING);
+
+        // Neither value has a setter, so an address with no token behind it is
+        // a contract that can never charge anything — caught here, not in prod.
+        vm.expectRevert(SolidSubscriptionModule.SolidSubscriptionModule__InvalidAddress.selector);
+        new SolidSubscriptionModule(address(this), stranger, treasury, ORG_CEILING);
+
+        vm.expectRevert(SolidSubscriptionModule.SolidSubscriptionModule__InvalidAddress.selector);
+        new SolidSubscriptionModule(address(0), address(usdc), treasury, ORG_CEILING);
+    }
+
+    //============================== canCharge AGREES WITH charge ===============
+
+    /**
+     * `canCharge` is what the billing sweep asks before it spends gas, so a
+     * disagreement between the two is a backend that either bills into a revert
+     * or refuses to bill something that would have worked. They are written as
+     * two separate lists of conditions, which is exactly the kind of pair that
+     * drifts — so the agreement is pinned rather than assumed.
+     */
+    function testFuzzCanChargeAgreesWithCharge(uint128 amount, uint64 warpBy, bool cancelled, bool enabled)
+        external
+    {
+        amount = uint128(bound(amount, 0, ORG_CEILING * 2));
+        vm.warp(block.timestamp + bound(warpBy, 0, 2 * YEAR));
+
+        if (cancelled) safe.execute(address(module), abi.encodeCall(SolidSubscriptionModule.cancel, ()));
+        if (!enabled) safe.disableModule(address(module));
+
+        (bool allowed,) = module.canCharge(address(safe), amount);
+
+        vm.prank(biller);
+        try module.charge(address(safe), keccak256("2026"), amount) {
+            assertTrue(allowed, "charge succeeded where canCharge said no");
+        } catch {
+            assertFalse(allowed, "charge reverted where canCharge said yes");
+        }
     }
 }
