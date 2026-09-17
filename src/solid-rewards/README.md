@@ -81,8 +81,20 @@ forge script script/DeploySolidRewards.s.sol --rpc-url fuse --broadcast
 ```
 
 Then, as the owner: attach the `FuseRolesAuthority`, give the biller role
-`charge`, and grant it to the billing signer. Until that is done, only the owner
-can charge anything.
+`charge`, and grant it to the billing account. Until that is done, only the
+owner can charge anything.
+
+The billing account is the backend's own ERC-4337 smart account — the address
+`AAOperationsService` logs at boot as "Smart Account ready on chain 122: 0x…" —
+and **not** the EOA that owns it, and never a user's Safe. The backend submits
+the charge as a UserOperation, so `msg.sender` inside `charge` is that account;
+the EOA only signs the operation and never appears as the caller. Granting the
+role to the EOA would leave every charge reverting on `requiresAuth`.
+
+A user's Safe is the wrong grantee for a different reason: the biller chooses
+which Safe is charged, so a Safe holding that role could charge any other
+subscriber. The Safe's side of this is its own mandate, set by `subscribe`, and
+nothing more.
 
 ## Tests
 

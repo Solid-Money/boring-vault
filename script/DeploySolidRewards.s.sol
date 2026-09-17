@@ -57,6 +57,10 @@ contract DeploySolidRewards is Script {
         console.log("Next, as the owner:");
         console.log("  1. setAuthority(<FuseRolesAuthority>) on both contracts");
         console.log("  2. authority.setRoleCapability(BILLER_ROLE, module, charge.selector, true)");
-        console.log("  3. authority.setUserRole(<billing signer>, BILLER_ROLE, true)");
+        console.log("  3. authority.setUserRole(<billing smart account>, BILLER_ROLE, true)");
+        console.log("");
+        console.log("The billing smart account is the ERC-4337 account the backend submits from");
+        console.log("(logged at boot as 'Smart Account ready on chain 122: 0x...'), NOT the EOA");
+        console.log("that owns it: charge() sees the account as msg.sender, never the signer.");
     }
 }
