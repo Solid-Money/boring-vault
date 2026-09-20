@@ -130,6 +130,9 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
     error SolidTierLock__DurationTooLong(uint64 duration, uint64 maximum);
     error SolidTierLock__ZeroDuration();
     error SolidTierLock__CannotRescueLockedShares();
+    error SolidTierLock__AmountTooLarge(uint256 shares);
+    error SolidTierLock__TransferAmountMismatch(uint256 expected, uint256 received);
+    error SolidTierLock__InvalidAddress();
 
     //============================== EVENTS ===============================
 
@@ -150,6 +153,14 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
         uint64 _lockDuration,
         uint256 _minLockShares
     ) Auth(_owner, Authority(address(0))) {
+        // Both must be contracts. `decimals()` below already rejects a codeless
+        // lock token — a high-level call to an address with no code reverts —
+        // but the accountant is only ever read from a view, so nothing else
+        // would catch it until a user saw their position priced at zero.
+        if (_owner == address(0) || _lockToken.code.length == 0 || _accountant.code.length == 0) {
+            revert SolidTierLock__InvalidAddress();
+        }
+
         lockToken = ERC20(_lockToken);
         accountant = AccountantWithRateProviders(_accountant);
         ONE_SHARE = 10 ** BoringVault(payable(_lockToken)).decimals();
@@ -177,14 +188,33 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
         if (isPaused) revert SolidTierLock__Paused();
         if (shares == 0) revert SolidTierLock__ZeroAmount();
         if (shares < minLockShares) revert SolidTierLock__BelowMinimum(shares, minLockShares);
+        // The Lock record stores shares in a uint128. An explicit downcast does
+        // not revert on overflow, so without this an oversized deposit would be
+        // pulled and counted in full by the uint256 totals while the position
+        // itself recorded the truncated remainder — the difference becoming
+        // rescuable and the account's own locks unable to return it. No supply
+        // reaches 2^128, which is exactly why this has to be a check rather
+        // than a comment.
+        if (shares > type(uint128).max) revert SolidTierLock__AmountTooLarge(shares);
 
         Lock[] storage locks = accountLocks[msg.sender];
         if (locks.length >= MAX_LOCKS_PER_ACCOUNT) revert SolidTierLock__TooManyLocks();
 
         // Pulled before the accounting is written, so a share token that lies
         // about its transfer cannot leave a lock standing against shares that
-        // never arrived. `safeTransferFrom` also rejects a silent `false`.
+        // never arrived. `safeTransferFrom` rejects a silent `false`, and the
+        // balance is measured either side of it because a return value is not
+        // an amount: a fee-on-transfer or rebasing token can report success
+        // having delivered less, which would leave `totalLockedShares` claiming
+        // more than the contract holds and the last withdrawal of the day
+        // reverting on a balance that was never there. This contract is
+        // deployed against a BoringVault share, which does none of that — so
+        // the check costs two SLOADs to make the assumption enforced instead of
+        // documented.
+        uint256 balanceBefore = lockToken.balanceOf(address(this));
         lockToken.safeTransferFrom(msg.sender, address(this), shares);
+        uint256 received = lockToken.balanceOf(address(this)) - balanceBefore;
+        if (received != shares) revert SolidTierLock__TransferAmountMismatch(shares, received);
 
         uint64 unlocksAt = uint64(block.timestamp) + lockDuration;
         index = locks.length;
@@ -264,10 +294,10 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
     }
 
     /// @notice Shares of `account`'s that have matured and can be returned now.
-    function maturedSharesOf(address account) public view returns (uint256 shares) {
+    function maturedSharesOf(address account) external view returns (uint256 shares) {
         Lock[] storage locks = accountLocks[account];
 
-        for (uint256 i; i < locks.length;) {
+        for (uint256 i = 0; i < locks.length;) {
             if (locks[i].unlocksAt <= block.timestamp) shares += locks[i].shares;
             unchecked {
                 ++i;
@@ -285,7 +315,7 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
     function nextUnlockOf(address account) external view returns (uint64 unlocksAt, uint256 shares) {
         Lock[] storage locks = accountLocks[account];
 
-        for (uint256 i; i < locks.length;) {
+        for (uint256 i = 0; i < locks.length;) {
             Lock storage entry = locks[i];
             if (entry.unlocksAt > block.timestamp) {
                 if (unlocksAt == 0 || entry.unlocksAt < unlocksAt) {

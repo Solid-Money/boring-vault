@@ -6,6 +6,7 @@ import {ERC20} from "@solmate/tokens/ERC20.sol";
 import {RolesAuthority, Authority} from "@solmate/auth/authorities/RolesAuthority.sol";
 
 import {SolidTierLock} from "src/solid-rewards/SolidTierLock.sol";
+import {MockFeeOnTransferERC20} from "test/mocks/MockFeeOnTransferERC20.sol";
 import {MockMintableERC20} from "test/mocks/MockMintableERC20.sol";
 import {MockRateAccountant} from "test/mocks/MockRateAccountant.sol";
 
@@ -365,5 +366,121 @@ contract SolidTierLockTest is Test {
         assertEq(lockContract.withdraw(), amount, "exactly what went in comes out");
         assertEq(shares.balanceOf(alice), balanceBefore, "the account is whole again");
         assertEq(lockContract.totalLockedShares(), 0, "and nothing is left behind");
+    }
+
+    //============================== ACCOUNTING BOUNDS ===============================
+
+    /**
+     * A Lock record stores its size in a uint128 while both running totals are
+     * uint256. An explicit downcast does not revert on overflow, so without the
+     * bound a deposit above 2^128 would be pulled and counted in full by the
+     * totals while the position recorded only the truncated remainder: the
+     * account could never withdraw the difference, and `rescue` — which only
+     * protects `totalLockedShares` — would see it as surplus.
+     *
+     * No share supply comes near 2^128, which is the reason to check it rather
+     * than the reason not to: the property holds for every token this is ever
+     * pointed at, not just the one it was written for.
+     */
+    function testLockRefusesAnAmountThatWouldNotFitTheRecord() external {
+        uint256 tooLarge = uint256(type(uint128).max) + 1;
+        shares.mint(alice, tooLarge);
+
+        vm.expectRevert(abi.encodeWithSelector(SolidTierLock.SolidTierLock__AmountTooLarge.selector, tooLarge));
+        vm.prank(alice);
+        lockContract.lock(tooLarge);
+
+        // And the boundary itself is fine.
+        vm.prank(alice);
+        lockContract.lock(type(uint128).max);
+        assertEq(lockContract.lockedSharesOf(alice), type(uint128).max, "the largest recordable lock is allowed");
+        assertEq(lockContract.totalLockedShares(), type(uint128).max, "and the totals agree with the record");
+    }
+
+    /**
+     * `safeTransferFrom` checks the return value, which is not the same thing
+     * as checking the amount. A token that takes a cut on transfer reports
+     * success having delivered less, and the contract would then hold less than
+     * `totalLockedShares` claims — making somebody's withdrawal, eventually,
+     * revert on shares that were never there.
+     */
+    function testLockRefusesATokenThatUnderDelivers() external {
+        MockFeeOnTransferERC20 lossy = new MockFeeOnTransferERC20("Lossy soFUSE", "soLOSS", 18, 100); // 1%
+        SolidTierLock lossyLock =
+            new SolidTierLock(address(this), address(lossy), address(accountant), YEAR, 1e18);
+
+        lossy.mint(alice, 100_000e18);
+        vm.prank(alice);
+        lossy.approve(address(lossyLock), type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidTierLock.SolidTierLock__TransferAmountMismatch.selector, 10_000e18, 10_000e18 - 100e18
+            )
+        );
+        vm.prank(alice);
+        lossyLock.lock(10_000e18);
+
+        assertEq(lossyLock.totalLockedShares(), 0, "and no accounting was written");
+    }
+
+    //============================== CONSTRUCTOR ===============================
+
+    function testConstructorRejectsAddressesWithNothingBehindThem() external {
+        vm.expectRevert(SolidTierLock.SolidTierLock__InvalidAddress.selector);
+        new SolidTierLock(address(this), address(shares), bob, YEAR, ONE);
+
+        vm.expectRevert(SolidTierLock.SolidTierLock__InvalidAddress.selector);
+        new SolidTierLock(address(this), alice, address(accountant), YEAR, ONE);
+
+        vm.expectRevert(SolidTierLock.SolidTierLock__InvalidAddress.selector);
+        new SolidTierLock(address(0), address(shares), address(accountant), YEAR, ONE);
+    }
+
+    //============================== CONSERVATION ===============================
+
+    /**
+     * The invariant the rescue guard and every withdrawal depend on: the two
+     * totals agree with each other and with the shares actually held. Asserted
+     * across an arbitrary sequence of locks and withdrawals rather than at one
+     * chosen moment.
+     */
+    function testFuzzTotalsAlwaysMatchTheBalance(uint96[8] calldata amounts, uint32[8] calldata waits) external {
+        uint256 aliceLocked;
+        uint256 bobLocked;
+
+        for (uint256 i = 0; i < amounts.length; i++) {
+            address who = i % 2 == 0 ? alice : bob;
+            uint256 amount = bound(amounts[i], ONE, 100_000e18);
+
+            _lock(who, amount);
+            if (who == alice) aliceLocked += amount;
+            else bobLocked += amount;
+
+            skip(bound(waits[i], 0, uint256(YEAR) / 2));
+
+            assertEq(lockContract.lockedSharesOf(alice), aliceLocked, "alice's total tracks her locks");
+            assertEq(lockContract.lockedSharesOf(bob), bobLocked, "bob's total tracks his");
+            assertEq(
+                lockContract.totalLockedShares(),
+                aliceLocked + bobLocked,
+                "and the global total is exactly their sum"
+            );
+            assertGe(
+                shares.balanceOf(address(lockContract)),
+                lockContract.totalLockedShares(),
+                "the escrow never owes more than it holds"
+            );
+        }
+
+        // Mature everything and drain it: the totals must land back at zero.
+        skip(YEAR);
+        lockContract.withdrawFor(alice);
+        lockContract.withdrawFor(bob);
+
+        assertEq(lockContract.totalLockedShares(), 0, "every lock closed");
+        assertEq(lockContract.lockedSharesOf(alice), 0, "alice is settled");
+        assertEq(lockContract.lockedSharesOf(bob), 0, "bob is settled");
+        assertEq(shares.balanceOf(address(lockContract)), 0, "and the escrow is empty");
     }
 }
