@@ -321,21 +321,29 @@ cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
   $MODULE 0x1e1d709a --rpc-url fuse     # 0x00…00 = nothing holds charge() yet
 ```
 
-### The four transactions
+### The three transactions
 
-Four transactions from three distinct calls — `setAuthority` is sent twice,
-once to each contract. All are sent **by whoever owns the contracts** (see §0),
-in this order. `charge` is `0x1e1d709a`.
+All sent **by whoever owns the contracts** (see §0), in this order. `charge` is
+`0x1e1d709a`.
 
 | # | to | call |
 | --- | --- | --- |
-| 1 | `$LOCK` | `setAuthority($AUTH)` |
-| 2 | `$MODULE` | `setAuthority($AUTH)` |
-| 3 | `$AUTH` | `setRoleCapability(4, $MODULE, 0x1e1d709a, true)` |
-| 4 | `$AUTH` | `setUserRole($BILLER_ACCOUNT, 4, true)` |
+| 1 | `$MODULE` | `setAuthority($AUTH)` |
+| 2 | `$AUTH` | `setRoleCapability(4, $MODULE, 0x1e1d709a, true)` |
+| 3 | `$AUTH` | `setUserRole($BILLER_ACCOUNT, 4, true)` |
 
-1 and 2 must land before 4 means anything — a role granted on an authority no
-contract consults does nothing.
+1 must land before 3 means anything — a role granted on an authority the module
+does not consult does nothing.
+
+**`SolidTierLock` needs no authority and no role.** Everything the backend calls
+on it is permissionless: `lockedSharesOf`, `lockedAssetsOf`, `maturedSharesOf`,
+`nextUnlockOf`, `getLocks` and `lockDuration` are views, and `withdrawFor` —
+the unlock cron's only write — is deliberately callable by anyone because the
+shares can only ever go to the account that locked them. Its `requiresAuth`
+functions (`setLockDuration`, `setMinLockShares`, `pause`, `rescue`) are owner
+operations, not backend ones, so leaving `authority()` at `0x0` keeps them
+owner-only, which is the tighter setting. Attach an authority to the lock only
+if you later want to delegate those to someone who is not the owner.
 
 **Note on `$AUTH`:** the authority is a separate contract with its own owner.
 `setAuthority` (1 and 2) is sent by the owner of *your* contracts;
@@ -350,16 +358,26 @@ forge create src/fuse/FuseRolesAuthority.sol:FuseRolesAuthority \
   --constructor-args $OWNER 0x0000000000000000000000000000000000000000
 ```
 
-Calldata for the four:
+Calldata for the three:
 
 ```bash
-BILLER_ACCOUNT=0x…   # the backend smart account — see "Which address gets the role"
-ROLE=4
+set -u                       # see the warning below — do this first
+MODULE=0x…                   # SolidSubscriptionModule, from §3
+AUTH=0x…                     # the RolesAuthority your owner controls
+BILLER_ACCOUNT=0x…           # the backend smart account — see above
 
-cast calldata "setAuthority(address)" $AUTH
-cast calldata "setRoleCapability(uint8,address,bytes4,bool)" $ROLE $MODULE 0x1e1d709a true
-cast calldata "setUserRole(address,uint8,bool)" $BILLER_ACCOUNT $ROLE true
+cast calldata "setAuthority(address)" "$AUTH"
+cast calldata "setRoleCapability(uint8,address,bytes4,bool)" 4 "$MODULE" 0x1e1d709a true
+cast calldata "setUserRole(address,uint8,bool)" "$BILLER_ACCOUNT" 4 true
 ```
+
+> **`encode length mismatch: expected N types, got N-1` means a shell variable
+> was empty, not that the signature is wrong.** An unset `$ROLE` expands to
+> nothing and `cast` simply sees one argument fewer — `expected 4 types, got 3`
+> on `setRoleCapability`, `expected 3 types, got 2` on `setUserRole`. The role
+> id is written as the literal `4` above for that reason; `set -u` makes the
+> shell fail loudly on the rest, and quoting every `"$VAR"` stops an empty one
+> from vanishing silently.
 
 **From a Safe owner** (production): open the Safe at `$OWNER`, use **Transaction
 Builder**, and paste each target address with its hex into the custom-data field
@@ -369,20 +387,30 @@ execute.
 
 **From an EOA owner** (QA, where `OWNER` is an EOA — no Safe involved at all):
 
+Put the key in the environment rather than on the command line — an argument is
+visible in `ps`, in your shell history, and in anything you paste:
+
 ```bash
-cast send $LOCK   "setAuthority(address)" $AUTH --rpc-url fuse --private-key $PRIVATE_KEY
-cast send $MODULE "setAuthority(address)" $AUTH --rpc-url fuse --private-key $PRIVATE_KEY
-cast send $AUTH "setRoleCapability(uint8,address,bytes4,bool)" $ROLE $MODULE 0x1e1d709a true \
-  --rpc-url fuse --private-key $PRIVATE_KEY
-cast send $AUTH "setUserRole(address,uint8,bool)" $BILLER_ACCOUNT $ROLE true \
-  --rpc-url fuse --private-key $PRIVATE_KEY
+read -rs PRIVATE_KEY && export PRIVATE_KEY      # prompts, echoes nothing
+
+cast send "$MODULE" "setAuthority(address)" "$AUTH" --rpc-url fuse
+cast send "$AUTH" "setRoleCapability(uint8,address,bytes4,bool)" 4 "$MODULE" 0x1e1d709a true \
+  --rpc-url fuse
+cast send "$AUTH" "setUserRole(address,uint8,bool)" "$BILLER_ACCOUNT" 4 true \
+  --rpc-url fuse
 ```
+
+`cast` reads `PRIVATE_KEY` from the environment when `--private-key` is absent,
+so the three commands above are safe to paste into a ticket or a chat. `cast
+wallet import` plus `--account <name>` is better still, and keeps nothing in
+the environment either.
 
 Confirm:
 
 ```bash
-cast call $AUTH "doesUserHaveRole(address,uint8)(bool)" $BILLER_ACCOUNT $ROLE --rpc-url fuse
-cast call $AUTH "canCall(address,address,bytes4)(bool)" $BILLER_ACCOUNT $MODULE 0x1e1d709a --rpc-url fuse
+cast call "$AUTH" "doesUserHaveRole(address,uint8)(bool)" "$BILLER_ACCOUNT" 4 --rpc-url fuse
+cast call "$AUTH" "canCall(address,address,bytes4)(bool)" "$BILLER_ACCOUNT" "$MODULE" 0x1e1d709a \
+  --rpc-url fuse
 # both true
 ```
 
@@ -431,6 +459,40 @@ behaviour:
 `lock.duration_days` is display copy only — the contract's `lockDuration` is
 what actually binds. Keep them equal or the app will promise a term it does not
 set.
+
+### What the contracts do *not* decide
+
+Two thresholds people expect to find in the contracts and will not:
+
+- **`MIN_LOCK_SHARES` is a dust floor, not a tier price.** `SolidTierLock` has
+  no idea what a tier is. The tier comes from the backend reading
+  `lockedAssetsOf` and comparing it against `fuse_staking.tier2.amount` (50,000
+  FUSE → Prime) and `fuse_staking.tier3.amount` (400,000 FUSE → Ultra).
+  Locking the minimum buys a lock, and no tier at all.
+- **`MAX_CHARGE_AMOUNT` is a ceiling, not a price.** The annual fee is
+  `tier_membership.subscription.*_annual_usd`. The contract's ceiling only caps
+  how large any single charge may be, and binds existing mandates when lowered.
+
+So the two config values and the two constructor arguments have to agree with
+each other by hand: a `MAX_CHARGE_AMOUNT` below the configured annual fee makes
+every charge revert on `ExceedsOrgCeiling`, and thresholds changed in config do
+not need the contracts touched at all.
+
+### Funding an annual subscription
+
+The fee is `billingToken`, immutable, which for this deployment is **USDC.e on
+Fuse** (`0xc6Bc4077…e7f9`). It is charged out of the Safe's Fuse balance, so
+that is the one balance that has to exist.
+
+Know what the app does *not* do for that today: its two direct-deposit
+destinations are `PROTOCOL`, which mints soUSD/soETH/soFUSE rather than leaving
+a spendable stablecoin, and `RAIN_CARD`, which delivers USDC on **Base**.
+Neither produces USDC.e on Fuse. The deposit-address screen lists Ethereum,
+Polygon, Base, Arbitrum, BSC and Fuse, but it shows the user's own Safe address
+— it is a receive address, not a bridge, so USDC sent on Base stays on Base.
+
+The working path is to pick **Fuse** on that screen and receive USDC.e directly.
+Anything else needs a bridge the app does not currently run for this purpose.
 
 The UI needs no configuration: it reads all four addresses and the chain id from
 the backend's membership state, so there is one place to get this wrong instead
