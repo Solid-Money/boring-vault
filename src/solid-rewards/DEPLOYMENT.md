@@ -387,23 +387,34 @@ execute.
 
 **From an EOA owner** (QA, where `OWNER` is an EOA — no Safe involved at all):
 
-Put the key in the environment rather than on the command line — an argument is
-visible in `ps`, in your shell history, and in anything you paste:
+Keep the key off the command line — an argument is visible in `ps`, in your
+shell history, and in anything you paste. `cast` has `-i/--interactive` for
+exactly this: it prompts for the key and echoes nothing.
 
 ```bash
-read -rs PRIVATE_KEY && export PRIVATE_KEY      # prompts, echoes nothing
-
-cast send "$MODULE" "setAuthority(address)" "$AUTH" --rpc-url fuse
-cast send "$AUTH" "setRoleCapability(uint8,address,bytes4,bool)" 4 "$MODULE" 0x1e1d709a true \
+cast send -i "$MODULE" "setAuthority(address)" "$AUTH" --rpc-url fuse
+cast send -i "$AUTH" "setRoleCapability(uint8,address,bytes4,bool)" 4 "$MODULE" 0x1e1d709a true \
   --rpc-url fuse
-cast send "$AUTH" "setUserRole(address,uint8,bool)" "$BILLER_ACCOUNT" 4 true \
+cast send -i "$AUTH" "setUserRole(address,uint8,bool)" "$BILLER_ACCOUNT" 4 true \
   --rpc-url fuse
 ```
 
-`cast` reads `PRIVATE_KEY` from the environment when `--private-key` is absent,
-so the three commands above are safe to paste into a ticket or a chat. `cast
-wallet import` plus `--account <name>` is better still, and keeps nothing in
-the environment either.
+Better for more than one transaction: import the key once into a keystore and
+name it, so nothing is prompted, pasted or held in the environment at all.
+
+```bash
+cast wallet import solid-qa --interactive     # once; asks for the key and a password
+cast send --account solid-qa "$MODULE" "setAuthority(address)" "$AUTH" --rpc-url fuse
+```
+
+`--private-key "$PRIVATE_KEY"` works too and is what most examples show. Note
+that `cast` has **no environment fallback for the raw key** — unlike `--account`
+(`ETH_KEYSTORE_ACCOUNT`) and `--rpc-url` (`ETH_RPC_URL`), omitting
+`--private-key` does not make it read `$PRIVATE_KEY`. And do not reach for a
+bare `read -rs PRIVATE_KEY`: with `-s` and no prompt string it echoes nothing
+and prints nothing, so a terminal waiting for input is indistinguishable from
+one that has hung. If you want that shape, give it a prompt:
+`read -rsp 'key: ' PRIVATE_KEY; echo`.
 
 Confirm:
 
