@@ -504,6 +504,17 @@ cast call $ZAP "teller()(address)"     --rpc-url fuse   # == $SOFUSE_TELLER
 cast call $ZAP "shareToken()(address)" --rpc-url fuse   # == SOFUSE_VAULT
 cast call $ZAP "vault()(address)"      --rpc-url fuse   # == SOFUSE_VAULT, same address
 ```
+Verify the zap source on Blockscout with the same owner, lock, and Teller used
+by `DeploySolidTierLockZap.s.sol`:
+
+```bash
+forge verify-contract $ZAP SolidTierLockZap \
+  --chain-id 122 --verifier blockscout \
+  --verifier-url https://explorer.fuse.io/api \
+  --constructor-args $(cast abi-encode \
+      "constructor(address,address,address)" \
+      $OWNER $TIER_LOCK $SOFUSE_TELLER)
+```
 
 ### One more thing to check on the Teller
 
