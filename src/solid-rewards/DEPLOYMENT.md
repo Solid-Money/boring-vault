@@ -252,6 +252,13 @@ Source verification is optional on Fuse (`foundry.toml` ships every
 multisig's signers can read what they are approving:
 
 ```bash
+forge verify-contract $LOCK SolidTierLock \
+  --chain-id 122 --verifier blockscout \
+  --verifier-url https://explorer.fuse.io/api \
+  --constructor-args $(cast abi-encode \
+      "constructor(address,address,address,uint64,uint256)" \
+      $OWNER $SOFUSE_VAULT $SOFUSE_ACCOUNTANT $LOCK_DURATION_SECONDS $MIN_LOCK_SHARES)
+
 forge verify-contract $MODULE SolidSubscriptionModule \
   --chain-id 122 --verifier blockscout \
   --verifier-url https://explorer.fuse.io/api \
