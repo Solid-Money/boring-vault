@@ -11,8 +11,8 @@ import {SolidTierLockZap} from "src/solid-rewards/SolidTierLockZap.sol";
  * Separate from `DeploySolidRewards` because it needs an address that script
  * produces: the lock. Run it afterwards, against a lock that already exists.
  *
- * The zap is inert until the lock's authority grants it `lockFor` — see §4a of
- * DEPLOYMENT.md. That is deliberate and the same shape as the biller role: a
+ * The zap is inert until the lock's authority grants it `lockFor` — see step 11
+ * of DEPLOYMENT.md. That is deliberate and the same shape as the biller role: a
  * contract that can credit a lock is not something a deployment should be able
  * to conjure by setting an env var.
  *
