@@ -175,6 +175,47 @@ contract SolidTierLockZapTest is Test {
         zap.zapAndLock{value: amount}(NATIVE, amount, atQuote);
     }
 
+    /**
+     * The rounding direction, pinned.
+     *
+     * A review suggested quoting `minShares` rounded *up*, to be sure the
+     * locked position clears the tier threshold. It does the opposite: the
+     * Teller floors, so a ceiling is one wei above anything a deposit that does
+     * not divide exactly can mint, and every such upgrade reverts. There is no
+     * on-chain threshold check to protect in the first place — the lock records
+     * shares and the backend compares the position's FUSE value to the tier
+     * amount as a double, where a wei is twelve orders of magnitude below the
+     * smallest difference it can even represent.
+     *
+     * This is the case that would break: a rate that does not divide evenly.
+     */
+    function testFlooredMintIsWhatTheTellerCanActuallyProduce() external {
+        uint256 odd = 1.2e18 + 1; // a rate with no exact quotient
+        teller.setRate(odd);
+        accountant.setRate(odd);
+
+        uint256 amount = 90_000e18;
+        uint256 floored = (amount * 1e18) / odd;
+        uint256 ceiled = floored + 1;
+
+        // The ceiling is a share the Teller will not mint, and asking for it is
+        // an upgrade that can never go through.
+        vm.expectRevert();
+        vm.prank(alice);
+        zap.zapAndLock{value: amount}(NATIVE, amount, ceiled);
+
+        // The floor is exactly what it mints, and it goes through.
+        vm.prank(alice);
+        uint256 shares = zap.zapAndLock{value: amount}(NATIVE, amount, floored);
+        assertEq(shares, floored, "the floor is what the Teller produced");
+
+        // And the position is worth the tier's FUSE to every digit anyone
+        // measures it in: at most a wei or two under, against 90,000.
+        uint256 value = lockContract.lockedAssetsOf(alice);
+        assertLe(value, amount, "never more than was deposited");
+        assertGe(value + 2, amount, "and never more than two wei under it");
+    }
+
     function testZeroIsNotAnAmount() external {
         vm.expectRevert(SolidTierLockZap.SolidTierLockZap__ZeroAmount.selector);
         vm.prank(alice);

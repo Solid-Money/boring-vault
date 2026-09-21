@@ -206,7 +206,7 @@ Common to both:
 | USDC.e (6 dp) | `0xc6Bc407706B7140EE8Eef2f86F9504651b63e7f9` |
 | Revenue wallet (prod) | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 | Owner Safe (prod) | `0xbA308F2919Aa20FbD58fc7406451077FE32F1f29` |
-| `FuseRolesAuthority` (owned by that Safe) | `0x058Ca721E21492AD72979f9Fb52410F6da588800` |
+| `FuseRolesAuthority` (owned by that Safe) | `0x058CA721e21492ad72979f9Fb52410f6DA588800` |
 
 Re-derive them from helm (`SOFUSE_VAULT_ADDRESS_FUSE`,
 `SOFUSE_ACCOUNTANT_ADDRESS_FUSE`, `REVENUE_WALLET_ADDRESS`) rather than trusting
@@ -315,7 +315,7 @@ nothing more.
 
 ### Role id
 
-Reuse the live `FuseRolesAuthority` at `0x058Ca721E21492AD72979f9Fb52410F6da588800`
+Reuse the live `FuseRolesAuthority` at `0x058CA721e21492ad72979f9Fb52410f6DA588800`
 — same owner, already operated. Roles **1, 2 and 3 are taken** on it (cash
 module and card manager). **Use role 4** for `BILLER_ROLE`. Roles are plain
 `uint8`s held by the authority, not constants in these contracts, so nothing in
@@ -323,7 +323,7 @@ the code needs to agree with the number — but confirm it is still free before
 you use it:
 
 ```bash
-AUTH=0x058Ca721E21492AD72979f9Fb52410F6da588800
+AUTH=0x058CA721e21492ad72979f9Fb52410f6DA588800
 cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
   $MODULE 0x1e1d709a --rpc-url fuse     # 0x00…00 = nothing holds charge() yet
 ```
@@ -358,7 +358,7 @@ those owner functions owner-only and is the tighter setting.
 `setAuthority` (1 and 2) is sent by the owner of *your* contracts;
 `setRoleCapability` and `setUserRole` (3 and 4) are sent by the owner of the
 **authority**. If you deployed with an owner that does not own
-`0x058Ca721…588800` — which is the prod Safe — you cannot use that authority
+`0x058CA721…588800` — which is the prod Safe — you cannot use that authority
 without the Safe signing for you. Deploy your own instead:
 
 ```bash
@@ -460,6 +460,28 @@ It is **not** a custody hop. The user's own Safe calls it, it holds nothing
 between calls, and it credits the lock to `msg.sender` — so the position is the
 user's, returnable only to the user, exactly as a direct `lock` would be.
 
+### First: the lock has to be one that has `lockFor`
+
+`lockFor` was added to `SolidTierLock` alongside the zap. **A lock deployed
+before that does not have the function at all**, and no amount of role granting
+conjures it: `setRoleCapability` writes a mapping entry against a selector that
+is not in the contract's dispatcher, `canCall` starts answering true, and the
+first zap still reverts.
+
+So check the deployed bytecode before anything else, because this is the one
+failure that looks like a permissions problem and is not:
+
+```bash
+LOCK=0x…
+cast code $LOCK --rpc-url fuse | grep -c 3d96e276     # 1 = lockFor is there, 0 = redeploy
+```
+
+A 0 means redeploy `SolidTierLock` from a build that includes `lockFor`, point
+`TIER_LOCK_ADDRESS` at the new one, and start §4 again for it. Positions in the
+old lock are not lost — `withdrawFor` is permissionless and still returns them
+to whoever locked — but they are in the old contract, so migrate before anyone
+locks into the one you are replacing.
+
 ### Deploy
 
 ```bash
@@ -502,8 +524,24 @@ Three transactions, sent by **whoever owns the lock and the authority** (see
 §0). `lockFor` is `0x3d96e276`. Roles 1–4 are taken (cash module, card manager,
 biller), so **use role 5**; confirm it is free first:
 
+**Which authority.** Not necessarily the one §4 names. `setRoleCapability` and
+`setUserRole` are sent by the authority's *owner*, so the only authority you can
+use is one you own — read it rather than assume it:
+
 ```bash
-AUTH=0x058Ca721E21492AD72979f9Fb52410F6da588800
+cast call $LOCK "authority()(address)" --rpc-url fuse   # what the lock consults
+cast call $AUTH "owner()(address)"     --rpc-url fuse   # must be your $OWNER
+```
+
+On QA that is the separately deployed
+`0x35d231ad40bFab54b8aCAec3E4Ef4A6A0682246b`, owned by the QA owner EOA — not
+the production `0x058CA721e21492ad72979f9Fb52410f6DA588800`, which is owned by
+the prod Safe and will revert every write you send it. Granting the role on the
+wrong authority is silent: the grant lands, and the lock — which consults the
+other one — never sees it.
+
+```bash
+AUTH=0x35d231ad40bFab54b8aCAec3E4Ef4A6A0682246b   # QA; use your own on prod
 cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
   $LOCK 0x3d96e276 --rpc-url fuse     # 0x00…00 = nothing holds lockFor() yet
 ```
@@ -529,6 +567,18 @@ cast call "$AUTH" "canCall(address,address,bytes4)(bool)" "$ZAP" "$LOCK" 0x3d96e
   --rpc-url fuse
 # both true
 ```
+
+If either is false, they say different things:
+
+| | means |
+| --- | --- |
+| `doesUserHaveRole` false | transaction 3 did not land — wrong authority, or it reverted because you are not its owner |
+| `doesUserHaveRole` true, `canCall` false | transaction 2 did not land, or it named a different target or selector |
+| both true, zap still reverts | the lock does not have `lockFor` — go back to the bytecode check above |
+
+A `cast call` against an *unset* shell variable fails loudly, so if these are
+returning a clean `false`, the reads themselves worked and the grants are the
+thing that is missing.
 
 ### Turning it off
 
