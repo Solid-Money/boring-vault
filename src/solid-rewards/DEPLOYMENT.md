@@ -335,15 +335,17 @@ All sent **by whoever owns the contracts** (see §0), in this order. `charge` is
 1 must land before 3 means anything — a role granted on an authority the module
 does not consult does nothing.
 
-**`SolidTierLock` needs no authority and no role.** Everything the backend calls
-on it is permissionless: `lockedSharesOf`, `lockedAssetsOf`, `maturedSharesOf`,
+**The backend needs no role on `SolidTierLock`.** Everything it calls is
+permissionless: `lockedSharesOf`, `lockedAssetsOf`, `maturedSharesOf`,
 `nextUnlockOf`, `getLocks` and `lockDuration` are views, and `withdrawFor` —
 the unlock cron's only write — is deliberately callable by anyone because the
-shares can only ever go to the account that locked them. Its `requiresAuth`
-functions (`setLockDuration`, `setMinLockShares`, `pause`, `rescue`) are owner
-operations, not backend ones, so leaving `authority()` at `0x0` keeps them
-owner-only, which is the tighter setting. Attach an authority to the lock only
-if you later want to delegate those to someone who is not the owner.
+shares can only ever go to the account that locked them. The lock's other
+`requiresAuth` functions (`setLockDuration`, `setMinLockShares`, `pause`,
+`rescue`) are owner operations, not backend ones.
+
+The one thing that *does* need a role on the lock is the zap — see §4a. If you
+are not deploying the zap, leave the lock's `authority()` at `0x0`, which keeps
+those owner functions owner-only and is the tighter setting.
 
 **Note on `$AUTH`:** the authority is a separate contract with its own owner.
 `setAuthority` (1 and 2) is sent by the owner of *your* contracts;
@@ -431,17 +433,122 @@ selector.
 
 ---
 
+## 4a. Deploy the zap, and grant it `lockFor`
+
+Optional, and only for the one-press upgrade: without it a user pays a tier's
+lock by depositing into Savings first and coming back once the shares have
+landed, which works and is two signatures.
+
+### Why it exists
+
+A Safe can already batch "deposit" and "lock" into one user operation. What it
+cannot do is read the shares the deposit minted before calling `lock` — the
+amount has to be written into the calldata when the batch is signed, and it
+depends on the vault's rate at the moment the batch executes. Quote it high and
+the lock reverts on a balance that never arrived; quote it low and the user
+locks under the tier threshold, commits their FUSE for a year and gets nothing
+for it. `SolidTierLockZap` sits between the two calls and reads the real number.
+
+It is **not** a custody hop. The user's own Safe calls it, it holds nothing
+between calls, and it credits the lock to `msg.sender` — so the position is the
+user's, returnable only to the user, exactly as a direct `lock` would be.
+
+### Deploy
+
+```bash
+export TIER_LOCK=$LOCK
+export SOFUSE_TELLER=0x…   # the Teller that mints soFUSE — NOT the vault
+
+forge script script/DeploySolidTierLockZap.s.sol \
+  --rpc-url fuse --private-key $PRIVATE_KEY --broadcast --slow
+```
+
+The constructor refuses a Teller whose `vault()` is not the share the lock
+escrows, so a zap wired to the wrong Teller fails here rather than stranding the
+first user's deposit in the periphery. Check it landed anyway:
+
+```bash
+ZAP=0x…
+
+cast call $ZAP "lock()(address)"       --rpc-url fuse   # == $LOCK
+cast call $ZAP "teller()(address)"     --rpc-url fuse   # == $SOFUSE_TELLER
+cast call $ZAP "shareToken()(address)" --rpc-url fuse   # == SOFUSE_VAULT
+cast call $ZAP "vault()(address)"      --rpc-url fuse   # == SOFUSE_VAULT, same address
+```
+
+### One more thing to check on the Teller
+
+An atomic deposit-and-lock only works while the Teller's share lock period is
+zero — a non-zero one makes the shares untransferable for that long, and the
+zap's `lockFor` in the same transaction would revert.
+
+```bash
+cast call $SOFUSE_TELLER "shareLockPeriod()(uint64)" --rpc-url fuse   # must be 0
+```
+
+It is 0 on both QA and prod today. If it is ever set non-zero, turn the zap off
+(unset the backend's address) rather than leaving users a button that reverts.
+
+### Grant the role
+
+Three transactions, sent by **whoever owns the lock and the authority** (see
+§0). `lockFor` is `0x3d96e276`. Roles 1–4 are taken (cash module, card manager,
+biller), so **use role 5**; confirm it is free first:
+
+```bash
+AUTH=0x058Ca721E21492AD72979f9Fb52410F6da588800
+cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
+  $LOCK 0x3d96e276 --rpc-url fuse     # 0x00…00 = nothing holds lockFor() yet
+```
+
+| # | to | call |
+| --- | --- | --- |
+| 1 | `$LOCK` | `setAuthority($AUTH)` |
+| 2 | `$AUTH` | `setRoleCapability(5, $LOCK, 0x3d96e276, true)` |
+| 3 | `$AUTH` | `setUserRole($ZAP, 5, true)` |
+
+Transaction 1 is the one to think about: until now the lock has had no
+authority, which made `setLockDuration`, `setMinLockShares`, `pause` and
+`rescue` owner-only. Attaching an authority does not change that by itself —
+they stay owner-only until someone grants a role for them — but it is the
+moment they *become* grantable. Grant role 5 the `lockFor` selector and nothing
+else.
+
+Confirm:
+
+```bash
+cast call "$AUTH" "doesUserHaveRole(address,uint8)(bool)" "$ZAP" 5 --rpc-url fuse
+cast call "$AUTH" "canCall(address,address,bytes4)(bool)" "$ZAP" "$LOCK" 0x3d96e276 \
+  --rpc-url fuse
+# both true
+```
+
+### Turning it off
+
+`setUserRole($ZAP, 5, false)` stops new zaps immediately and touches no position
+already taken. Unsetting the backend's `TIER_LOCK_ZAP_ADDRESS` is the softer
+version: the app stops offering the one-press route and falls back to deposit-
+then-lock, with no on-chain transaction at all.
+
+---
+
 ## 5. Backend configuration
 
-`solid-backend`, `accounts-service`. Four env vars, already present and empty in
+`solid-backend`, `accounts-service`. Five env vars, already present and empty in
 `helm/values/{qa,prod}.yaml` and `.env.example`:
 
 ```yaml
 TIER_LOCK_ADDRESS: "0x…"                  # $LOCK
+TIER_LOCK_ZAP_ADDRESS: "0x…"              # $ZAP — empty until §4a is done
 TIER_SUBSCRIPTION_MODULE_ADDRESS: "0x…"   # $MODULE
 TIER_BILLING_TOKEN_ADDRESS: "0xc6Bc407706B7140EE8Eef2f86F9504651b63e7f9"
 TIER_MEMBERSHIP_FUSE_RPC_URL: "https://rpc.fuse.io"
 ```
+
+`TIER_LOCK_ZAP_ADDRESS` is the app's switch for the one-press upgrade. Empty
+means the app asks the user to deposit into Savings first and come back, which
+is the behaviour before §4a existed. Set it only once the role grant is
+confirmed — an address set without the role gives users a button that reverts.
 
 `TIER_BILLING_TOKEN_ADDRESS` **must equal the module's immutable
 `billingToken`**. The module can only ever move that one token, so a mismatch

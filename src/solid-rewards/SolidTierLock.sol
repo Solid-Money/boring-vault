@@ -184,7 +184,41 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
      * they make it, and rolling it into the earlier one would silently push out
      * the date the earlier shares come back.
      */
-    function lock(uint256 shares) external nonReentrant returns (uint256 index) {
+    function lock(uint256 shares) external returns (uint256 index) {
+        return _lock(msg.sender, msg.sender, shares);
+    }
+
+    /**
+     * @notice Commit `shares` pulled from the caller, held for `account`.
+     *
+     * For a periphery contract that has just minted shares on a user's behalf
+     * and cannot hand them over without the user signing a second time — see
+     * `SolidTierLockZap`, which turns "deposit into Savings, then lock" into one
+     * transaction the user's own Safe sends.
+     *
+     * Restricted, and that is the whole of the trust it asks for. The shares
+     * still go nowhere but back to `account`: `lockFor` writes exactly the same
+     * record `lock` does, and withdrawal is still fixed to the account the
+     * record names, so an authorised caller can give shares away and can never
+     * take them. What it could do unrestricted is fill a stranger's lock list —
+     * `MAX_LOCKS_PER_ACCOUNT` of dust, blocking the upgrade they were trying to
+     * make — which is why it is not.
+     */
+    function lockFor(address account, uint256 shares) external requiresAuth returns (uint256 index) {
+        if (account == address(0)) revert SolidTierLock__InvalidAddress();
+        return _lock(account, msg.sender, shares);
+    }
+
+    /**
+     * @dev Writes one lock for `account`, paid for by `payer`.
+     *
+     * The two are the same address for a user locking their own position and
+     * differ only for `lockFor`. Everything else — the term, the minimum, the
+     * bookkeeping — is identical, because a lock taken on someone's behalf that
+     * behaved differently from one they took themselves would be a second set
+     * of rules to audit.
+     */
+    function _lock(address account, address payer, uint256 shares) internal nonReentrant returns (uint256 index) {
         if (isPaused) revert SolidTierLock__Paused();
         if (shares == 0) revert SolidTierLock__ZeroAmount();
         if (shares < minLockShares) revert SolidTierLock__BelowMinimum(shares, minLockShares);
@@ -197,7 +231,7 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
         // than a comment.
         if (shares > type(uint128).max) revert SolidTierLock__AmountTooLarge(shares);
 
-        Lock[] storage locks = accountLocks[msg.sender];
+        Lock[] storage locks = accountLocks[account];
         if (locks.length >= MAX_LOCKS_PER_ACCOUNT) revert SolidTierLock__TooManyLocks();
 
         // Pulled before the accounting is written, so a share token that lies
@@ -212,7 +246,7 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
         // the check costs two SLOADs to make the assumption enforced instead of
         // documented.
         uint256 balanceBefore = lockToken.balanceOf(address(this));
-        lockToken.safeTransferFrom(msg.sender, address(this), shares);
+        lockToken.safeTransferFrom(payer, address(this), shares);
         uint256 received = lockToken.balanceOf(address(this)) - balanceBefore;
         if (received != shares) revert SolidTierLock__TransferAmountMismatch(shares, received);
 
@@ -220,10 +254,10 @@ contract SolidTierLock is Auth, IPausable, ReentrancyGuard {
         index = locks.length;
         locks.push(Lock({shares: uint128(shares), lockedAt: uint64(block.timestamp), unlocksAt: unlocksAt}));
 
-        lockedSharesOf[msg.sender] += shares;
+        lockedSharesOf[account] += shares;
         totalLockedShares += shares;
 
-        emit Locked(msg.sender, index, shares, unlocksAt);
+        emit Locked(account, index, shares, unlocksAt);
     }
 
     /// @notice Return every matured lock of the caller's.
