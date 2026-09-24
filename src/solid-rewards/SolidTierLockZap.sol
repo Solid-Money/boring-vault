@@ -77,6 +77,7 @@ contract SolidTierLockZap is Auth, ReentrancyGuard {
     error SolidTierLockZap__NativeValueMismatch(uint256 expected, uint256 received);
     error SolidTierLockZap__UnexpectedNativeValue();
     error SolidTierLockZap__BelowMinimumShares(uint256 received, uint256 minimum);
+    error SolidTierLockZap__ShareLockActive(uint64 shareLockPeriod);
 
     //============================== EVENTS ===============================
 
@@ -100,6 +101,13 @@ contract SolidTierLockZap is Auth, ReentrancyGuard {
         // escrow, and the failure would land on the first user rather than on
         // the deployment — deposited, un-lockable, and stuck here.
         if (vault != address(shareToken)) revert SolidTierLockZap__TellerMismatch();
+
+        // And the Teller has to let the shares move in the transaction that
+        // mints them, which is the whole premise of a zap. A non-zero share
+        // lock period makes every minting path revert, so a zap deployed
+        // against one is dead on arrival — better to find that out here than
+        // on the first user's upgrade.
+        _requireTransferableMint();
     }
 
     //============================== USER FUNCTIONS ===============================
@@ -135,6 +143,11 @@ contract SolidTierLockZap is Auth, ReentrancyGuard {
             if (msg.value != 0) revert SolidTierLockZap__UnexpectedNativeValue();
             shareToken.safeTransferFrom(msg.sender, address(this), amount);
         } else if (asset == NATIVE) {
+            // Checked on the minting paths and only there. A share lock is
+            // stamped on whoever the Teller mints to, so it is this contract's
+            // onward transfer into the lock that it would block; the branch
+            // above mints nothing and is unaffected.
+            _requireTransferableMint();
             // The Teller ignores `amount` for a native deposit and uses
             // `msg.value`. Checking them against each other is what stops a
             // caller's slippage bound being quoted against a different number
@@ -142,12 +155,19 @@ contract SolidTierLockZap is Auth, ReentrancyGuard {
             if (msg.value != amount) revert SolidTierLockZap__NativeValueMismatch(amount, msg.value);
             teller.deposit{value: amount}(ERC20(NATIVE), amount, minShares);
         } else {
+            _requireTransferableMint();
             if (msg.value != 0) revert SolidTierLockZap__UnexpectedNativeValue();
+            // `asset` is the one address here a caller chooses, and solmate's
+            // SafeTransferLib reads a call to a codeless address as a success
+            // with no return data. Without this the two transfers below would
+            // both "succeed" against nothing, and the failure would surface as
+            // a confusing revert inside the Teller instead of here.
+            if (asset.code.length == 0) revert SolidTierLockZap__InvalidAddress();
             ERC20 depositAsset = ERC20(asset);
             depositAsset.safeTransferFrom(msg.sender, address(this), amount);
             // The vault is the spender, not the Teller: `deposit` has the vault
             // pull the asset from the Teller's caller — this contract.
-            depositAsset.safeApprove(vault, amount);
+            _approveExactly(depositAsset, vault, amount);
             teller.deposit(depositAsset, amount, minShares);
         }
 
@@ -157,10 +177,43 @@ contract SolidTierLockZap is Auth, ReentrancyGuard {
         shares = shareToken.balanceOf(address(this)) - balanceBefore;
         if (shares < minShares) revert SolidTierLockZap__BelowMinimumShares(shares, minShares);
 
-        shareToken.safeApprove(address(lock), shares);
+        _approveExactly(shareToken, address(lock), shares);
         lock.lockFor(msg.sender, shares);
 
         emit Zapped(msg.sender, asset, amount, shares);
+    }
+
+    //============================== INTERNAL ===============================
+
+    /**
+     * @dev Revert unless the Teller lets freshly minted shares move immediately.
+     *
+     * The Teller stamps an unlock time on whoever it mints to and blocks every
+     * transfer out of that address until it passes. This contract mints to
+     * itself and then hands the shares to the lock in the same call, so any
+     * non-zero period makes that second step revert — with the lock's
+     * `TRANSFER_FROM_FAILED`, which says nothing about why.
+     *
+     * Read on every minting call rather than trusted from the constructor,
+     * because the Teller's owner can set the period at any time.
+     */
+    function _requireTransferableMint() internal view {
+        uint64 period = teller.shareLockPeriod();
+        if (period != 0) revert SolidTierLockZap__ShareLockActive(period);
+    }
+
+    /**
+     * @dev Set `spender`'s allowance to exactly `amount`, from any prior value.
+     *
+     * Both spenders here consume the whole allowance in the same call, so it is
+     * always back to zero by the next one and this reads as a no-op. It is here
+     * for the case where that stops being true: a deposit asset whose vault
+     * takes less than it was offered would leave a remainder, and a token of
+     * the approve-from-zero-only school would then reject every later zap.
+     */
+    function _approveExactly(ERC20 token, address spender, uint256 amount) internal {
+        if (token.allowance(address(this), spender) != 0) token.safeApprove(spender, 0);
+        token.safeApprove(spender, amount);
     }
 
     //============================== ADMIN FUNCTIONS ===============================

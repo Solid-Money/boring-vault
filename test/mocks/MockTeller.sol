@@ -26,6 +26,16 @@ contract MockTeller {
     /// @notice Assets per share, 18-decimal. Above par, like a share that has earned.
     uint256 public rate;
 
+    /**
+     * @notice How long a mint is untransferable for. Zero on the vaults the zap
+     *         is wired to, and the zap refuses to operate against anything else.
+     *
+     * Not enforced here — the mock share has no transfer hook — because what
+     * the zap is tested on is whether it reads this and refuses, not whether it
+     * can be made to fail downstream.
+     */
+    uint64 public shareLockPeriod;
+
     error MockTeller__MinimumMintNotMet(uint256 shares, uint256 minimum);
 
     constructor(address _share, address _wrapped, uint256 _rate) {
@@ -36,6 +46,10 @@ contract MockTeller {
 
     function setRate(uint256 _rate) external {
         rate = _rate;
+    }
+
+    function setShareLockPeriod(uint64 _period) external {
+        shareLockPeriod = _period;
     }
 
     function vault() external view returns (address) {

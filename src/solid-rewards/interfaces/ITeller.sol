@@ -34,6 +34,18 @@ interface ITeller {
     function vault() external view returns (address);
 
     /**
+     * @notice How long freshly minted shares are untransferable for.
+     *
+     * Zero, or nothing built on minting and moving shares in one transaction
+     * can work: the Teller stamps an unlock time on whoever it mints to, and
+     * every transfer out of that address reverts until it passes. A zap that
+     * deposits and then locks is exactly that shape, so it reads this rather
+     * than discovering it as a bare `TRANSFER_FROM_FAILED` on a user's
+     * transaction.
+     */
+    function shareLockPeriod() external view returns (uint64);
+
+    /**
      * @notice The wrapped native token the Teller wraps a native deposit into.
      */
     function nativeWrapper() external view returns (address);
