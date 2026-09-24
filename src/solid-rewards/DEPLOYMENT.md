@@ -349,9 +349,31 @@ command simulates, prints an address, and sends nothing — so the address it
 gives you has no code at it.
 
 Roles are plain `uint8`s held by the authority, not constants in these
-contracts, so nothing in the code has to agree with the number. On the live
-`FuseRolesAuthority` roles **1, 2 and 3 are taken** (cash module, card manager),
-so **use role 4** for the biller. Confirm it is free:
+contracts, so nothing in the code has to agree with the number. On the prod
+`FuseRolesAuthority` roles **1 to 5 are taken** (cash module, card manager, and
+since 2026-09-24 credit liquidation on the v2 cash module as 4 and 5), so
+**use role 6** for the biller on prod. On QA's own authority it is role 4.
+
+**Confirm the role is free by reading its history, not this contract's.** A
+role number is shared by everything the authority governs, and granting one
+that is already in use hands its holders your selector and hands your grantee
+theirs. Asking whether anything can call `charge()` on this module — the
+check this step used to give — only ever says no for a contract that was just
+deployed, whether the role is free or not. That is how prod's first queue came
+to grant the liquidator role the biller's selector. List every grant the
+authority has ever made instead, and pick a number that appears in neither
+event:
+
+```bash
+# The prod authority was deployed at block 43724006; use QA's own for QA.
+cast logs --address $AUTH --from-block 43724000 --rpc-url fuse \
+  "UserRoleUpdated(address indexed,uint8 indexed,bool)"
+cast logs --address $AUTH --from-block 43724000 --rpc-url fuse \
+  "RoleCapabilityUpdated(uint8 indexed,address indexed,bytes4 indexed,bool)"
+# topics[2] of the first, topics[1] of the second, is the role number.
+```
+
+Then check nothing holds `charge()` on this module yet:
 
 ```bash
 cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
@@ -372,7 +394,7 @@ export MODULE=0x…                         # from step 6
 export AUTH=0x058CA721e21492ad72979f9Fb52410f6DA588800
 export BILLER=0x…                         # the smart account from 9a
 export CHARGE_SELECTOR=0x1e1d709a
-export BILLER_ROLE=4
+export BILLER_ROLE=6                      # prod; 4 on QA's authority
 ```
 
 **If the owner is an EOA** (QA). Import the key into a keystore once, so it is
@@ -393,7 +415,7 @@ cast send --account $DEPLOYER "$MODULE" \
 ```
 
 ```bash
-# 2 of 3 — let role 4 call charge() on this module. Sent by the AUTHORITY's owner.
+# 2 of 3 — let the biller role call charge() on this module. Sent by the AUTHORITY's owner.
 cast send --account $DEPLOYER "$AUTH" \
   "setRoleCapability(uint8,address,bytes4,bool)" \
   "$BILLER_ROLE" "$MODULE" "$CHARGE_SELECTOR" true \
@@ -401,7 +423,7 @@ cast send --account $DEPLOYER "$AUTH" \
 ```
 
 ```bash
-# 3 of 3 — give role 4 to the backend's smart account.
+# 3 of 3 — give the biller role to the backend's smart account.
 cast send --account $DEPLOYER "$AUTH" \
   "setUserRole(address,uint8,bool)" \
   "$BILLER" "$BILLER_ROLE" true \
@@ -571,8 +593,10 @@ the prod Safe and reverts every write you send it. Granting on the wrong
 authority is silent: the grant lands, and the lock — which consults the other
 one — never sees it.
 
-Roles 1–4 are taken (cash module, card manager, biller), so **use role 5**.
-Confirm it is free:
+On prod, roles 1–6 are taken (cash module, card manager, liquidation,
+biller), so **use role 7**. On QA's authority it is role 5. Confirm it is free
+from the authority's history, the same way as in 9b, and then that nothing holds
+`lockFor()` on this lock yet:
 
 ```bash
 cast call $AUTH "getRolesWithCapability(address,bytes4)(bytes32)" \
@@ -590,7 +614,7 @@ export LOCK=0x…                                          # from step 6
 export ZAP=0x…                                           # from step 10
 export AUTH=0x35d231ad40bFab54b8aCAec3E4Ef4A6A0682246b   # QA; yours on prod
 export LOCK_FOR_SELECTOR=0x3d96e276
-export ZAP_ROLE=5
+export ZAP_ROLE=7                                        # prod; 5 on QA's authority
 export DEPLOYER=solid-qa                                 # the keystore name from 9c
 ```
 
@@ -602,7 +626,7 @@ cast send --account $DEPLOYER "$LOCK" \
 ```
 
 ```bash
-# 2 of 3 — let role 5 call lockFor() on this lock. Sent by the AUTHORITY's owner.
+# 2 of 3 — let the zap role call lockFor() on this lock. Sent by the AUTHORITY's owner.
 cast send --account $DEPLOYER "$AUTH" \
   "setRoleCapability(uint8,address,bytes4,bool)" \
   "$ZAP_ROLE" "$LOCK" "$LOCK_FOR_SELECTOR" true \
@@ -610,7 +634,7 @@ cast send --account $DEPLOYER "$AUTH" \
 ```
 
 ```bash
-# 3 of 3 — give role 5 to the zap, and to nothing else.
+# 3 of 3 — give the zap role to the zap, and to nothing else.
 cast send --account $DEPLOYER "$AUTH" \
   "setUserRole(address,uint8,bool)" \
   "$ZAP" "$ZAP_ROLE" true \
@@ -630,7 +654,7 @@ Transaction 1 is the one to think about. Until now the lock has had no
 authority, which made `setLockDuration`, `setMinLockShares`, `pause` and
 `rescue` owner-only. Attaching an authority does not change that by itself —
 they stay owner-only until someone grants a role for them — but it is the moment
-they *become* grantable. Grant role 5 the `lockFor` selector and nothing else.
+they *become* grantable. Grant the zap role the `lockFor` selector and nothing else.
 
 ### 11c. Confirm
 
@@ -645,7 +669,7 @@ Either false? Reference D.
 
 ### Turning it off later
 
-`setUserRole($ZAP, 5, false)` stops new zaps immediately and touches no position
+`setUserRole($ZAP, $ZAP_ROLE, false)` (7 on prod) stops new zaps immediately and touches no position
 already taken. Clearing the backend's `TIER_LOCK_ZAP_ADDRESS` is the softer
 version: the app stops offering the one-press route and falls back to
 deposit-then-lock, with no on-chain transaction at all.
@@ -853,7 +877,7 @@ Reach for the leftmost one that works.
 | --- | --- | --- |
 | Something looks wrong, cause unknown | Turn the app-config switch off | Route disappears from the app. Existing locks and subscriptions carry on. Nothing on-chain changes |
 | The one-press upgrade is misbehaving | Clear `TIER_LOCK_ZAP_ADDRESS`, redeploy | App falls back to deposit-then-lock. Nothing on-chain changes |
-| The zap must stop, now | `setUserRole($ZAP, 5, false)` | Every `zapAndLock` reverts. Positions already taken are untouched |
+| The zap must stop, now | `setUserRole($ZAP, 7, false)` (5 on QA) | Every `zapAndLock` reverts. Positions already taken are untouched |
 | Billing is misbehaving | Clear `TIER_SUBSCRIPTION_MODULE_ADDRESS`, redeploy | The backend stops charging entirely. Memberships survive |
 | One Safe is being charged wrongly | `setSafePaused(safe, true)` | That Safe only. Reversible |
 | Charges must stop chain-wide, now | `pause()` on the module | Every charge reverts. Subscriptions survive, `cancel` still works |
@@ -1029,8 +1053,19 @@ these rather than retyping.
 | its accountant | `0xb29B5F760d38587f7F4C896C458B9EEB5CAd9C0C` |
 | Revenue wallet | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 
-Roles 1, 2 and 3 are taken on the prod authority (cash module, card manager).
-Role 4 is the biller, role 5 the zap.
+Roles on the prod authority: 1 cash module, 2 card manager, 3 cash module
+operations, 4 and 5 credit liquidation on the v2 cash module (the liquidator
+and its keeper). **Role 6 is the biller, role 7 the zap.** Re-read the grant
+history (step 9b) before using any number: this list is only as fresh as the
+last person who edited it.
+
+| | |
+| --- | --- |
+| `SolidTierLock` | `0x7c8e58c63a11Ea74d3986d5cAc1e820eF87C6584` |
+| `SolidSubscriptionModule` | `0xE25264050DD090feccD852A0f1839cb9197B0cD9` |
+| `SolidTierLockZap` | `0xf8c2E0C35ABEC1286cFFE9BbDa0F1AA237D0D72e` |
+| the Teller the zap deposits through | `0x4Aa13c96d45FDF14731acEF8F6a2DBf17D6BD53c` |
+| the biller (backend smart account) | `0x54C11A6185907bC464fa6aCA0901Aea9DbDD08Fe` |
 
 ### QA
 
