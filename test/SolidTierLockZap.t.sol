@@ -336,4 +336,79 @@ contract SolidTierLockZapTest is Test {
         assertEq(locks.length, 2, "two commitments");
         assertEq(locks[0].unlocksAt + 30 days, locks[1].unlocksAt, "each dated from when it was made");
     }
+
+    //============================== TELLER SHARE LOCK ===============================
+
+    /**
+     * A zap mints to itself and hands the shares straight to the lock, so a
+     * Teller that makes a mint untransferable for any length of time makes
+     * every minting path revert. Caught at deployment rather than on the first
+     * user's upgrade.
+     */
+    function testDeployRefusesATellerThatLocksItsMints() external {
+        teller.setShareLockPeriod(1);
+
+        vm.expectRevert(abi.encodeWithSelector(SolidTierLockZap.SolidTierLockZap__ShareLockActive.selector, uint64(1)));
+        new SolidTierLockZap(address(this), address(lockContract), address(teller));
+    }
+
+    /**
+     * And re-read on every call, because the Teller's owner can set it after
+     * the zap is deployed. Without this the failure surfaces from inside the
+     * lock as `TRANSFER_FROM_FAILED`, which says nothing about the cause.
+     */
+    function testNativeZapRefusesOnceTheTellerLocksItsMints() external {
+        teller.setShareLockPeriod(3600);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidTierLockZap.SolidTierLockZap__ShareLockActive.selector, uint64(3600))
+        );
+        zap.zapAndLock{value: 50_000e18}(NATIVE, 50_000e18, 0);
+    }
+
+    function testErc20ZapRefusesOnceTheTellerLocksItsMints() external {
+        MockMintableERC20 asset = new MockMintableERC20("Wrapped Fuse", "WFUSE", 18);
+        asset.mint(alice, 50_000e18);
+        teller.setShareLockPeriod(3600);
+
+        vm.startPrank(alice);
+        asset.approve(address(zap), 50_000e18);
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidTierLockZap.SolidTierLockZap__ShareLockActive.selector, uint64(3600))
+        );
+        zap.zapAndLock(address(asset), 50_000e18, 0);
+        vm.stopPrank();
+    }
+
+    /**
+     * The share-token path mints nothing, so no unlock time is stamped on this
+     * contract and the onward transfer is unaffected. Blocking it would take
+     * away the one route that still works.
+     */
+    function testTheSharePathStillWorksWhileTheTellerLocksItsMints() external {
+        teller.setShareLockPeriod(3600);
+
+        vm.startPrank(alice);
+        share.approve(address(zap), 40_000e18);
+        uint256 shares = zap.zapAndLock(address(share), 40_000e18, 0);
+        vm.stopPrank();
+
+        assertEq(shares, 40_000e18, "locked as-is");
+        assertEq(lockContract.lockedSharesOf(alice), 40_000e18, "credited to the caller");
+    }
+
+    //============================== CODELESS ASSET ===============================
+
+    /**
+     * `asset` is the one address a caller picks, and solmate's SafeTransferLib
+     * reads a call to a codeless address as a success with no return data — so
+     * without this guard both transfers would "succeed" against nothing and the
+     * failure would surface from inside the Teller.
+     */
+    function testAnAssetWithNoCodeIsRefused() external {
+        vm.prank(alice);
+        vm.expectRevert(SolidTierLockZap.SolidTierLockZap__InvalidAddress.selector);
+        zap.zapAndLock(address(0xDEAD), 1e18, 0);
+    }
 }

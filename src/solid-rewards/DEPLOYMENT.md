@@ -520,9 +520,17 @@ cast call $ZAP "vault()(address)"      --rpc-url fuse   # == $SOFUSE_VAULT, same
 cast call $SOFUSE_TELLER "shareLockPeriod()(uint64)" --rpc-url fuse   # must be 0
 ```
 
+The zap enforces this itself now: its constructor refuses a Teller that has a
+share lock, and `zapAndLock` re-reads it on every minting call and reverts with
+`SolidTierLockZap__ShareLockActive`. So a non-zero period cannot be deployed
+against, and one set later gives a named error rather than a bare
+`TRANSFER_FROM_FAILED` from inside the lock. The read above is still worth
+doing: it tells you before you spend the gas.
+
 `shareLockPeriod` is 0 on both QA and prod today. If it is ever set non-zero,
 turn the zap off (clear the backend's `TIER_LOCK_ZAP_ADDRESS`) rather than
-leaving users a button that reverts.
+leaving users a button that reverts — the share-token path would still work,
+but the two deposit paths would not.
 
 ### 10d. Verify the zap source on Blockscout (optional)
 
