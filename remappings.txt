@@ -8,3 +8,4 @@ ds-test/=lib/forge-std/lib/ds-test/src/
 lib/solidity-bytes-utils/=lib/OAppAuth/lib/solidity-bytes-utils/
 @oz/=lib/openzeppelin-contracts-upgradeable/contracts/
 @layerzerolabs/oapp-evm-v2/=node_modules/@layerzerolabs/lz-evm-oapp-v2/
+@lz-oapp-evm/=lib/OAppAuth/lib/LayerZero-V2/packages/layerzero-v2/evm/oapp/contracts/oapp/
