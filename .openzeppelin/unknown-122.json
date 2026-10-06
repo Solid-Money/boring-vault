@@ -235,6 +235,119 @@
           ]
         }
       }
+    },
+    "b5f0746ebdcaf2008642491504f8ff2745c733545f2cb4f48d5eec4e239bd3e0": {
+      "address": "0x20C34F27De4428E3C48989C6D0a64fdb1f0B006F",
+      "txHash": "0x96de062e769efd82829009b800feccd88344763654292fd790e88a9f4d8c8ac4",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "__deprecated_isSponsored",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_address,t_mapping(t_bytes4,t_bool))",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:114",
+            "renamedFrom": "isSponsored"
+          },
+          {
+            "label": "targetKind",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_mapping(t_address,t_enum(TargetKind)57108)",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:120"
+          },
+          {
+            "label": "minSponsoredAmount",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "BridgePaymaster",
+            "src": "src/fuse/BridgePaymaster.sol:128"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes4": {
+            "label": "bytes4",
+            "numberOfBytes": "4"
+          },
+          "t_enum(TargetKind)57108": {
+            "label": "enum BridgePaymaster.TargetKind",
+            "members": [
+              "NONE",
+              "TELLER",
+              "CARD_DEPOSIT_MANAGER",
+              "FAST_WITHDRAW_MANAGER"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_enum(TargetKind)57108)": {
+            "label": "mapping(address => enum BridgePaymaster.TargetKind)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_bytes4,t_bool))": {
+            "label": "mapping(address => mapping(bytes4 => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes4,t_bool)": {
+            "label": "mapping(bytes4 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol:43"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol:24"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:69"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol:73"
+            }
+          ]
+        }
+      }
     }
   }
 }

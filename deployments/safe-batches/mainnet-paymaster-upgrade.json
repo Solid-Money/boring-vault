@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdAt": 1789032902533,
+  "meta": {
+    "name": "BridgePaymaster upgrade (mainnet)",
+    "description": "upgradeToAndCall(0x01147E3Cd7Ac76111168aB67d52C56bbBa1DB895, 0x) on 0xcE0c6c2a6C99dF88bd127e732EC3bb3E0cB4a507",
+    "txBuilderVersion": "1.16.5"
+  },
+  "transactions": [
+    {
+      "to": "0xcE0c6c2a6C99dF88bd127e732EC3bb3E0cB4a507",
+      "value": "0",
+      "data": "0x4f1ef28600000000000000000000000001147e3cd7ac76111168ab67d52c56bbba1db89500000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}
