@@ -1,0 +1,5 @@
+{
+  "network": "Base",
+  "chainId": 8453,
+  "contractAddresses": {"ChainlinkQuoteAdapter":"0xA324a57970c661271c02405F3d08B66DC9cc5d06","SettlementTreasury":"0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa","SolidCashModuleV2":"0xD512ae589339cB3Ae1a02058305797664555E822","SolidCashModuleV2Setters":"0x876a0160085270aade37E26f85a42055d8324C31","SolidLiquidator":"0x65DAb304af42812C67087f6cfEc4DC296623a8E1","SolidSpendLens":"0x11f261357b2F39c58005875a21B7EdB3F1e8ce76"}
+}
