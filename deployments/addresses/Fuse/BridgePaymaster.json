@@ -1,0 +1,5 @@
+{
+  "network": "Fuse",
+  "chainId": 122,
+  "contractAddresses": {"BridgePaymaster":"0x8D5333d3d9683D4D67F329027F0f5d4057f3306b","BridgePaymasterImplementation":"0x344a491A2bf26f0BD350593b3765F4A9d15eCA0f"}
+}
