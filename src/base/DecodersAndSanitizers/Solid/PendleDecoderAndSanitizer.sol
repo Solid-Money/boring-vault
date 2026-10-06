@@ -3,8 +3,9 @@ pragma solidity 0.8.21;
 
 import {PendleRouterDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/Protocols/PendleRouterDecoderAndSanitizer.sol";
 import {DecoderCustomTypes} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
+import {BaseDecoderAndSanitizer} from "src/base/DecodersAndSanitizers/BaseDecoderAndSanitizer.sol";
 
-contract PendleDecoderAndSanitizer is PendleRouterDecoderAndSanitizer {
+contract PendleDecoderAndSanitizer is BaseDecoderAndSanitizer, PendleRouterDecoderAndSanitizer {
     function swapExactPtForToken(
         address user,
         address market,
@@ -103,5 +104,21 @@ contract PendleDecoderAndSanitizer is PendleRouterDecoderAndSanitizer {
         uint256
     ) external pure virtual returns (bytes memory addressesFound) {
         addressesFound = abi.encodePacked(receiver, market);
+    }
+
+    function redeemPyToToken(
+        address receiver,
+        address YT,
+        uint256,
+        DecoderCustomTypes.TokenOutput calldata output
+    ) external pure virtual returns (bytes memory addressesFound) {
+        addressesFound = abi.encodePacked(
+            receiver,
+            YT,
+            output.tokenOut,
+            output.tokenRedeemSy,
+            output.pendleSwap,
+            output.swapData.extRouter
+        );
     }
 }
