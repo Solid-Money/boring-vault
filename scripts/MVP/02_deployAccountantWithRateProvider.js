@@ -1,11 +1,11 @@
 const { ethers } = require('hardhat')
 
-const vaultAddress = '0xBd37f551CEb90369dcf1e46Ddb60937B0AdEE107'
+const vaultAddress = '0xF88Ce04C3ef43F3501fA99eE06a5473f5ef33BED'
 const payoutAddress = '0x3B694d634981Ace4B64a27c48bffe19f1447779B'
-const authorityAddress = '0x4F85400195a87dFD92bCa1922068609998bccAEe'
-const baseTokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+const authorityAddress = '0x2B7e98a2FC5f9B61adCd6D19049A559922A788B4'
+const baseTokenAddress = '0x2F6F07CDcf3588944Bf4C42aC74ff24bF56e7590'
 
-const startingExchangeRate = 1000000
+const startingExchangeRate = 1e18.toString()
 const allowedExchangeRateChangeUpper = 20000
 const allowedExchangeRateChangeLower = 1
 const minimumUpdateDelayInSeconds = 1000

@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdAt": 1789036426431,
+  "meta": {
+    "name": "BridgePaymaster targets (mainnet)",
+    "description": "2 setTarget call(s) on 0xcE0c6c2a6C99dF88bd127e732EC3bb3E0cB4a507",
+    "txBuilderVersion": "1.16.5"
+  },
+  "transactions": [
+    {
+      "to": "0xcE0c6c2a6C99dF88bd127e732EC3bb3E0cB4a507",
+      "value": "0",
+      "data": "0xed2d7f4900000000000000000000000043f2face25bb22d296b9ab643dac7755d89632e500000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": null,
+      "contractInputsValues": null
+    },
+    {
+      "to": "0xcE0c6c2a6C99dF88bd127e732EC3bb3E0cB4a507",
+      "value": "0",
+      "data": "0xed2d7f49000000000000000000000000f2bfc2c7c36560279b97f553a2480b59965e9ec000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}

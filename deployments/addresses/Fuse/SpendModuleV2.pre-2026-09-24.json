@@ -1,0 +1,5 @@
+{
+  "network": "Fuse",
+  "chainId": 122,
+  "contractAddresses": {"SettlementTreasury":"0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa","SolidCashModuleV2":"0xE2d4FB3d1eeD6Bdc3fD62A93ab35A33FC3c97b2B","SolidCashModuleV2Setters":"0xCCFa2113FefDcc6573779F6291E6f74dC6e811F3","SolidPriceProviderV2Implementation":"0x25F9Ea1E31aDD36906323B33E64a353cd431b3d8","SolidSpendLens":"0x34c3564C4EBC29f90B4DD200509880C40Fd26E32"}
+}
