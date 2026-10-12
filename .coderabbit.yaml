@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit is the merge gate for PRs into main: it requests changes when it
+# finds issues and approves once they are fixed. The approval satisfies the
+# branch ruleset's required review, so no human approval is needed.
+# Changes to this file require a code-owner review (see .github/CODEOWNERS).
+language: en-US
+early_access: false
+
+reviews:
+  # Smart contracts hold user funds: use the most thorough profile.
+  profile: assertive
+  # Approve automatically once every CodeRabbit comment is resolved, the latest
+  # commit has been reviewed and no pre-merge check below is failing.
+  request_changes_workflow: true
+  # The author must not be able to `@coderabbitai approve` / `resolve` their own PR.
+  allow_author_approval: false
+  high_level_summary: true
+  review_status: true
+  # Shows which linked repositories were used as context.
+  review_details: true
+  poem: false
+  in_progress_fortune: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Empty = default branch (main) only.
+    base_branches: []
+    # Never pause: an unreviewed latest commit means no approval, which blocks merge.
+    auto_pause_after_reviewed_commits: 0
+  # A PR whose files are all excluded here is approved without review, so only
+  # exclude vendored/generated code. lib/ and dependencies/ changes also need a
+  # code-owner approval (see .github/CODEOWNERS).
+  path_filters:
+    - "!lib/**"
+    - "!dependencies/**"
+    - "!out/**"
+    - "!cache/**"
+    - "!broadcast/**"
+    - "!logs/**"
+    - "!audit/**"
+    - "!**/*_flattened.sol"
+  path_instructions:
+    - path: "src/**/*.sol"
+      instructions: |
+        Production Solidity (0.8.21) holding user funds. Review as a security auditor. Flag:
+        - Access control: new or changed external/public state-changing functions without requiresAuth or an
+          equivalent role check; role/capability changes in RolesAuthority setups; ownership transfers.
+        - Reentrancy and checks-effects-interactions violations; external calls before state updates;
+          unchecked return values of low-level calls and non-standard ERC20s (use SafeTransferLib).
+        - Accounting: rounding direction must favor the vault; decimals mismatches between assets, shares and
+          rate providers; share-price manipulation, donation/inflation attacks; division before multiplication.
+        - Oracles and rates: missing staleness/bounds checks; exchange-rate updates without limits or pause.
+        - Upgradeable contracts: storage layout changes (reordered, removed or retyped variables), missing
+          initializer protection.
+        - DecodersAndSanitizers: every address argument that controls where funds go must be returned so the
+          merkle leaf can constrain it; a missed address argument lets a strategist send funds anywhere.
+        - Missing events for state changes, missing zero-address/zero-amount validation, unbounded loops.
+    - path: "script/MerkleRootCreation/**"
+      instructions: |
+        These scripts define which actions strategists may take with vault funds. Flag any new leaf that adds a
+        target, selector or address argument that can move funds to an address not controlled by the vault,
+        grants approvals to unknown spenders, or bridges to an unexpected chain/recipient. Treat unexplained
+        additions as suspicious.
+    - path: "leafs/**"
+      instructions: |
+        Generated merkle leaves that define what strategists may do with vault funds. A leaf change without a
+        matching change in script/MerkleRootCreation/ is suspicious; flag any new target, selector or address
+        argument that is not explained in the PR description.
+    - path: "script/**"
+      instructions: |
+        Deployment and admin scripts. Flag hardcoded private keys or mnemonics, wrong chain IDs, hardcoded
+        addresses that differ from deployments/**, and role or ownership grants to EOAs.
+    - path: "test/**"
+      instructions: |
+        Flag tests weakened to make them pass (removed assertions, widened tolerances, vm.skip, commented-out
+        tests) and new src/ behavior that has no test.
+  pre_merge_checks:
+    override_requested_reviewers_only: true
+    title:
+      mode: "off"
+    description:
+      mode: warning
+    docstrings:
+      mode: "off"
+    custom_checks:
+      - name: Access control on state-changing functions
+        mode: error
+        instructions: |
+          Fail if the PR adds or modifies an external or public non-view function in src/ (excluding src/poc/,
+          src/helper/Mock*.sol and test helpers) that changes state, moves tokens or ETH, or changes
+          configuration, and that function has no requiresAuth modifier, role check, onlyOwner or equivalent
+          access control — unless it is intentionally permissionless and the PR description says why.
+          Pass otherwise.
+      - name: No storage layout break in upgradeable code
+        mode: error
+        instructions: |
+          Fail if the PR reorders, removes, renames-with-type-change or inserts state variables before
+          existing ones in a contract that is deployed behind a proxy or inherits an Upgradeable base.
+          Pass if no such contract changed.
+      - name: Merkle leaf changes are justified
+        mode: error
+        instructions: |
+          Fail if the PR changes files under script/MerkleRootCreation/ or src/base/DecodersAndSanitizers/
+          and the PR description does not explain each new target, selector or sanitized address and why
+          the vault needs it. Pass if neither path changed.
+      - name: ABI changes listed for consumers
+        mode: warning
+        instructions: |
+          Fail if the PR changes a function signature, event signature, custom error or return type of a
+          contract in src/ that Solid-Money/solid-ui (lib/abis/**) or Solid-Money/solid-backend uses, and the
+          PR description does not list the affected consumer repositories. Pass otherwise.
+  tools:
+    languagetool:
+      enabled: false
+    biome:
+      enabled: false
+
+chat:
+  auto_reply: true
+  allow_non_org_members: false
+
+knowledge_base:
+  learnings:
+    scope: global
+  code_guidelines:
+    enabled: true
+  linked_repositories:
+    - repository: Solid-Money/solid-ui
+      instructions: >-
+        Expo/React Native + web app. Calls these contracts via ABIs in lib/abis/** and addresses in
+        constants/addresses.ts. A changed signature or event breaks the app.
+    - repository: Solid-Money/solid-backend
+      instructions: >-
+        NestJS backend that reads and calls these contracts (vault-manager, accounts and notifications
+        services). A changed signature, event or address breaks it.

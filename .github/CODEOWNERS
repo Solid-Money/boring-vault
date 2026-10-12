@@ -1,0 +1,12 @@
+# Everything else merges on CodeRabbit's approval alone. Changes to the review
+# gate itself (CodeRabbit config, CI workflows, this file) also need a
+# code-owner approval, so a PR cannot switch off its own review.
+/.coderabbit.yaml @MusabShakeel576 @Marksmargon
+/.github/ @MusabShakeel576 @Marksmargon
+# Vendored contract dependencies are excluded from CodeRabbit's review.
+/lib/ @MusabShakeel576 @Marksmargon
+/dependencies/ @MusabShakeel576 @Marksmargon
+/.gitmodules @MusabShakeel576 @Marksmargon
+/soldeer.lock @MusabShakeel576 @Marksmargon
+/remappings.txt @MusabShakeel576 @Marksmargon
+/foundry.toml @MusabShakeel576 @Marksmargon
