@@ -1,0 +1,25 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "contracts": {
+    "RolesAuthority": "0x7F66AF3C7B7D80d6d4be937dE81cad42C0277eE3",
+    "BoringVault": "0x1c6B29c8ac1E12A34D74DdaFCF016246d6aEdfff",
+    "Accountant": "0x23710C9fdF34b7E1eF28A92a19F9fdC0aC99518c",
+    "Teller": "0xb02796D0b8e1f39265C48e31c94a48c428266Ddb",
+    "Manager": "0x4a90736b26353fea5C85f5cF941D85373C68AD0D",
+    "BoringQueue": "0xf68057c26eaF1F49800EaE86046B2b70Bd8Ded06",
+    "BoringSolver": "0x73322B0c0CED7B6155068C22B53DC8954f739468"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "recreateSafes",
+    "setQueuePublicCapabilities"
+  ]
+}
