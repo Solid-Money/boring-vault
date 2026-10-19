@@ -338,6 +338,14 @@ contract DecoderCustomTypes {
         uint256 nativeFee;
         uint256 lzTokenFee;
     }
+
+    // ========================================= Circle CrossChainTokenService =========================================
+
+    // `claim` argument of CrossChainTokenService.crossChainTransfer.
+    struct CrossChainTokenClaim {
+        bytes signedQuote; // Fee quote signed by Circle.
+        address refundAddress; // Receives fee refunds.
+    }
     // ========================================= L1StandardBridge =========================================
 
     struct WithdrawalTransaction {
