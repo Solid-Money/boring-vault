@@ -7,7 +7,7 @@ import {SolidUsageBillingModule} from "src/solid-billing/SolidUsageBillingModule
 
 /**
  * Deploys `SolidUsageBillingModule` on Base — the Safe module the AI API bills
- * a day's usage through, in dollars, from USDC first and then soUSD.
+ * usage through as it accrues, in dollars, from USDC first and then soUSD.
  *
  * Deployed with no `RolesAuthority` attached, like the rewards contracts: until
  * the owner attaches one and grants the biller role, only the owner can charge,
@@ -17,7 +17,8 @@ import {SolidUsageBillingModule} from "src/solid-billing/SolidUsageBillingModule
  *   AI_BILLING_OWNER             — the multisig that will own the module
  *   AI_BILLING_TREASURY          — the only address it can ever pay. IMMUTABLE
  *   AI_BILLING_MAX_CHARGE_AMOUNT — org ceiling on one charge, e.g. 1000000000 = $1,000
- *   AI_BILLING_MIN_PERIOD        — shortest period a user may sign, seconds. IMMUTABLE
+ *   AI_BILLING_MIN_PERIOD        — shortest period a mandate's cap may apply to, seconds,
+ *                                  e.g. 86400 = a day. IMMUTABLE
  *   AI_BILLING_TOKENS            — comma-separated, in draw order, e.g. USDC
  *   AI_BILLING_RATE_PROVIDERS    — comma-separated, same length; 0x0 = a dollar at par
  *

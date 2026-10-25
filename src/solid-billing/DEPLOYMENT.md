@@ -46,7 +46,7 @@ forge test --match-path "test/Solid*.t.sol" \
   --skip "test/*CardDeposit*" --skip "test/*FastWithdraw*"
 ```
 
-Expect **117 passing, 0 failed** across four suites, of which **37** are
+Expect **121 passing, 0 failed** across four suites, of which **41** are
 `SolidUsageBillingModule`. No fork is needed.
 
 > The two extra `src/fuse/*` skips are for checkouts without `node_modules`:
@@ -63,7 +63,7 @@ Two of these are immutable and one is a live throttle. Agree them before step
 
 | value | what it is | recommended | notes |
 | --- | --- | --- | --- |
-| `AI_BILLING_MIN_PERIOD` | shortest period a user may sign, seconds. **Immutable** | `43200` (12 hours) | The backend signs **23 hours** (`AI_API_BILLING_PERIOD_SECONDS`), so it bills once a day with an hour of slack for a late cron. 12 hours leaves room to move it without ever allowing more than two charges a day. Must be ≥ 3600. |
+| `AI_BILLING_MIN_PERIOD` | shortest period a mandate's cap may apply to, seconds. **Immutable** | `86400` (24 hours) | The backend signs **24 hours** (`AI_API_BILLING_PERIOD_SECONDS`) and charges every few dollars inside it; the cap is what all of a period's charges add up to. A floor of a day makes "up to $X a day" the contract's promise rather than the backend's: no mandate can apply its cap over a shorter window. Must be ≥ 3600. |
 | `AI_BILLING_MAX_CHARGE_AMOUNT` | org ceiling on one charge, **micro-USD**. Changeable, binds existing mandates | `1000000000` ($1,000) | Also caps the mandate a user can sign: the backend refuses key limits adding up past it. Keep it ≥ *keys per user × highest monthly limit* from the portal (Config → AI API) or users hit "Your keys' monthly limits can add up to $X at most". |
 | `AI_BILLING_TOKENS` | billing tokens, comma-separated, **in draw order** | USDC on Base | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`. Changeable later with `setBillingTokens` (step 9). |
 | `AI_BILLING_RATE_PROVIDERS` | one per token, same order | `0x0000000000000000000000000000000000000000` | Zero means a dollar at par. A share token names its accountant. |
@@ -91,7 +91,7 @@ Add these. `BASE_RPC_URL` is what the `base` alias in `foundry.toml` resolves to
 | `AI_BILLING_OWNER` | `0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103` (QA owner EOA) | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Base Safe, 3 of 4) |
 | `AI_BILLING_TREASURY` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 | `AI_BILLING_MAX_CHARGE_AMOUNT` | `1000000000` | `1000000000` |
-| `AI_BILLING_MIN_PERIOD` | `43200` | `43200` |
+| `AI_BILLING_MIN_PERIOD` | `86400` | `86400` |
 | `AI_BILLING_TOKENS` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | `AI_BILLING_RATE_PROVIDERS` | `0x0000000000000000000000000000000000000000` | `0x0000000000000000000000000000000000000000` |
 
@@ -389,19 +389,23 @@ mandate):
 export SAFE=0x…           # the user's Safe — the same address on Base as everywhere
 export AMOUNT=1000000     # $1.00
 
-cast call $MODULE "subscriptionOf(address)((bool,bool,uint128,uint64,uint64,uint64,uint64))" $SAFE --rpc-url base
+cast call $MODULE "subscriptionOf(address)((bool,bool,uint128,uint64,uint64,uint64,uint64,uint64,uint128))" $SAFE --rpc-url base
+cast call $MODULE "allowanceOf(address)(uint256,uint64)" $SAFE --rpc-url base  # left this period, when it ends
 cast call $MODULE "billableBalanceOf(address)(uint256)" $SAFE --rpc-url base   # micro-USD
 cast call $MODULE "canCharge(address,uint256)(bool,string)" $SAFE $AMOUNT --rpc-url base
 cast call $MODULE "quote(address,uint256)((address,uint256,uint256)[],uint256)" $SAFE $AMOUNT --rpc-url base
 ```
 
 `canCharge` is the whole diagnosis, in the same words as the rewards module so
-one backend reads both: `not subscribed`, `module not enabled`, `too soon`,
-`exceeds mandate`, `exceeds org ceiling`, `insufficient balance`, `cancelled`,
-`safe paused`, `module paused`.
+one backend reads both: `not subscribed`, `module not enabled`, `too soon`
+(this period's cap is used up — see `allowanceOf`), `exceeds mandate`,
+`exceeds org ceiling`, `insufficient balance`, `cancelled`, `safe paused`,
+`module paused`.
 
-Then let the backend's hourly billing run (or `POST /accounts/v1/ai-api/billing/retry`
-as the user) take a real charge, and check:
+Then use the key until it has billed a few dollars. The backend's billing pass
+runs every minute and charges once unpaid usage reaches $5 (and whatever is
+left when a UTC day closes); `POST /accounts/v1/ai-api/billing/retry` as the
+user retries a waiting charge. Check:
 
 - the `Charged` and `Drawn` events on the module,
 - the USDC arriving at the treasury,

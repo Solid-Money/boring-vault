@@ -17,8 +17,8 @@ contract SolidUsageBillingModuleTest is Test {
     /// @dev Every amount here is micro-USD: $1 is 1e6.
     uint128 internal constant DAILY_MANDATE = 100e6;
     uint128 internal constant ORG_CEILING = 10_000e6;
-    uint64 internal constant MIN_PERIOD = 12 hours;
-    uint64 internal constant DAY = 23 hours;
+    uint64 internal constant MIN_PERIOD = 1 days;
+    uint64 internal constant DAY = 1 days;
 
     /// @dev soUSD's accountant rate: one share is worth $1.07.
     uint256 internal constant SOUSD_RATE = 1.07e6;
@@ -78,8 +78,11 @@ contract SolidUsageBillingModuleTest is Test {
 
         assertTrue(subscription.registered, "the Safe is subscribed");
         assertEq(subscription.maxAmountPerPeriod, DAILY_MANDATE, "up to the daily cap");
-        assertEq(subscription.periodSeconds, DAY, "billed at most once a day");
-        assertEq(module.nextChargeDueAt(address(safe)), 0, "so the first charge is due now");
+        assertEq(subscription.periodSeconds, DAY, "a cap per day");
+
+        (uint256 remaining, uint64 periodEndsAt) = module.allowanceOf(address(safe));
+        assertEq(remaining, DAILY_MANDATE, "the whole cap is available");
+        assertEq(periodEndsAt, 0, "and no period runs until the first charge");
     }
 
     /// The one thing the subscription module could not do: a daily mandate.
@@ -176,7 +179,10 @@ contract SolidUsageBillingModuleTest is Test {
 
         assertEq(usdc.balanceOf(treasury), 0, "no partial charge");
         assertFalse(module.chargeCleared(address(safe), keccak256("day-1")), "the id is still free");
-        assertEq(module.subscriptionOf(address(safe)).lastChargedAt, 0, "and the clock never started");
+        SolidUsageBillingModule.Subscription memory subscription = module.subscriptionOf(address(safe));
+        assertEq(subscription.lastChargedAt, 0, "the clock never started");
+        assertEq(subscription.periodStartedAt, 0, "no period began");
+        assertEq(subscription.chargedInPeriod, 0, "and none of the cap is used");
     }
 
     function testBillableBalanceAndQuoteDescribeTheDraw() external {
@@ -320,35 +326,102 @@ contract SolidUsageBillingModuleTest is Test {
         assertEq(usdc.balanceOf(treasury), 10e6, "still billed once");
     }
 
-    function testANewBillingIdStillWaitsOutThePeriod() external {
-        usdc.mint(address(safe), 100e6);
-        _charge(keccak256("day-1"), 10e6);
+    /// The point of this module: usage is collected every few dollars, not a day at a time.
+    function testManyChargesClearInOnePeriodUpToTheMandate() external {
+        usdc.mint(address(safe), 1_000e6);
+        uint64 startedAt = uint64(block.timestamp);
+
+        _charge(keccak256("slice-1"), 5e6);
+        skip(10 minutes);
+        _charge(keccak256("slice-2"), 35e6);
+        skip(3 hours);
+        _charge(keccak256("slice-3"), 60e6);
+
+        assertEq(usdc.balanceOf(treasury), DAILY_MANDATE, "three charges, the whole cap");
+        (uint256 remaining, uint64 periodEndsAt) = module.allowanceOf(address(safe));
+        assertEq(remaining, 0, "nothing left this period");
+        assertEq(periodEndsAt, startedAt + DAY, "a period runs from its first charge");
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, uint64(block.timestamp) + DAY
-            )
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, startedAt + DAY)
         );
-        _charge(keccak256("day-2"), 10e6);
-
-        skip(DAY);
-        _charge(keccak256("day-2"), 10e6);
-        assertEq(usdc.balanceOf(treasury), 20e6, "the next day's charge clears once the period is up");
+        _charge(keccak256("slice-4"), 1);
     }
 
-    function testResubscribingDoesNotResetTheClock() external {
-        usdc.mint(address(safe), 100e6);
-        _charge(keccak256("day-1"), 10e6);
-
-        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
-        _subscribe(safe, DAILY_MANDATE * 2, DAY);
+    function testAChargeLargerThanWhatIsLeftWaitsForTheNextPeriod() external {
+        usdc.mint(address(safe), 1_000e6);
+        uint64 startedAt = uint64(block.timestamp);
+        _charge(keccak256("slice-1"), 70e6);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, uint64(block.timestamp) + DAY
-            )
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, startedAt + DAY)
         );
-        _charge(keccak256("day-2"), 10e6);
+        _charge(keccak256("slice-2"), 31e6);
+
+        _charge(keccak256("slice-2"), 30e6);
+        assertEq(usdc.balanceOf(treasury), DAILY_MANDATE, "what fits still clears");
+
+        skip(DAY - 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, startedAt + DAY)
+        );
+        _charge(keccak256("slice-3"), 1);
+
+        skip(1);
+        _charge(keccak256("slice-3"), DAILY_MANDATE);
+        assertEq(usdc.balanceOf(treasury), DAILY_MANDATE * 2, "the next period starts with the whole cap");
+
+        (uint256 remaining, uint64 periodEndsAt) = module.allowanceOf(address(safe));
+        assertEq(remaining, 0);
+        assertEq(periodEndsAt, uint64(block.timestamp) + DAY, "and runs from its own first charge");
+    }
+
+    /// A period that ran out is not resumed by a charge long after it: the next one starts afresh.
+    function testAnIdleMandateStartsAFreshPeriod() external {
+        usdc.mint(address(safe), 1_000e6);
+        _charge(keccak256("slice-1"), 80e6);
+
+        skip(3 days);
+        (uint256 remaining, uint64 periodEndsAt) = module.allowanceOf(address(safe));
+        assertEq(remaining, DAILY_MANDATE, "the cap is whole again");
+        assertEq(periodEndsAt, 0, "with no period running");
+
+        _charge(keccak256("slice-2"), DAILY_MANDATE);
+    }
+
+    function testResubscribingDoesNotResetWhatThePeriodTook() external {
+        usdc.mint(address(safe), 1_000e6);
+        uint64 startedAt = uint64(block.timestamp);
+        _charge(keccak256("slice-1"), DAILY_MANDATE);
+
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
+        _subscribe(safe, DAILY_MANDATE, DAY);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, startedAt + DAY)
+        );
+        _charge(keccak256("slice-2"), 1);
+
+        // A raise is a new signature, and makes exactly the room it adds.
+        _subscribe(safe, DAILY_MANDATE * 2, DAY);
+        _charge(keccak256("slice-2"), DAILY_MANDATE);
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__TooSoon.selector, startedAt + DAY)
+        );
+        _charge(keccak256("slice-3"), 1);
+    }
+
+    function testLoweringTheMandateBelowWhatThePeriodTookLeavesNoRoom() external {
+        usdc.mint(address(safe), 1_000e6);
+        _charge(keccak256("slice-1"), 80e6);
+
+        _subscribe(safe, 50e6, DAY);
+
+        (uint256 remaining,) = module.allowanceOf(address(safe));
+        assertEq(remaining, 0, "no room, and no underflow");
+        (bool ok, string memory reason) = module.canCharge(address(safe), 1);
+        assertFalse(ok);
+        assertEq(reason, "too soon");
     }
 
     //============================== LIMITS ===============================
@@ -484,7 +557,9 @@ contract SolidUsageBillingModuleTest is Test {
         (ok, reason) = module.canCharge(address(safe), 0);
         assertEq(reason, "zero amount");
 
-        _charge(keccak256("day-1"), 10e6);
+        _charge(keccak256("day-1"), 95e6);
+        (ok, reason) = module.canCharge(address(safe), 5e6);
+        assertTrue(ok, "what is left of the period can still be charged");
         (ok, reason) = module.canCharge(address(safe), 10e6);
         assertEq(reason, "too soon");
 
@@ -494,7 +569,7 @@ contract SolidUsageBillingModuleTest is Test {
         assertEq(reason, "exceeds org ceiling");
         module.setMaxChargeAmount(ORG_CEILING);
 
-        (ok, reason) = module.canCharge(address(safe), 95e6);
+        (ok, reason) = module.canCharge(address(safe), 10e6);
         assertEq(reason, "insufficient balance");
 
         safe.disableModule(address(module));
@@ -594,12 +669,49 @@ contract SolidUsageBillingModuleTest is Test {
         assertLe(settled, uint256(amount) + 2, "and essentially no more");
     }
 
+    /// However charges are sized and spaced, no period takes more than the user signed for.
+    function testFuzzNoPeriodTakesMoreThanTheMandate(uint128[12] memory amounts, uint32[12] memory gaps) external {
+        usdc.mint(address(safe), 100_000e6);
+        uint64 periodStart;
+        uint256 periodTotal;
+
+        for (uint256 i = 0; i < amounts.length; ++i) {
+            skip(bound(gaps[i], 0, DAY / 2));
+            uint256 amount = bound(amounts[i], 1, DAILY_MANDATE);
+
+            vm.prank(biller);
+            (bool success,) = address(module).call(
+                abi.encodeCall(SolidUsageBillingModule.charge, (address(safe), keccak256(abi.encode(i)), amount))
+            );
+            if (!success) continue;
+
+            SolidUsageBillingModule.Subscription memory subscription = module.subscriptionOf(address(safe));
+            if (subscription.periodStartedAt != periodStart) {
+                if (periodStart != 0) {
+                    assertGe(block.timestamp, uint256(periodStart) + DAY, "a new period only once the last ran out");
+                }
+                periodStart = subscription.periodStartedAt;
+                periodTotal = 0;
+            }
+            periodTotal += amount;
+            assertLe(periodTotal, DAILY_MANDATE, "a period never exceeds the mandate");
+            assertEq(subscription.chargedInPeriod, periodTotal, "and the module counts it the same way");
+        }
+    }
+
     /// The lens and the charge state the same conditions; they must never disagree.
-    function testFuzzCanChargeAgreesWithCharge(uint128 amount, uint64 warpBy, bool cancelled, bool enabled, uint64 funds)
-        external
-    {
+    function testFuzzCanChargeAgreesWithCharge(
+        uint128 earlier,
+        uint128 amount,
+        uint64 warpBy,
+        bool cancelled,
+        bool enabled,
+        uint64 funds
+    ) external {
+        earlier = uint128(bound(earlier, 0, DAILY_MANDATE));
         amount = uint128(bound(amount, 0, DAILY_MANDATE * 2));
-        usdc.mint(address(safe), funds);
+        usdc.mint(address(safe), uint256(funds) + earlier);
+        if (earlier > 0) _charge(keccak256("earlier"), earlier);
         if (cancelled) safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
         if (!enabled) safe.disableModule(address(module));
         skip(bound(warpBy, 0, 2 days));

@@ -12,9 +12,10 @@ import {ISafe} from "src/solid-rewards/interfaces/ISafe.sol";
  * @notice A Safe module that collects metered usage, priced in dollars, from a
  *         short list of tokens the Safe holds — and nothing else.
  *
- * Built for the AI API: a day's usage is charged from the user's Wallet once a
- * day. It is `SolidSubscriptionModule` with the three things that contract
- * could not do for that job, and every bound it enforces kept as it was.
+ * Built for the AI API: usage is charged from the user's Wallet as it accrues,
+ * a few dollars at a time, under a dollar cap per day the user signs. It is
+ * `SolidSubscriptionModule` with the four things that contract could not do
+ * for that job, and every other bound it enforces kept as it was.
  *
  * ## What is different from `SolidSubscriptionModule`
  *
@@ -27,15 +28,21 @@ import {ISafe} from "src/solid-rewards/interfaces/ISafe.sol";
  *    user signs again: their consent is to a dollar cap, which still binds.
  *  - **The shortest period is a constructor argument.** The subscription
  *    module hard-codes seven days, which is right for an annual fee and makes
- *    a daily charge impossible. Here the deployment picks it, once.
+ *    a daily cap impossible. Here the deployment picks it, once.
+ *  - **Many charges per period, capped in total.** The subscription module
+ *    takes at most one charge a period. Here the biller may charge as often as
+ *    it likes while the period's total stays within the mandate, so usage is
+ *    collected every few dollars instead of a day at a time — which keeps what
+ *    Solid has fronted upstream, and could lose to a Wallet emptied before the
+ *    charge, to a few dollars instead of a day.
  *
  * ## What is the same, and enforced here rather than by the backend
  *
  *  - **The destination is immutable.** `revenueTreasury` has no setter.
  *  - **The user sets their own ceiling.** `subscribe` is callable only by the
- *    Safe, and its mandate caps both one charge and how often one is taken.
- *  - **One charge per period, once each.** A `billingId` clears once, and
- *    `periodSeconds` must have passed since the last charge whatever id is used.
+ *    Safe, and its mandate caps what all charges in one period add up to.
+ *  - **Each charge once.** A `billingId` clears once, so a retry after an
+ *    unseen receipt cannot bill twice.
  *  - **Settlement is measured.** Every token drawn must arrive at the treasury
  *    in full, or the whole charge reverts.
  *  - **Consent is withdrawable at any time**, by `cancel()` here or
@@ -70,10 +77,11 @@ contract SolidUsageBillingModule is Auth, IPausable {
     address public immutable revenueTreasury;
 
     /**
-     * @notice Shortest period a user may agree to between two charges.
+     * @notice Shortest period a mandate's cap may apply to.
      *
-     * Fixed at deployment so no later change can make "billed at most once a
-     * day" untrue for a mandate already signed.
+     * Fixed at deployment so no later change can make "up to $X a day" untrue
+     * for a mandate already signed: a cap can never be re-applied over a
+     * shorter window than this.
      */
     uint64 public immutable minPeriod;
 
@@ -93,19 +101,28 @@ contract SolidUsageBillingModule is Auth, IPausable {
         uint8 decimals;
     }
 
-    /// @notice One user's standing permission to be billed.
+    /**
+     * @notice One user's standing permission to be billed.
+     *
+     * A period starts at the first charge after the previous one ran out, and
+     * everything charged until it ends counts against `maxAmountPerPeriod`.
+     */
     struct Subscription {
         bool registered;
         /// @notice Per-Safe stop, for a dispute or a fraud hold. Admin-set.
         bool paused;
-        /// @notice Most one charge may take, in micro-USD.
+        /// @notice Most all charges in one period may add up to, in micro-USD.
         uint128 maxAmountPerPeriod;
-        /// @notice Shortest gap the user has agreed to between two charges.
+        /// @notice How long one period lasts.
         uint64 periodSeconds;
         uint64 subscribedAt;
         uint64 lastChargedAt;
         /// @notice Non-zero once the user has stopped the mandate.
         uint64 cancelledAt;
+        /// @notice When the current period began. Zero before the first charge.
+        uint64 periodStartedAt;
+        /// @notice What the current period has taken so far, in micro-USD.
+        uint128 chargedInPeriod;
     }
 
     /// @notice One token's part of a charge.
@@ -149,7 +166,8 @@ contract SolidUsageBillingModule is Auth, IPausable {
     error SolidUsageBillingModule__ExceedsMandate(uint256 amount, uint128 mandate);
     error SolidUsageBillingModule__ExceedsOrgCeiling(uint256 amount, uint128 ceiling);
     error SolidUsageBillingModule__PeriodOutOfRange(uint64 period);
-    error SolidUsageBillingModule__TooSoon(uint64 nextChargeDueAt);
+    /// @notice The period has no room left for this amount until `periodEndsAt`.
+    error SolidUsageBillingModule__TooSoon(uint64 periodEndsAt);
     error SolidUsageBillingModule__AlreadyCharged(address safe, bytes32 billingId);
     error SolidUsageBillingModule__InsufficientBalance(uint256 amount, uint256 available);
     error SolidUsageBillingModule__TransferFailed(address safe, address token);
@@ -207,16 +225,16 @@ contract SolidUsageBillingModule is Auth, IPausable {
     //============================== USER FUNCTIONS ===============================
 
     /**
-     * @notice Agree to be billed up to `maxAmountPerPeriod` micro-USD no more
-     *         often than every `periodSeconds`.
+     * @notice Agree to be billed up to `maxAmountPerPeriod` micro-USD in total
+     *         in any one period of `periodSeconds`.
      *
      * `msg.sender` is the Safe, so the only way here is a transaction the user's
      * own account executes — batched with the `enableModule` that makes the
      * module usable at all, so one signature both grants and bounds it.
      *
      * Calling it again re-states the mandate (a raise is a new signature, which
-     * is the point) and un-cancels. `lastChargedAt` survives, so re-subscribing
-     * can never be used to be billed twice in one period.
+     * is the point) and un-cancels. What the current period has already taken
+     * survives, so re-subscribing never makes room the user did not sign for.
      */
     function subscribe(uint128 maxAmountPerPeriod, uint64 periodSeconds) external {
         if (maxAmountPerPeriod == 0) revert SolidUsageBillingModule__ZeroAmount();
@@ -273,8 +291,9 @@ contract SolidUsageBillingModule is Auth, IPausable {
      *
      * Restricted to the biller role, which chooses only the Safe and the dollar
      * amount. Where the money goes, which tokens it may come from and at what
-     * price, how much at most and how recently the last charge was taken are
-     * all fixed by this contract and by the user's own mandate.
+     * price, and how much the period may take in total are all fixed by this
+     * contract and by the user's own mandate. Charging often is the point: it
+     * keeps what is owed but not yet collected small.
      *
      * Drawn from the billing tokens in order, each one in full before the next,
      * until the amount is covered. If everything the Safe holds of them cannot
@@ -298,8 +317,10 @@ contract SolidUsageBillingModule is Auth, IPausable {
         }
         if (amount > maxChargeAmount) revert SolidUsageBillingModule__ExceedsOrgCeiling(amount, maxChargeAmount);
 
-        uint64 dueAt = _nextChargeDueAt(subscription);
-        if (block.timestamp < dueAt) revert SolidUsageBillingModule__TooSoon(dueAt);
+        (uint64 startedAt, uint256 charged) = _period(subscription);
+        if (charged + amount > subscription.maxAmountPerPeriod) {
+            revert SolidUsageBillingModule__TooSoon(startedAt + subscription.periodSeconds);
+        }
 
         if (!isModuleEnabledOn(safe)) revert SolidUsageBillingModule__ModuleNotEnabled(safe);
 
@@ -307,9 +328,12 @@ contract SolidUsageBillingModule is Auth, IPausable {
         if (drawn < amount) revert SolidUsageBillingModule__InsufficientBalance(amount, drawn);
 
         // Written before any external call. A token with a transfer hook that
-        // re-entered would find the id already spent and the clock already
-        // moved, so there is no second charge to be had.
+        // re-entered would find the id already spent and the period's room
+        // already taken, so there is no second charge to be had.
         chargeCleared[safe][billingId] = true;
+        subscription.periodStartedAt = startedAt;
+        // At most `maxAmountPerPeriod`, a uint128, by the check above.
+        subscription.chargedInPeriod = uint128(charged + amount);
         subscription.lastChargedAt = uint64(block.timestamp);
 
         for (uint256 i = 0; i < draws.length; ++i) {
@@ -344,9 +368,19 @@ contract SolidUsageBillingModule is Auth, IPausable {
         }
     }
 
-    /// @notice The earliest timestamp at which `safe` may next be charged.
-    function nextChargeDueAt(address safe) external view returns (uint64) {
-        return _nextChargeDueAt(subscriptions[safe]);
+    /**
+     * @notice What `safe`'s mandate still lets the current period take, in
+     *         micro-USD, and when that period ends.
+     *
+     * `periodEndsAt` is zero when no period is running: the next charge starts
+     * one, with the whole mandate available. The org ceiling, the pauses and
+     * the Wallet's balance are not counted here; `canCharge` checks them all.
+     */
+    function allowanceOf(address safe) external view returns (uint256 remaining, uint64 periodEndsAt) {
+        Subscription storage subscription = subscriptions[safe];
+        (uint64 startedAt, uint256 charged) = _period(subscription);
+        remaining = charged >= subscription.maxAmountPerPeriod ? 0 : subscription.maxAmountPerPeriod - charged;
+        if (charged > 0) periodEndsAt = startedAt + subscription.periodSeconds;
     }
 
     /**
@@ -380,7 +414,9 @@ contract SolidUsageBillingModule is Auth, IPausable {
      * @notice Whether a charge would go through, and why not when it would not.
      *
      * The same checks as `charge`, in the same order, and with the same words
-     * as `SolidSubscriptionModule.canCharge`, so one backend reads both.
+     * as `SolidSubscriptionModule.canCharge`, so one backend reads both. Here
+     * "too soon" means the period has no room left for this amount: it is
+     * right again once the period ends (see `allowanceOf`).
      */
     function canCharge(address safe, uint256 amount) external view returns (bool, string memory) {
         if (isPaused) return (false, "module paused");
@@ -392,7 +428,8 @@ contract SolidUsageBillingModule is Auth, IPausable {
         if (amount == 0) return (false, "zero amount");
         if (amount > subscription.maxAmountPerPeriod) return (false, "exceeds mandate");
         if (amount > maxChargeAmount) return (false, "exceeds org ceiling");
-        if (block.timestamp < _nextChargeDueAt(subscription)) return (false, "too soon");
+        (, uint256 charged) = _period(subscription);
+        if (charged + amount > subscription.maxAmountPerPeriod) return (false, "too soon");
         if (!isModuleEnabledOn(safe)) return (false, "module not enabled");
 
         (, uint256 drawn) = _plan(safe, amount);
@@ -477,10 +514,17 @@ contract SolidUsageBillingModule is Auth, IPausable {
         emit BillingTokensSet(tokens, rateProviders);
     }
 
-    function _nextChargeDueAt(Subscription storage subscription) internal view returns (uint64) {
-        // A mandate never drawn on is due immediately.
-        if (subscription.lastChargedAt == 0) return 0;
-        return subscription.lastChargedAt + subscription.periodSeconds;
+    /**
+     * @dev The period a charge now would count against: when it began and what
+     *      it has taken. A mandate never drawn on, or one whose last period has
+     *      run out, starts a fresh period now with nothing taken.
+     */
+    function _period(Subscription storage subscription) internal view returns (uint64 startedAt, uint256 charged) {
+        startedAt = subscription.periodStartedAt;
+        if (startedAt == 0 || block.timestamp >= uint256(startedAt) + subscription.periodSeconds) {
+            return (uint64(block.timestamp), 0);
+        }
+        return (startedAt, subscription.chargedInPeriod);
     }
 
     /**
