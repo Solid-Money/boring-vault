@@ -698,9 +698,9 @@ contract SolidUsageBillingModuleTest is Test {
         new SolidUsageBillingModule(address(0), treasury, ORG_CEILING, MIN_PERIOD, none, none);
 
         vm.expectRevert(
-            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__InvalidMinPeriod.selector, 59 minutes)
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__InvalidMinPeriod.selector, 23 hours)
         );
-        new SolidUsageBillingModule(address(this), treasury, ORG_CEILING, 59 minutes, none, none);
+        new SolidUsageBillingModule(address(this), treasury, ORG_CEILING, 23 hours, none, none);
     }
 
     //============================== PROPERTIES ===============================

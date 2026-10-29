@@ -17,7 +17,7 @@ this job:
 
 | | `SolidSubscriptionModule` | `SolidUsageBillingModule` |
 | --- | --- | --- |
-| Shortest period | `MIN_PERIOD = 7 days`, a constant | `minPeriod`, set once in the constructor (≥ 1 hour) |
+| Shortest period | `MIN_PERIOD = 7 days`, a constant | `minPeriod`, set once in the constructor (≥ 1 day) |
 | What is drawn | one `billingToken`, immutable | an ordered list of tokens, the owner's to change |
 | Unit of the mandate | that token's units | micro-USD (6 decimals) |
 | Charges per period | one | any number, together at most the mandate |

@@ -81,7 +81,7 @@ contract DeploySolidUsageBilling is Script {
             maxChargeAmount > 0 && maxChargeAmount <= type(uint128).max,
             "AI_BILLING_MAX_CHARGE_AMOUNT must be above 0 and fit in uint128"
         );
-        // Its range (an hour to 1460 days) is the constructor's to enforce.
+        // Its range (a day to 1460 days) is the constructor's to enforce.
         require(minPeriod <= type(uint64).max, "AI_BILLING_MIN_PERIOD must fit in uint64");
         return (uint128(maxChargeAmount), uint64(minPeriod));
     }

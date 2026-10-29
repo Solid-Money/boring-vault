@@ -60,8 +60,9 @@ import {ISafe} from "src/solid-rewards/interfaces/ISafe.sol";
 contract SolidUsageBillingModule is Auth, IPausable {
     // ========================================= CONSTANTS =========================================
 
-    /// @notice Lowest `minPeriod` a deployment may choose.
-    uint64 public constant MIN_PERIOD_FLOOR = 1 hours;
+    /// @notice Lowest `minPeriod` a deployment may choose: a day, so a cap can
+    ///         never refill more than once a day, whatever a deployment sets.
+    uint64 public constant MIN_PERIOD_FLOOR = 1 days;
 
     /// @notice Longest billing period a mandate may carry.
     uint64 public constant MAX_PERIOD = 1460 days;
