@@ -23,9 +23,9 @@ import {SolidUsageBillingModule} from "src/solid-billing/SolidUsageBillingModule
  *   AI_BILLING_RATE_PROVIDERS    — comma-separated, same length; 0x0 = a dollar at par
  *
  * Optional:
- *   AI_BILLING_ALLOW_EOA_OWNER   — `true` to let an EOA own the module. QA only: the
- *                                  owner sets what every billing token is worth, so on
- *                                  prod it must be the multisig, and an EOA is refused.
+ *   AI_BILLING_ALLOW_EOA_OWNER   — `true` to let a single key own the module. QA only:
+ *                                  the owner sets what every billing token is worth, so
+ *                                  on prod it must be a Safe needing 2+ signatures.
  *
  * See src/solid-billing/DEPLOYMENT.md for the full runbook.
  */
@@ -33,18 +33,13 @@ contract DeploySolidUsageBilling is Script {
     function run() external {
         address owner = vm.envAddress("AI_BILLING_OWNER");
         address treasury = vm.envAddress("AI_BILLING_TREASURY");
-        uint128 maxChargeAmount = uint128(vm.envUint("AI_BILLING_MAX_CHARGE_AMOUNT"));
-        uint64 minPeriod = uint64(vm.envUint("AI_BILLING_MIN_PERIOD"));
+        (uint128 maxChargeAmount, uint64 minPeriod) =
+            narrow(vm.envUint("AI_BILLING_MAX_CHARGE_AMOUNT"), vm.envUint("AI_BILLING_MIN_PERIOD"));
         address[] memory tokens = vm.envAddress("AI_BILLING_TOKENS", ",");
         address[] memory rateProviders = vm.envAddress("AI_BILLING_RATE_PROVIDERS", ",");
 
         require(block.chainid == 8453, "SolidUsageBillingModule is deployed on Base (8453)");
-        // The owner chooses the tokens a charge draws from and what each is worth. One key
-        // holding that is a QA choice, made by name, never a mistyped prod address.
-        require(
-            owner.code.length > 0 || vm.envOr("AI_BILLING_ALLOW_EOA_OWNER", false),
-            "AI_BILLING_OWNER has no code: the owner must be the multisig (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
-        );
+        checkOwner(owner, vm.envOr("AI_BILLING_ALLOW_EOA_OWNER", false));
 
         vm.startBroadcast();
 
@@ -62,5 +57,32 @@ contract DeploySolidUsageBilling is Script {
         console.log("");
         console.log("The biller is the ERC-4337 account the backend submits from on chain 8453,");
         console.log("NOT the EOA that signs for it.");
+    }
+
+    /**
+     * The owner chooses the tokens a charge draws from and what each is worth, so it must
+     * be a Safe that needs more than one signature: code alone could be a contract that can
+     * never make the owner's calls. One key holding that is a QA choice, made by name, never
+     * a mistyped prod address.
+     */
+    function checkOwner(address owner, bool allowSingleKey) public view {
+        if (allowSingleKey) return;
+        // An EOA answers with no data, and so does a contract that isn't a Safe.
+        (bool ok, bytes memory data) = owner.staticcall(abi.encodeWithSignature("getThreshold()"));
+        require(
+            ok && data.length == 32 && abi.decode(data, (uint256)) > 1,
+            "AI_BILLING_OWNER must be a Safe needing 2+ signatures (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
+        );
+    }
+
+    /// Checked before narrowing: a cast keeps only the low bits, so a mistyped value would deploy as another.
+    function narrow(uint256 maxChargeAmount, uint256 minPeriod) public pure returns (uint128, uint64) {
+        require(
+            maxChargeAmount > 0 && maxChargeAmount <= type(uint128).max,
+            "AI_BILLING_MAX_CHARGE_AMOUNT must be above 0 and fit in uint128"
+        );
+        // Its range (an hour to 1460 days) is the constructor's to enforce.
+        require(minPeriod <= type(uint64).max, "AI_BILLING_MIN_PERIOD must fit in uint64");
+        return (uint128(maxChargeAmount), uint64(minPeriod));
     }
 }
