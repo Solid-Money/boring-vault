@@ -400,8 +400,8 @@ cast call $MODULE "quote(address,uint256)((address,uint256,uint256)[],uint256)" 
 `canCharge` is the whole diagnosis, in the same words as the rewards module so
 one backend reads both: `not subscribed`, `module not enabled`, `too soon`
 (this period's cap is used up — see `allowanceOf`), `exceeds mandate`,
-`exceeds org ceiling`, `insufficient balance`, `cancelled`, `safe paused`,
-`module paused`.
+`exceeds org ceiling`, `insufficient balance`, `zero amount`, `cancelled`,
+`safe paused`, `module paused`.
 
 Then use the key until it has billed a few dollars. The backend's billing pass
 runs every minute and charges once unpaid usage reaches $5 (and whatever is
@@ -430,7 +430,7 @@ passes for the owner, or for whoever an attached authority allows.
 | --- | --- |
 | `setBillingTokens` — which tokens, what order, priced how | redirect the money (`revenueTreasury` is immutable) |
 | `setMaxChargeAmount` (binds existing mandates too) | charge more dollars than a user's own mandate |
-| `setSafePaused` (one Safe) | charge more often than the user's period, or below `minPeriod` |
+| `setSafePaused` (one Safe) | take more in one period than the user's cap, however many charges it is split into, or shorten a period below `minPeriod` |
 | `pause` / `unpause` | charge a Safe that has not enabled the module |
 | `charge` (the owner passes every `requiresAuth`) | re-use a `billingId` |
 | `setAuthority`, `transferOwnership` | |
