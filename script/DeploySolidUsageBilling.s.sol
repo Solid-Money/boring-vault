@@ -22,6 +22,11 @@ import {SolidUsageBillingModule} from "src/solid-billing/SolidUsageBillingModule
  *   AI_BILLING_TOKENS            — comma-separated, in draw order, e.g. USDC
  *   AI_BILLING_RATE_PROVIDERS    — comma-separated, same length; 0x0 = a dollar at par
  *
+ * Optional:
+ *   AI_BILLING_ALLOW_EOA_OWNER   — `true` to let an EOA own the module. QA only: the
+ *                                  owner sets what every billing token is worth, so on
+ *                                  prod it must be the multisig, and an EOA is refused.
+ *
  * See src/solid-billing/DEPLOYMENT.md for the full runbook.
  */
 contract DeploySolidUsageBilling is Script {
@@ -34,6 +39,12 @@ contract DeploySolidUsageBilling is Script {
         address[] memory rateProviders = vm.envAddress("AI_BILLING_RATE_PROVIDERS", ",");
 
         require(block.chainid == 8453, "SolidUsageBillingModule is deployed on Base (8453)");
+        // The owner chooses the tokens a charge draws from and what each is worth. One key
+        // holding that is a QA choice, made by name, never a mistyped prod address.
+        require(
+            owner.code.length > 0 || vm.envOr("AI_BILLING_ALLOW_EOA_OWNER", false),
+            "AI_BILLING_OWNER has no code: the owner must be the multisig (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
+        );
 
         vm.startBroadcast();
 

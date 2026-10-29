@@ -468,6 +468,49 @@ contract SolidUsageBillingModuleTest is Test {
         assertEq(usdc.balanceOf(treasury), 10e6);
     }
 
+    function testCancelAndResumeRefuseTheWrongState() external {
+        MockSafe unregistered = new MockSafe();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidUsageBillingModule.SolidUsageBillingModule__NotRegistered.selector, address(unregistered)
+            )
+        );
+        unregistered.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidUsageBillingModule.SolidUsageBillingModule__NotRegistered.selector, address(unregistered)
+            )
+        );
+        unregistered.execute(address(module), abi.encodeCall(SolidUsageBillingModule.resume, ()));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SolidUsageBillingModule.SolidUsageBillingModule__NotCancelled.selector, address(safe))
+        );
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.resume, ()));
+
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidUsageBillingModule.SolidUsageBillingModule__AlreadyCancelled.selector, address(safe)
+            )
+        );
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
+    }
+
+    function testResumeIsBoundedByTheOrgCeiling() external {
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.cancel, ()));
+        module.setMaxChargeAmount(DAILY_MANDATE - 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidUsageBillingModule.SolidUsageBillingModule__ExceedsOrgCeiling.selector,
+                DAILY_MANDATE,
+                DAILY_MANDATE - 1
+            )
+        );
+        safe.execute(address(module), abi.encodeCall(SolidUsageBillingModule.resume, ()));
+    }
+
     function testDisablingTheModuleStopsBillingImmediately() external {
         usdc.mint(address(safe), 100e6);
         safe.disableModule(address(module));
@@ -510,6 +553,19 @@ contract SolidUsageBillingModuleTest is Test {
 
     //============================== ACCESS ===============================
 
+    /// A Safe whose transfer call fails, rather than reverting, still stops the charge.
+    function testChargeRevertsWhenTheSafeTransferFails() external {
+        usdc.mint(address(safe), 100e6);
+        vm.mockCallRevert(address(usdc), abi.encodeWithSelector(usdc.transfer.selector), "transfer failed");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SolidUsageBillingModule.SolidUsageBillingModule__TransferFailed.selector, address(safe), address(usdc)
+            )
+        );
+        _charge(keccak256("day-1"), 10e6);
+    }
+
     function testOnlyTheBillerMayCharge() external {
         vm.expectRevert("UNAUTHORIZED");
         vm.prank(stranger);
@@ -520,6 +576,9 @@ contract SolidUsageBillingModuleTest is Test {
         vm.startPrank(stranger);
         vm.expectRevert("UNAUTHORIZED");
         module.pause();
+
+        vm.expectRevert("UNAUTHORIZED");
+        module.unpause();
 
         vm.expectRevert("UNAUTHORIZED");
         module.setMaxChargeAmount(1);
@@ -656,7 +715,7 @@ contract SolidUsageBillingModuleTest is Test {
 
         uint256 available = module.billableBalanceOf(address(safe));
         if (available < amount) {
-            vm.expectRevert();
+            vm.expectPartialRevert(SolidUsageBillingModule.SolidUsageBillingModule__InsufficientBalance.selector);
             _charge(keccak256("day-1"), amount);
             return;
         }

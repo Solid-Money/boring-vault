@@ -51,8 +51,9 @@ import {ISafe} from "src/solid-rewards/interfaces/ISafe.sol";
  * ## The trust the owner holds, stated plainly
  *
  * The owner chooses which tokens a charge may be drawn from and what each is
- * worth. A wrong rate provider over-prices a token and the user pays more
- * units of it than the dollars they owe. Three things bound that: the owner is
+ * worth. A rate provider that under-prices a token makes the user pay more
+ * units of it than the dollars they owe; one that over-prices it pays the
+ * treasury less than the dollars charged. Three things bound that: the owner is
  * the multisig, every change emits an event, and the dollar amount of a charge
  * — the number the user's mandate caps — is not the owner's to change.
  */

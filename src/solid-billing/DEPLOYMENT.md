@@ -89,6 +89,7 @@ Add these. `BASE_RPC_URL` is what the `base` alias in `foundry.toml` resolves to
 | `BASE_RPC_URL` | a Base RPC, e.g. `https://mainnet.base.org` | same |
 | `PRIVATE_KEY` | deployer EOA with a little ETH on Base | same; holds no rights after the constructor |
 | `AI_BILLING_OWNER` | `0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103` (QA owner EOA) | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Base Safe, 3 of 4) |
+| `AI_BILLING_ALLOW_EOA_OWNER` | `true` (the owner above is an EOA) | unset: the script refuses an owner with no code |
 | `AI_BILLING_TREASURY` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 | `AI_BILLING_MAX_CHARGE_AMOUNT` | `1000000000` | `1000000000` |
 | `AI_BILLING_MIN_PERIOD` | `86400` | `86400` |
@@ -351,10 +352,10 @@ rate provider that has no code or answers zero — so a wrong address costs a
 revert, not a user's charge. Reorder or remove tokens the same way: the list is
 always replaced whole.
 
-**Treat it like a price-feed change.** A rate provider that over-prices a
-token makes the user pay more units of it than the dollars they owe. The
-signers should check `getRate()` against the share's real price before
-approving.
+**Treat it like a price-feed change.** A rate provider that under-prices a
+token makes the user pay more units of it than the dollars they owe; one that
+over-prices it pays the treasury less than the dollars charged. The signers
+should check `getRate()` against the share's real price before approving.
 
 ---
 
