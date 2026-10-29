@@ -22,6 +22,8 @@ contract NotASafe {
 }
 
 contract DeploySolidUsageBillingTest is Test {
+    bytes internal constant NOT_A_MULTISIG = "AI_BILLING_OWNER must be a Safe needing 2+ signatures";
+
     DeploySolidUsageBilling internal script;
 
     function setUp() external {
@@ -29,8 +31,8 @@ contract DeploySolidUsageBillingTest is Test {
     }
 
     function testAcceptsASafeNeedingTwoOrMoreSignatures() external {
-        script.checkOwner(address(new ThresholdSafe(3)), false);
-        script.checkOwner(address(new ThresholdSafe(2)), false);
+        script.checkOwner(address(new ThresholdSafe(3)));
+        script.checkOwner(address(new ThresholdSafe(2)));
     }
 
     function testRefusesASingleKeyOwner() external {
@@ -38,22 +40,12 @@ contract DeploySolidUsageBillingTest is Test {
         address oneOfOne = address(new ThresholdSafe(1));
         address notASafe = address(new NotASafe());
 
-        vm.expectRevert(
-            "AI_BILLING_OWNER must be a Safe needing 2+ signatures (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
-        );
-        script.checkOwner(eoa, false);
-        vm.expectRevert(
-            "AI_BILLING_OWNER must be a Safe needing 2+ signatures (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
-        );
-        script.checkOwner(oneOfOne, false);
-        vm.expectRevert(
-            "AI_BILLING_OWNER must be a Safe needing 2+ signatures (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
-        );
-        script.checkOwner(notASafe, false);
-    }
-
-    function testQaMayNameASingleKeyOwner() external {
-        script.checkOwner(makeAddr("owner"), true);
+        vm.expectRevert(NOT_A_MULTISIG);
+        script.checkOwner(eoa);
+        vm.expectRevert(NOT_A_MULTISIG);
+        script.checkOwner(oneOfOne);
+        vm.expectRevert(NOT_A_MULTISIG);
+        script.checkOwner(notASafe);
     }
 
     function testNarrowsValuesThatFit() external view {

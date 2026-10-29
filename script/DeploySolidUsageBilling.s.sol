@@ -22,10 +22,8 @@ import {SolidUsageBillingModule} from "src/solid-billing/SolidUsageBillingModule
  *   AI_BILLING_TOKENS            — comma-separated, in draw order, e.g. USDC
  *   AI_BILLING_RATE_PROVIDERS    — comma-separated, same length; 0x0 = a dollar at par
  *
- * Optional:
- *   AI_BILLING_ALLOW_EOA_OWNER   — `true` to let a single key own the module. QA only:
- *                                  the owner sets what every billing token is worth, so
- *                                  on prod it must be a Safe needing 2+ signatures.
+ * The owner must be a Safe needing 2+ signatures, on QA as on prod: it sets what
+ * every billing token is worth.
  *
  * See src/solid-billing/DEPLOYMENT.md for the full runbook.
  */
@@ -39,7 +37,7 @@ contract DeploySolidUsageBilling is Script {
         address[] memory rateProviders = vm.envAddress("AI_BILLING_RATE_PROVIDERS", ",");
 
         require(block.chainid == 8453, "SolidUsageBillingModule is deployed on Base (8453)");
-        checkOwner(owner, vm.envOr("AI_BILLING_ALLOW_EOA_OWNER", false));
+        checkOwner(owner);
 
         vm.startBroadcast();
 
@@ -62,16 +60,14 @@ contract DeploySolidUsageBilling is Script {
     /**
      * The owner chooses the tokens a charge draws from and what each is worth, so it must
      * be a Safe that needs more than one signature: code alone could be a contract that can
-     * never make the owner's calls. One key holding that is a QA choice, made by name, never
-     * a mistyped prod address.
+     * never make the owner's calls, and one key should never hold it, on QA or prod.
      */
-    function checkOwner(address owner, bool allowSingleKey) public view {
-        if (allowSingleKey) return;
+    function checkOwner(address owner) public view {
         // An EOA answers with no data, and so does a contract that isn't a Safe.
         (bool ok, bytes memory data) = owner.staticcall(abi.encodeWithSignature("getThreshold()"));
         require(
             ok && data.length == 32 && abi.decode(data, (uint256)) > 1,
-            "AI_BILLING_OWNER must be a Safe needing 2+ signatures (AI_BILLING_ALLOW_EOA_OWNER=true for QA only)"
+            "AI_BILLING_OWNER must be a Safe needing 2+ signatures"
         );
     }
 

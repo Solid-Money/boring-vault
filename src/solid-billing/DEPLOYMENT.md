@@ -88,8 +88,7 @@ Add these. `BASE_RPC_URL` is what the `base` alias in `foundry.toml` resolves to
 | --- | --- | --- |
 | `BASE_RPC_URL` | a Base RPC, e.g. `https://mainnet.base.org` | same |
 | `PRIVATE_KEY` | deployer EOA with a little ETH on Base | same; holds no rights after the constructor |
-| `AI_BILLING_OWNER` | `0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103` (QA owner EOA) | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Base Safe, 3 of 4) |
-| `AI_BILLING_ALLOW_EOA_OWNER` | `true` (the owner above is an EOA) | unset: the script refuses an owner that isn't a Safe needing 2+ signatures |
+| `AI_BILLING_OWNER` | the QA Safe on Base, 2+ signers (see A, "Moving QA to a Safe") | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Base Safe, 3 of 4) |
 | `AI_BILLING_TREASURY` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 | `AI_BILLING_MAX_CHARGE_AMOUNT` | `1000000000` | `1000000000` |
 | `AI_BILLING_MIN_PERIOD` | `86400` | `86400` |
@@ -117,9 +116,10 @@ source .env
 cast call $AI_BILLING_TOKENS "decimals()(uint8)" --rpc-url base   # 6
 cast call $AI_BILLING_TOKENS "symbol()(string)"  --rpc-url base   # USDC
 
-# The owner. Prod: a Safe (code, and 3 owners of 4 required).
-cast code $AI_BILLING_OWNER --rpc-url base | head -c 20           # prod: non-empty. QA: 0x (an EOA)
-cast call $AI_BILLING_OWNER "getThreshold()(uint256)" --rpc-url base   # prod only: 3
+# The owner: a Safe needing 2+ signatures, on QA as on prod. The script refuses
+# anything else. Prod: 3 owners of 4.
+cast code $AI_BILLING_OWNER --rpc-url base | head -c 20           # non-empty
+cast call $AI_BILLING_OWNER "getThreshold()(uint256)" --rpc-url base   # 2 or more; prod: 3
 
 # The treasury: any address you control. This read only catches a typo.
 cast call $AI_BILLING_TOKENS "balanceOf(address)(uint256)" $AI_BILLING_TREASURY --rpc-url base
@@ -223,7 +223,7 @@ export AUTH=0x306D7a1c938A6fe5464b02982357d745E5464aa2
 cast call $AUTH "owner()(address)" --rpc-url base   # must be 0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3
 ```
 
-**QA** has no authority on Base yet. Deploy one, owned by the QA owner EOA:
+**QA** has no authority on Base yet. Deploy one, owned by the QA owner:
 
 ```bash
 forge create src/fuse/FuseRolesAuthority.sol:FuseRolesAuthority \
@@ -283,7 +283,8 @@ export BILLER_ROLE=…                       # 8c
 export CHARGE_SELECTOR=0x1e1d709a
 ```
 
-**QA (owner is an EOA).** With the QA key in a keystore
+**QA, as first set up (owner an EOA, before it moved to a Safe — see A).**
+Already done on the live QA module; kept as the record. With the QA key in a keystore
 (`cast wallet import solid-qa --interactive`, once):
 
 ```bash
@@ -299,7 +300,7 @@ cast send --account solid-qa "$AUTH" "setUserRole(address,uint8,bool)" \
   "$BILLER" "$BILLER_ROLE" true --rpc-url base
 ```
 
-**Production (owner is the Base Safe).** Build the same three as calldata and
+**Production, and QA from now on (owner is a Safe).** Build the same three as calldata and
 batch them in the Safe's Transaction Builder **on Base**, one multisend, so the
 authority is never attached without the role:
 
@@ -438,6 +439,30 @@ passes for the owner, or for whoever an attached authority allows.
 Permissionless: `subscribe`, `cancel`, `resume` (the caller is the Safe, so a
 Safe only ever speaks for itself) and every view.
 
+### Moving QA to a Safe
+
+The QA module and its `RolesAuthority` were deployed owned by the QA owner EOA
+(`0x26F9…1103`). One key setting what every billing token is worth is not
+allowed any more, on QA or prod, and the deploy script refuses it. Hand both to
+a QA Safe on Base that needs 2+ signatures. Sent from the QA key, and
+irreversible from it — check the Safe address first:
+
+```bash
+export MODULE=0x812E11989365c3557E345cc18a69c107CB1d7023   # the QA module
+export AUTH=0x37738FB69A9d38e2cc61Abc80955a8714C3badc0     # its RolesAuthority
+export QA_SAFE=0x…                                         # the QA Safe on Base
+cast call "$QA_SAFE" "getThreshold()(uint256)" --rpc-url base   # 2 or more
+
+cast send --account solid-qa "$MODULE" "transferOwnership(address)" "$QA_SAFE" --rpc-url base
+cast send --account solid-qa "$AUTH"   "transferOwnership(address)" "$QA_SAFE" --rpc-url base
+
+cast call "$MODULE" "owner()(address)" --rpc-url base   # == $QA_SAFE
+cast call "$AUTH"   "owner()(address)" --rpc-url base   # == $QA_SAFE
+```
+
+The biller's role is the authority's, not the owner's, so charging carries on
+untouched. Every later owner call on QA goes through the Safe, as on prod.
+
 ## B. Kill switches, in increasing order of severity
 
 | Situation | Action | Effect |
@@ -471,12 +496,12 @@ Checksummed; `cast` rejects a wrongly-cased address, so copy rather than retype.
 
 | | QA | production |
 | --- | --- | --- |
-| owner | `0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103` (EOA) | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Safe, 3 of 4) |
-| `RolesAuthority` | deploy in step 8b | `0x306D7a1c938A6fe5464b02982357d745E5464aa2` |
+| owner | the QA Safe, 2+ signers; until the move in A, the EOA `0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103` | `0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3` (Safe, 3 of 4) |
+| `RolesAuthority` | `0x37738FB69A9d38e2cc61Abc80955a8714C3badc0` | `0x306D7a1c938A6fe5464b02982357d745E5464aa2` |
 | biller (backend smart account) | from the QA Wallets page | `0x54C11A6185907bC464fa6aCA0901Aea9DbDD08Fe` |
 | revenue treasury | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` | `0x845703b9ffAdfbEBaDc6a9E23E1DDe39Fdec6A6b` |
 | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
-| `SolidUsageBillingModule` | — | — |
+| `SolidUsageBillingModule` | `0x812E11989365c3557E345cc18a69c107CB1d7023` | — |
 
 Fill the last row in once deployed. Re-read the rest from the chain if time has
 passed:
