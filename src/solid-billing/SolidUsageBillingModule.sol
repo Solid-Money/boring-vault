@@ -81,9 +81,10 @@ contract SolidUsageBillingModule is Auth, IPausable {
     /**
      * @notice Shortest period a mandate's cap may apply to.
      *
-     * Fixed at deployment so no later change can make "up to $X a day" untrue
-     * for a mandate already signed: a cap can never be re-applied over a
-     * shorter window than this.
+     * Fixed at deployment so no later change can shorten the window a signed
+     * cap applies over. The cap binds each period, which starts at the first
+     * charge after the last one ended — not every rolling window — so charges
+     * either side of that boundary can together reach twice the cap.
      */
     uint64 public immutable minPeriod;
 
