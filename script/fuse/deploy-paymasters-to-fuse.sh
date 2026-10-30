@@ -106,8 +106,21 @@ verify_chain() {
         --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" \
         --etherscan-api-key "$ETHERSCAN_API_KEY" --watch ||
         echo "  -> could not verify the implementation on $chain; re-run with --verify $chain later" >&2
+    # The proxy's constructor arguments, from Foundry's record of the deploy. Guessing them instead
+    # needs an explorer API call Etherscan's free plan refuses on some chains.
+    local args
+    args=$(python3 - "broadcast/BridgePaymasterToFuse.s.sol/$(cfg "$chain" chainid)/run-latest.json" "$proxy" <<'PY'
+import json, sys
+for t in json.load(open(sys.argv[1]))["transactions"]:
+    if t.get("transactionType") == "CREATE" and t["contractAddress"].lower() == sys.argv[2].lower():
+        print(" ".join(t["arguments"]))
+PY
+    )
+    [ -n "$args" ] || { echo "  -> no deploy record for the proxy on $chain; cannot verify it" >&2; return 0; }
+    # shellcheck disable=SC2086 # two words: the implementation and the init calldata
     forge verify-contract "$proxy" lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy \
-        --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" --guess-constructor-args \
+        --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" \
+        --constructor-args "$(cast abi-encode "constructor(address,bytes)" $args)" \
         --etherscan-api-key "$ETHERSCAN_API_KEY" --watch ||
         echo "  -> could not verify the proxy on $chain; re-run with --verify $chain later" >&2
 }
