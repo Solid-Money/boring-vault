@@ -199,6 +199,9 @@ read -r -p "Deploy on ${CHAINS[*]} from $DEPLOYER? Type 'deploy' to continue: " 
 for chain in "${CHAINS[@]}"; do
     echo
     echo "===== $chain"
+    # The Solidity step records the addresses there, and Foundry drops the whole broadcast if
+    # that write fails - so the folder has to exist first (deployments/addresses/BNB is new).
+    mkdir -p "$(dirname "$(address_file "$chain")")"
     DAILY_FEE_BUDGET_WEI=$(cfg "$chain" budget) FUNDING_WEI=$(cfg "$chain" funding) \
         forge script "$SCRIPT:DeployBridgePaymasterToFuse" \
         --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast
