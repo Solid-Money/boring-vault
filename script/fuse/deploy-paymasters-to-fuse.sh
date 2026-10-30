@@ -5,9 +5,13 @@
 # first failure, so a problem on Base never reaches Ethereum.
 #
 #   script/fuse/deploy-paymasters-to-fuse.sh                     dry run on all three chains
-#   script/fuse/deploy-paymasters-to-fuse.sh --broadcast         deploy, fund and verify
+#   script/fuse/deploy-paymasters-to-fuse.sh --broadcast         deploy, fund, then verify
 #   script/fuse/deploy-paymasters-to-fuse.sh --broadcast base    only the chains named
+#   script/fuse/deploy-paymasters-to-fuse.sh --verify            verify what is already deployed
 #   script/fuse/deploy-paymasters-to-fuse.sh --transfer          hand each to its Safe
+#
+# Verification runs after every chain is deployed and a failure there only warns, so an explorer
+# that refuses the key (Etherscan's free plan does not cover every chain) never stops a deploy.
 #
 # Env (default in brackets):
 #   DEPLOYER_ACCOUNT    Foundry keystore account that deploys and owns them until --transfer [defaultKey]
@@ -44,24 +48,27 @@ cfg() {
         base:owner)       echo "${NEW_OWNER_BASE:-}" ;;
         base:coin)        echo "ETH" ;;
         base:dir)         echo "Base" ;;
+        base:chainid)     echo 8453 ;;
         bnb:rpc)          echo "${BNB_RPC_URL:-https://bsc-rpc.publicnode.com}" ;;
         bnb:budget)       echo "${BNB_DAILY_FEE_BUDGET_WEI:-200000000000000000}" ;;   # 0.2 BNB
         bnb:funding)      echo "${BNB_FUNDING_WEI:-200000000000000000}" ;;            # 0.2 BNB, ~110 sends
         bnb:owner)        echo "${NEW_OWNER_BNB:-}" ;;
         bnb:coin)         echo "BNB" ;;
         bnb:dir)          echo "BNB" ;;
+        bnb:chainid)      echo 56 ;;
         ethereum:rpc)     echo "${ETHEREUM_RPC_URL:-https://ethereum-rpc.publicnode.com}" ;;
         ethereum:budget)  echo "${ETHEREUM_DAILY_FEE_BUDGET_WEI:-50000000000000000}" ;; # 0.05 ETH
         ethereum:funding) echo "${ETHEREUM_FUNDING_WEI:-50000000000000000}" ;;         # 0.05 ETH, ~90 sends
         ethereum:owner)   echo "${NEW_OWNER_ETHEREUM:-}" ;;
         ethereum:coin)    echo "ETH" ;;
         ethereum:dir)     echo "Mainnet" ;;
+        ethereum:chainid) echo 1 ;;
         *) echo "unknown setting $1:$2" >&2; exit 1 ;;
     esac
 }
 
 usage() {
-    sed -n '3,21p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
 }
 
@@ -70,6 +77,7 @@ CHAINS=()
 for arg in "$@"; do
     case "$arg" in
         --broadcast) MODE=broadcast ;;
+        --verify)    MODE=verify ;;
         --transfer)  MODE=transfer ;;
         base|bnb|ethereum) CHAINS+=("$arg") ;;
         -h|--help) usage ;;
@@ -79,6 +87,41 @@ done
 [ ${#CHAINS[@]} -eq 0 ] && CHAINS=(base bnb ethereum)
 
 ether() { cast from-wei "$1"; }
+
+address_file() { echo "deployments/addresses/$(cfg "$1" dir)/BridgePaymaster.json"; }
+
+# Verifies a chain's recorded implementation and proxy. Warns rather than fails, so one explorer
+# refusing never stops the others.
+verify_chain() {
+    local chain=$1 file impl proxy
+    file=$(address_file "$chain")
+    if [ ! -f "$file" ]; then
+        echo "$chain: nothing recorded in $file - skipping"
+        return 0
+    fi
+    impl=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contractAddresses"]["BridgePaymasterImplementation"])' "$file")
+    proxy=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contractAddresses"]["BridgePaymaster"])' "$file")
+    echo "===== $chain: verify implementation $impl and proxy $proxy"
+    forge verify-contract "$impl" src/fuse/BridgePaymaster.sol:BridgePaymaster \
+        --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" \
+        --etherscan-api-key "$ETHERSCAN_API_KEY" --watch ||
+        echo "  -> could not verify the implementation on $chain; re-run with --verify $chain later" >&2
+    forge verify-contract "$proxy" lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol:ERC1967Proxy \
+        --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" --guess-constructor-args \
+        --etherscan-api-key "$ETHERSCAN_API_KEY" --watch ||
+        echo "  -> could not verify the proxy on $chain; re-run with --verify $chain later" >&2
+}
+
+# ---------------------------------------------------------------------------------------------
+# --verify: verify what is already deployed. Needs no password.
+# ---------------------------------------------------------------------------------------------
+if [ "$MODE" = verify ]; then
+    [ -n "${ETHERSCAN_API_KEY:-}" ] || { echo "Set ETHERSCAN_API_KEY to verify." >&2; exit 1; }
+    for chain in "${CHAINS[@]}"; do
+        verify_chain "$chain"
+    done
+    exit 0
+fi
 
 # ---------------------------------------------------------------------------------------------
 # Dry run: simulate every deploy and its checks. Nothing is sent and no password is needed.
@@ -125,7 +168,7 @@ echo
 printf '%-10s %-22s %-22s %-22s %s\n' chain balance "funding" "daily limit" "needs (funding + gas)"
 for chain in "${CHAINS[@]}"; do
     rpc=$(cfg "$chain" rpc)
-    file=deployments/addresses/$(cfg "$chain" dir)/BridgePaymaster.json
+    file=$(address_file "$chain")
     if [ -f "$file" ]; then
         echo "$chain already has a paymaster recorded in $file - remove the chain from the list or the file" >&2
         exit 1
@@ -144,12 +187,8 @@ for chain in "${CHAINS[@]}"; do
 done
 [ "$short" = 0 ] || { echo "Top up the deployer and run again; nothing was deployed." >&2; exit 1; }
 
-VERIFY=()
-if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
-    VERIFY=(--verify --etherscan-api-key "$ETHERSCAN_API_KEY")
-else
-    echo "ETHERSCAN_API_KEY is not set: the contracts will deploy unverified."
-fi
+[ -n "${ETHERSCAN_API_KEY:-}" ] ||
+    echo "ETHERSCAN_API_KEY is not set: the contracts will deploy unverified (verify later with --verify)."
 
 echo
 echo "Voucher signer: $VOUCHER_SIGNER"
@@ -162,8 +201,15 @@ for chain in "${CHAINS[@]}"; do
     echo "===== $chain"
     DAILY_FEE_BUDGET_WEI=$(cfg "$chain" budget) FUNDING_WEI=$(cfg "$chain" funding) \
         forge script "$SCRIPT:DeployBridgePaymasterToFuse" \
-        --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast "${VERIFY[@]}"
+        --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast
 done
+
+if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
+    for chain in "${CHAINS[@]}"; do
+        echo
+        verify_chain "$chain"
+    done
+fi
 
 echo
 echo "Deployed on ${CHAINS[*]}. Addresses are in deployments/addresses/*/BridgePaymaster.json - commit them."
