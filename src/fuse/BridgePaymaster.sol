@@ -101,6 +101,14 @@ interface IFastWithdrawManager {
  *      takes the same value back from the amount, in the token being bridged, at a price the
  *      backend signs into an EIP-712 voucher. There is no usable FUSE price on-chain, so the
  *      voucher's `maxNativeFee` is what bounds the pricing - a fee above it reverts.
+ *
+ *      `lifiCall` is the one entrypoint that forwards calldata it did not build: a LI.FI swap that
+ *      crosses into or out of Fuse over Stargate, whose native fee this contract pays. It keeps the
+ *      rules above by other means. The calldata must be the exact bytes the backend signed into a
+ *      voucher, for one of two LI.FI Stargate functions, and is decoded and checked here as well:
+ *      the coins go to the caller, Stargate refunds to this contract, the fee forwarded is the
+ *      fee the calldata pays, no LayerZero option drops native anywhere, and the user's own coin
+ *      is the only asset pulled. The fee is capped per call and per day.
  */
 contract BridgePaymaster is
     Initializable,
@@ -121,7 +129,8 @@ contract BridgePaymaster is
         TELLER,
         CARD_DEPOSIT_MANAGER,
         FAST_WITHDRAW_MANAGER,
-        STARGATE_OFT
+        STARGATE_OFT,
+        LIFI_DIAMOND
     }
 
     /**
@@ -156,6 +165,77 @@ contract BridgePaymaster is
     bytes32 public constant SEND_VOUCHER_TYPEHASH = keccak256(
         "SendVoucher(address from,address oft,uint32 dstEid,address to,uint256 amountLD,uint256 feeLD,uint256 maxNativeFee,uint256 minAmountLD,uint256 nonce,uint64 deadline)"
     );
+
+    /**
+     * @notice A backend-signed authorisation for one `lifiCall`.
+     * @dev Signed by `voucherSigner` under the same domain as `SendVoucher`, from the LI.FI quote
+     *      the user reviewed: the calldata is fixed by `dataHash`, so nothing in it can change.
+     * @param from The Safe allowed to spend this voucher; must be `msg.sender`.
+     * @param target The LI.FI diamond, registered as `LIFI_DIAMOND`.
+     * @param token The coin the swap takes from `from`; `address(0)` for the native coin.
+     * @param amount How much of `token` the swap takes: pulled from `from`, or its `msg.value`.
+     * @param dataHash `keccak256` of the LI.FI calldata.
+     * @param nativeFee The Stargate fee this contract pays on top: the calldata's
+     *        `StargateData.fee.nativeFee`.
+     * @param nonce Unique per voucher, shared with `SendVoucher`; spent on use.
+     * @param deadline Last timestamp the voucher can be used at.
+     */
+    struct LifiVoucher {
+        address from;
+        address target;
+        address token;
+        uint256 amount;
+        bytes32 dataHash;
+        uint256 nativeFee;
+        uint256 nonce;
+        uint64 deadline;
+    }
+
+    bytes32 public constant LIFI_VOUCHER_TYPEHASH = keccak256(
+        "LifiVoucher(address from,address target,address token,uint256 amount,bytes32 dataHash,uint256 nativeFee,uint256 nonce,uint64 deadline)"
+    );
+
+    /// @dev LI.FI's `ILiFi.BridgeData`, field for field.
+    struct LifiBridgeData {
+        bytes32 transactionId;
+        string bridge;
+        string integrator;
+        address referrer;
+        address sendingAssetId;
+        address receiver;
+        uint256 minAmount;
+        uint256 destinationChainId;
+        bool hasSourceSwaps;
+        bool hasDestinationCall;
+    }
+
+    /// @dev LI.FI's `LibSwap.SwapData`, field for field.
+    struct LifiSwapData {
+        address callTo;
+        address approveTo;
+        address sendingAssetId;
+        address receivingAssetId;
+        uint256 fromAmount;
+        bytes callData;
+        bool requiresDeposit;
+    }
+
+    /// @dev LI.FI's `StargateFacetV2.StargateData`, field for field.
+    struct LifiStargateData {
+        uint16 assetId;
+        SendParam sendParams;
+        MessagingFee fee;
+        address refundAddress;
+    }
+
+    /// @dev `StargateFacetV2.swapAndStartBridgeTokensViaStargate(BridgeData,SwapData[],StargateData)`.
+    bytes4 internal constant LIFI_SWAP_AND_BRIDGE_VIA_STARGATE = 0xa6010a66;
+    /// @dev `StargateFacetV2.startBridgeTokensViaStargate(BridgeData,StargateData)`.
+    bytes4 internal constant LIFI_BRIDGE_VIA_STARGATE = 0x14d53077;
+    /// @dev Most distinct coins a LI.FI route's source swaps may take, so the refund loop is bounded.
+    uint256 internal constant MAX_LIFI_INPUTS = 4;
+    /// @dev LayerZero's executor, in type-3 options.
+    uint8 internal constant LZ_EXECUTOR_WORKER = 1;
 
     /**
      * @dev Slot retained from the pre-2026-09 layout, where it gated the removed `callWithValue`.
@@ -233,6 +313,15 @@ contract BridgePaymaster is
     event RouteUpdated(address indexed oft, uint32 indexed dstEid, bool allowed);
     event MaxSponsoredAmountUpdated(address indexed target, uint256 maxSponsoredAmount);
     event DailyFeeBudgetUpdated(uint256 dailyFeeBudget);
+    event LifiCallSponsored(
+        address indexed from,
+        address indexed target,
+        uint256 indexed nonce,
+        address token,
+        uint256 amount,
+        uint256 nativeFee,
+        bytes32 transactionId
+    );
     event BridgeSent(
         address indexed from,
         address indexed oft,
@@ -262,6 +351,14 @@ contract BridgePaymaster is
     error FeeExceedsAmount();
     error NativeFeeAboveVoucher();
     error DailyFeeBudgetExceeded();
+    error UnsupportedCall();
+    error CalldataMismatch();
+    error ReceiverNotCaller();
+    error InputMismatch();
+    error RefundNotToPaymaster();
+    error NativeDropNotAllowed();
+    error ValueMismatch();
+    error FeeMismatch();
 
     modifier onlyTarget(address target, TargetKind kind) {
         if (targetKind[target] != kind) revert UnsupportedTarget();
@@ -525,6 +622,44 @@ contract BridgePaymaster is
         return _hashTypedDataV4(_voucherStructHash(v));
     }
 
+    /**
+     * @notice Run a LI.FI swap that crosses between Fuse and another chain over Stargate, paying
+     *         the native fee Stargate charges on top.
+     * @dev The caller approves this contract for `v.amount` of `v.token`, or sends it as
+     *      `msg.value` when it is the native coin. This contract pulls it, approves the diamond for
+     *      exactly that much, and calls it with `data` and `msg.value + v.nativeFee`. Whatever LI.FI
+     *      hands back within the call - unspent input, swap leftovers, native - goes on to the
+     *      caller before this returns; native only up to what the caller sent, since the rest is
+     *      Stargate repaying a fee this contract paid.
+     * @return transactionId LI.FI's id for the transfer, which its status API tracks it by.
+     */
+    function lifiCall(LifiVoucher calldata v, bytes calldata data, bytes calldata signature)
+        external
+        payable
+        nonReentrant
+        onlyTarget(v.target, TargetKind.LIFI_DIAMOND)
+        returns (bytes32 transactionId)
+    {
+        _useLifiVoucher(v, signature);
+        if (keccak256(data) != v.dataHash) revert CalldataMismatch();
+        if (msg.value != (v.token == address(0) ? v.amount : 0)) revert ValueMismatch();
+        if (v.nativeFee > maxSponsoredAmount[v.target]) revert AmountAboveMaximum();
+
+        address[] memory inputs;
+        (transactionId, inputs) = _checkLifiRoute(v, data);
+        _payAndCallLifi(v, data, inputs);
+
+        emit LifiCallSponsored(v.from, v.target, v.nonce, v.token, v.amount, v.nativeFee, transactionId);
+    }
+
+    /**
+     * @notice The EIP-712 digest a voucher signer signs for `v`.
+     * @dev Exposed so the backend can check its encoding against the contract's.
+     */
+    function hashLifiVoucher(LifiVoucher calldata v) external view returns (bytes32) {
+        return _hashTypedDataV4(_lifiVoucherStructHash(v));
+    }
+
     // ======================================== INTERNAL ========================================
 
     function _requireNoOptions(SendParam calldata sendParam) internal pure {
@@ -557,6 +692,195 @@ contract BridgePaymaster is
                 v.deadline
             )
         );
+    }
+
+    function _useLifiVoucher(LifiVoucher calldata v, bytes calldata signature) internal {
+        if (v.from != msg.sender) revert VoucherNotForCaller();
+        if (block.timestamp > v.deadline) revert VoucherExpired();
+        if (usedNonce[v.nonce]) revert VoucherUsed();
+        if (ECDSA.recover(_hashTypedDataV4(_lifiVoucherStructHash(v)), signature) != voucherSigner) {
+            revert InvalidVoucherSignature();
+        }
+        usedNonce[v.nonce] = true;
+    }
+
+    function _lifiVoucherStructHash(LifiVoucher calldata v) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                LIFI_VOUCHER_TYPEHASH, v.from, v.target, v.token, v.amount, v.dataHash, v.nativeFee, v.nonce, v.deadline
+            )
+        );
+    }
+
+    /**
+     * @dev Decodes the LI.FI call and refuses anything but a Stargate transfer that delivers to
+     *      the caller, refunds to this contract, pays exactly the voucher's fee with no native
+     *      riding on its options, and takes the caller's coin in the voucher's amount. Returns
+     *      LI.FI's transaction id and the distinct ERC-20s the route takes, for the refund.
+     */
+    function _checkLifiRoute(LifiVoucher calldata v, bytes calldata data)
+        internal
+        view
+        returns (bytes32 transactionId, address[] memory inputs)
+    {
+        if (data.length < 4) revert UnsupportedCall();
+        bytes4 selector = bytes4(data[:4]);
+        LifiBridgeData memory bridgeData;
+        LifiSwapData[] memory swaps;
+        LifiStargateData memory stargateData;
+        if (selector == LIFI_SWAP_AND_BRIDGE_VIA_STARGATE) {
+            (bridgeData, swaps, stargateData) = abi.decode(data[4:], (LifiBridgeData, LifiSwapData[], LifiStargateData));
+            if (swaps.length == 0) revert InputMismatch();
+        } else if (selector == LIFI_BRIDGE_VIA_STARGATE) {
+            (bridgeData, stargateData) = abi.decode(data[4:], (LifiBridgeData, LifiStargateData));
+        } else {
+            revert UnsupportedCall();
+        }
+
+        if (bridgeData.receiver != v.from) revert ReceiverNotCaller();
+        if (bridgeData.destinationChainId == block.chainid) revert RouteNotAllowed();
+        if (!allowedDstEid[v.target][stargateData.sendParams.dstEid]) revert RouteNotAllowed();
+
+        // The first thing LI.FI takes is the caller's coin: the first swap's input, or with no
+        // swaps the bridged asset itself.
+        (address takes, uint256 amount) = swaps.length > 0
+            ? (swaps[0].sendingAssetId, swaps[0].fromAmount)
+            : (bridgeData.sendingAssetId, bridgeData.minAmount);
+        if (takes != v.token || amount != v.amount) revert InputMismatch();
+
+        if (stargateData.fee.nativeFee != v.nativeFee || stargateData.fee.lzTokenFee != 0) {
+            revert FeeMismatch();
+        }
+        if (stargateData.refundAddress != address(this)) revert RefundNotToPaymaster();
+        _requireNoNativeOptions(stargateData.sendParams.extraOptions);
+
+        inputs = _lifiInputs(bridgeData.sendingAssetId, swaps);
+        transactionId = bridgeData.transactionId;
+    }
+
+    /**
+     * @dev Refuses LayerZero options that move native: a native drop, or value sent along with
+     *      the receive or compose call. Either would be priced into the fee this contract pays
+     *      and land wherever the options say. Gas limits only price execution, so they pass.
+     *      Type 1 options are a gas limit alone; type 2 carry an airdrop and are refused.
+     */
+    function _requireNoNativeOptions(bytes memory options) internal pure {
+        if (options.length == 0) return;
+        if (options.length < 2) revert NativeDropNotAllowed();
+        uint256 kind = (uint256(uint8(options[0])) << 8) | uint8(options[1]);
+        if (kind == 1) return;
+        if (kind != 3) revert NativeDropNotAllowed();
+
+        // Type 3: [worker uint8][size uint16][optionType uint8][params: size - 1 bytes], repeated.
+        uint256 cursor = 2;
+        while (cursor < options.length) {
+            if (cursor + 4 > options.length) revert NativeDropNotAllowed();
+            uint8 worker = uint8(options[cursor]);
+            uint256 size = (uint256(uint8(options[cursor + 1])) << 8) | uint8(options[cursor + 2]);
+            if (size == 0 || cursor + 3 + size > options.length) revert NativeDropNotAllowed();
+            if (worker == LZ_EXECUTOR_WORKER) {
+                uint8 optionType = uint8(options[cursor + 3]);
+                uint256 params = cursor + 4;
+                // lzReceive: gas uint128, then an optional native value.
+                if (optionType == 1) {
+                    _requireZero(options, params + 16, cursor + 3 + size);
+                }
+                // lzCompose: index uint16, gas uint128, then an optional native value.
+                else if (optionType == 3) {
+                    _requireZero(options, params + 18, cursor + 3 + size);
+                }
+                // Ordered execution carries nothing; anything else (a native drop) is refused.
+                else if (optionType != 4) {
+                    revert NativeDropNotAllowed();
+                }
+            }
+            cursor += 3 + size;
+        }
+    }
+
+    function _requireZero(bytes memory data, uint256 from, uint256 to) internal pure {
+        for (uint256 i = from; i < to; i++) {
+            if (data[i] != 0) revert NativeDropNotAllowed();
+        }
+    }
+
+    /// @dev The distinct ERC-20s a LI.FI route takes from its caller: each swap's input, and the
+    ///      bridged asset.
+    function _lifiInputs(address bridged, LifiSwapData[] memory swaps) internal pure returns (address[] memory inputs) {
+        address[] memory found = new address[](swaps.length + 1);
+        uint256 count;
+        for (uint256 i; i <= swaps.length; i++) {
+            address asset = i < swaps.length ? swaps[i].sendingAssetId : bridged;
+            if (asset == address(0)) continue;
+            bool seen;
+            for (uint256 j; j < count; j++) {
+                if (found[j] == asset) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) found[count++] = asset;
+        }
+        if (count > MAX_LIFI_INPUTS) revert UnsupportedCall();
+        inputs = new address[](count);
+        for (uint256 i; i < count; i++) {
+            inputs[i] = found[i];
+        }
+    }
+
+    /**
+     * @dev Pays the fee, runs the LI.FI call and refunds what it left. `before` is taken before the
+     *      caller's coin arrives, so whatever of it LI.FI leaves counts as theirs.
+     */
+    function _payAndCallLifi(LifiVoucher calldata v, bytes calldata data, address[] memory inputs) internal {
+        uint256 nativeFloor = address(this).balance - msg.value;
+        if (v.nativeFee > nativeFloor) revert InsufficientBalance();
+        nativeFloor -= v.nativeFee;
+        _spendDailyFee(v.nativeFee);
+
+        uint256[] memory before = new uint256[](inputs.length);
+        for (uint256 i; i < inputs.length; i++) {
+            before[i] = IERC20(inputs[i]).balanceOf(address(this));
+        }
+
+        if (v.token != address(0)) {
+            IERC20(v.token).safeTransferFrom(msg.sender, address(this), v.amount);
+            IERC20(v.token).forceApprove(v.target, v.amount);
+        }
+        (bool success, bytes memory result) = v.target.call{value: msg.value + v.nativeFee}(data);
+        if (!success) {
+            assembly {
+                revert(add(result, 32), mload(result))
+            }
+        }
+        if (v.token != address(0)) IERC20(v.token).forceApprove(v.target, 0);
+
+        _refundLifiLeftovers(v.from, inputs, before, nativeFloor, msg.value);
+    }
+
+    /**
+     * @dev Sends `to` whatever the call left here: each input coin above its balance before the
+     *      call, and native above `nativeFloor` (this contract's own balance less the fee it paid),
+     *      up to `nativeIn`, the native the caller sent.
+     */
+    function _refundLifiLeftovers(
+        address to,
+        address[] memory inputs,
+        uint256[] memory before,
+        uint256 nativeFloor,
+        uint256 nativeIn
+    ) internal {
+        for (uint256 i; i < inputs.length; i++) {
+            uint256 balance = IERC20(inputs[i]).balanceOf(address(this));
+            if (balance > before[i]) IERC20(inputs[i]).safeTransfer(to, balance - before[i]);
+        }
+        uint256 nativeBalance = address(this).balance;
+        uint256 back = nativeBalance > nativeFloor ? nativeBalance - nativeFloor : 0;
+        uint256 owed = back < nativeIn ? back : nativeIn;
+        if (owed > 0) {
+            (bool success,) = to.call{value: owed}("");
+            if (!success) revert NativeTransferFailed();
+        }
     }
 
     function _send(SendVoucher calldata v, IERC20 token)
