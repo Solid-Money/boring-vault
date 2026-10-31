@@ -11,8 +11,9 @@ import {BridgePaymaster} from "src/fuse/BridgePaymaster.sol";
  *         LI.FI's Stargate swaps between Fuse and Ethereum, Base and BNB Chain: registers LI.FI's
  *         diamond, its destinations and a per-swap cap on the native fee.
  * @dev The chain is picked from the RPC: Fuse's paymaster sends to the other three, theirs send to
- *      Fuse. Run by the proxy's owner, it deploys the implementation and sends every call; run by
- *      anyone else, it deploys the implementation and prints the owner's calls to make.
+ *      Fuse. Broadcast by the proxy's owner, it deploys the implementation and sends every call;
+ *      broadcast by anyone else, it deploys the implementation and prints the owner's calls to make.
+ *      `IMPLEMENTATION` reuses one already deployed instead.
  *
  *      forge script script/fuse/UpgradePaymasterLifiCall.s.sol --rpc-url base \
  *        --account <owner> --broadcast --verify
@@ -35,8 +36,12 @@ contract UpgradePaymasterLifiCall is Script {
         address owner = paymaster.owner();
 
         vm.startBroadcast();
-        address implementation = address(new BridgePaymaster());
+        // The account broadcasting, which `msg.sender` is not outside a broadcast.
+        (, address broadcaster,) = vm.readCallers();
+        address implementation = vm.envOr("IMPLEMENTATION", address(0));
+        if (implementation == address(0)) implementation = address(new BridgePaymaster());
         vm.stopBroadcast();
+        require(implementation.code.length > 0, "IMPLEMENTATION has no code");
         console2.log("Implementation:", implementation);
 
         bytes[] memory calls = new bytes[](3 + destinations.length);
@@ -47,7 +52,7 @@ contract UpgradePaymasterLifiCall is Script {
             calls[3 + i] = abi.encodeCall(paymaster.setRoute, (DIAMOND, destinations[i], true));
         }
 
-        if (msg.sender != owner) {
+        if (broadcaster != owner) {
             console2.log("Not the owner. The owner sends each of these to", address(paymaster));
             console2.log("Owner:", owner);
             for (uint256 i; i < calls.length; i++) {
