@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
-# Deploys and configures soEURC on Base in one go: deploy, configure, recreate the soETH Safes on
-# Base, verify. Stops at the first error; rerunning skips every step already done (recorded in
-# $STATE). It never hands over ownership: once the Safe signers are fixed in Safe{Wallet}, run
-#   npx hardhat run scripts/MVP/config/transferOwnership.js --network base
+# Deploys and configures soEUR on Base for one environment, qa or prod: deploy, configure, verify.
+# Each environment's settings and deployed addresses live in its own record file (see
+# deployment.js), so a QA run can never touch PROD. Stops at the first error; rerunning skips every
+# step already done. It never hands over ownership: once the checks pass, run
+#   DEPLOYMENT=<qa|prod> npx hardhat run scripts/MVP/config/transferOwnership.js --network base
 #
-# Usage, from the repo root:  bash scripts/MVP/deploy-base.sh
-# Needs PRIVATE_KEY (the 0x607B…4628 key) in .env. BASE_RPC_URL comes from .env if set, else the
-# public https://mainnet.base.org.
+# Usage, from the repo root:
+#   bash scripts/MVP/deploy-base.sh qa              deploy and configure QA
+#   bash scripts/MVP/deploy-base.sh prod --check    read-only checks of PROD; sends nothing
+# Needs PRIVATE_KEY (the record's deployer key) in .env. BASE_RPC_URL comes from .env if set, else
+# the public https://mainnet.base.org.
 set -euo pipefail
 
+ENV=${1:-}; MODE=${2:-}
+case "$ENV" in qa|prod) ;; *) echo "Usage: bash scripts/MVP/deploy-base.sh qa|prod [--check]" >&2; exit 1 ;; esac
+[ -z "$MODE" ] || [ "$MODE" = "--check" ] || { echo "Unknown option: $MODE" >&2; exit 1; }
+export DEPLOYMENT=$ENV
+
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
-MVP=${MVP_DIR:-$REPO/scripts/MVP}
-STATE=${STATE:-$REPO/deployments/addresses/Base/soEURC.json}
-LOG=${LOG:-$REPO/deploy-base.log}
-DEPLOYER=0x607B5576B3C5a748C1Fe9d155a94f322E15F4628
+MVP=$REPO/scripts/MVP
+LOG=${LOG:-$REPO/deploy-base-$ENV.log}
 EURC=0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42
 cd "$REPO"
+STATE=$(node -e "console.log(require('./scripts/MVP/deployment').load().file)")
 
 if [ -z "${BASE_RPC_URL:-}" ]; then
   BASE_RPC_URL=$(grep -E '^BASE_RPC_URL=.+' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'" || true)
@@ -26,126 +33,114 @@ RPC=$BASE_RPC_URL
 die() { echo; echo "STOPPED: $*" >&2; exit 1; }
 c() { cast call -r "$RPC" "$@" 2>/dev/null; }
 
-# State file: deployed addresses and finished steps.
-st() { python3 -I - "$STATE" "$@" <<'EOF'
-import json, os, sys
+# Record file: settings (config), deployed addresses (contracts) and finished steps (done).
+rec() { python3 -I - "$STATE" "$@" <<'EOF'
+import json, sys
 path, op, *args = sys.argv[1:]
-d = json.load(open(path)) if os.path.exists(path) else {"network": "base", "chainId": 8453, "contracts": {}, "done": []}
-if op == "get":
+d = json.load(open(path))
+if op == "contract":
     print(d["contracts"].get(args[0], ""))
+elif op == "config":
+    v = d["config"].get(args[0])
+    print(" ".join(v) if isinstance(v, list) else ("" if v is None else v))
+elif op == "safe":
+    s = d["config"].get("ownerSafe")
+    print("" if not s else f'{s["threshold"]} {" ".join(sorted(o.lower() for o in s["owners"]))}')
 elif op == "isdone":
     print("yes" if args[0] in d["done"] else "")
-else:
-    if op == "set":
-        d["contracts"][args[0]] = args[1]
-    elif op == "done" and args[0] not in d["done"]:
+elif op == "done":
+    if args[0] not in d["done"]:
         d["done"].append(args[0])
-    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(d, f, indent=2)
         f.write("\n")
 EOF
 }
 
-# Replace the scripts' '' // TODO(Base) placeholders with addresses from the state file.
-fill() { python3 -I - "$MVP" "$STATE" <<'EOF'
-import json, re, pathlib, sys
-mvp, state = sys.argv[1:]
-c = json.load(open(state))["contracts"]
-m = {'authorityAddress': 'RolesAuthority', 'boringVault': 'BoringVault', 'boringVaultAddress': 'BoringVault',
-     'vaultAddress': 'BoringVault', 'accountant': 'Accountant', 'accountantAddress': 'Accountant',
-     'tellerAddress': 'Teller', 'managerAddress': 'Manager', 'boringQueueWithTrackingAddress': 'BoringQueue',
-     'boringQueueAddress': 'BoringQueue', 'boringSolverAddress': 'BoringSolver'}
-def sub(x):
-    addr = c.get(m.get(x.group(2), ''))
-    return f"{x.group(1)}'{addr}' // Base{x.group(3)}" if addr else x.group(0)
-for p in pathlib.Path(mvp).rglob('*.js'):
-    s = p.read_text()
-    n = re.sub(r"^(const (\w+) = )'' // TODO\(Base\)(.*)$", sub, s, flags=re.M)
-    if n != s:
-        p.write_text(n)
-EOF
-}
-
-OUT=$(mktemp)
 NC=""  # compile on the first script only
-run() {  # run one hardhat script; output goes to the screen, the log and $OUT
+run() {  # run one hardhat script; output goes to the screen and the log
   echo; echo ">>> $1"
-  npx hardhat run "$MVP/$1" --network base $NC 2>&1 | grep -v deny_warnings | tee "$OUT" | tee -a "$LOG"
+  npx hardhat run "$MVP/$1" --network base $NC 2>&1 | grep -v deny_warnings | tee -a "$LOG"
   local rc=${PIPESTATUS[0]}
   NC=--no-compile
   return "$rc"
 }
-grab() { grep -E "$1" "$OUT" | grep -oE '0x[0-9a-fA-F]{40}' | tail -1; }
-unfilled() { grep -l "'' // TODO(Base)" "$@" 2>/dev/null || true; }
 
 # ── Preflight ───────────────────────────────────────────────────────────────
+DEPLOYER=$(rec config deployer); OWNER=$(rec config owner)
 CHAIN=$(cast chain-id -r "$RPC" 2>/dev/null || true)
 [ "$CHAIN" = "8453" ] || die "the RPC is not Base (chain id '${CHAIN}', expected 8453)"
-echo "Network:  Base (8453)"
-echo "Deployer: $DEPLOYER  balance $(cast balance $DEPLOYER -e -r "$RPC" 2>/dev/null) ETH"
-echo "State:    $STATE"
-echo "Log:      $LOG"
-if [ "${YES:-}" != "1" ]; then
-  read -r -p "This sends real transactions on Base. Type 'deploy' to continue: " answer
-  [ "$answer" = "deploy" ] || die "not confirmed"
-fi
-echo "=== soEURC Base run $(date -u +%FT%TZ) ===" >> "$LOG"
+echo "Environment: $ENV"
+echo "Network:     Base (8453)"
+echo "Record:      $STATE"
+echo "Deployer:    $DEPLOYER  balance $(cast balance $DEPLOYER -e -r "$RPC" 2>/dev/null) ETH"
+echo "Final owner: $OWNER"
 
-# ── 1. Core contracts ───────────────────────────────────────────────────────
-if [ -z "$(st get BoringVault)" ]; then
-  [ -z "$(st isdone deployAllStarted)" ] || die "deployAll.js started earlier but did not finish. Do not rerun it: some contracts may already exist. Check $LOG and $STATE."
-  st done deployAllStarted
-  ok=yes; run deployAll.js || ok=no
-  for pair in "RolesAuthority:RolesAuthority deployed at" "BoringVault:Vault deployed at" "Accountant:Accountant deployed at" \
-              "Teller:Teller deployed at" "Manager:Manager deployed at"; do
-    a=$(grab "${pair#*:}"); [ -z "$a" ] || st set "${pair%%:*}" "$a"
-  done
-  [ "$ok" = yes ] || die "deployAll.js failed partway. Addresses deployed so far are in $STATE. Do not rerun this script; ask for help."
-  for k in RolesAuthority BoringVault Accountant Teller Manager; do [ -n "$(st get $k)" ] || die "no $k address in the deployAll.js output"; done
-  st done deployAll
-fi
-fill
-
-# ── 2–3. Queue and solver ───────────────────────────────────────────────────
-if [ -z "$(st get BoringQueue)" ]; then
-  run 05_deployBoringQueue.js || die "05_deployBoringQueue.js failed"
-  a=$(grab 'Queue With Tracking deployed'); [ -n "$a" ] || die "no queue address in the output"
-  st set BoringQueue "$a"; fill
-fi
-if [ -z "$(st get BoringSolver)" ]; then
-  run 06_deployBoringSolver.js || die "06_deployBoringSolver.js failed"
-  a=$(grab 'Boring Solver deployed'); [ -n "$a" ] || die "no solver address in the output"
-  st set BoringSolver "$a"; fill
-fi
-
-# ── 4–9. Configure, repair any missing authority, then recreate the Safes ───
-STEPS="setRolesConfig setSolverRoles setQueuePublicCapabilities setBeforeTransferHook configureTeller setWithdrawAsset setAuthorities recreateSafes"
-left=$(unfilled $(for s in $STEPS; do echo "$MVP/config/$s.js"; done))
-[ -z "$left" ] || die "placeholders not filled in: $left"
-for s in $STEPS; do
-  if [ -z "$(st isdone $s)" ]; then
-    run "config/$s.js" || die "config/$s.js failed. Rerunning this script resumes from it."
-    st done "$s"
+if [ "$MODE" != "--check" ]; then
+  echo "Log:         $LOG"
+  if [ "${YES:-}" != "1" ]; then
+    read -r -p "This sends real transactions on Base for $ENV. Type '$ENV' to continue: " answer
+    [ "$answer" = "$ENV" ] || die "not confirmed"
   fi
-done
+  echo "=== soEUR $ENV run $(date -u +%FT%TZ) ===" >> "$LOG"
+
+  # ── 1. Core contracts ─────────────────────────────────────────────────────
+  if [ -z "$(rec isdone deployAll)" ]; then
+    [ -z "$(rec isdone deployAllStarted)" ] || die "deployAll.js started earlier but did not finish. Do not rerun it: the contracts it deployed are in $STATE. Ask for help."
+    rec done deployAllStarted
+    run deployAll.js || die "deployAll.js failed partway. The contracts it deployed are in $STATE. Do not rerun this script; ask for help."
+    rec done deployAll
+  fi
+
+  # ── 2–3. Queue and solver ─────────────────────────────────────────────────
+  [ -n "$(rec contract BoringQueue)" ] || run 05_deployBoringQueue.js || die "05_deployBoringQueue.js failed"
+  [ -n "$(rec contract BoringSolver)" ] || run 06_deployBoringSolver.js || die "06_deployBoringSolver.js failed"
+
+  # ── 4–9. Configure, then repair any missing authority ─────────────────────
+  for s in setRolesConfig setSolverRoles setQueuePublicCapabilities setBeforeTransferHook configureTeller setWithdrawAsset setAuthorities; do
+    if [ -z "$(rec isdone $s)" ]; then
+      run "config/$s.js" || die "config/$s.js failed. Rerunning this script resumes from it."
+      rec done "$s"
+    fi
+  done
+fi
 
 # ── Verify (read-only) ──────────────────────────────────────────────────────
-AUTH=$(st get RolesAuthority); VAULT=$(st get BoringVault); ACC=$(st get Accountant); TELLER=$(st get Teller)
-MGR=$(st get Manager); QUEUE=$(st get BoringQueue); SOLVER=$(st get BoringSolver)
-echo; echo "=== Checks on Base ==="
-for x in VAULT ACC TELLER MGR QUEUE SOLVER; do a=${!x}; echo "$x $a authority $( [ "$(c $a 'authority()(address)')" = "$AUTH" ] && echo ok || echo WRONG)"; done
-echo "vault: $(c $VAULT 'name()(string)') $(c $VAULT 'symbol()(string)') $(c $VAULT 'decimals()(uint8)') decimals, hook $( [ "$(c $VAULT 'hook()(address)')" = "$TELLER" ] && echo ok || echo WRONG)"
-echo "accountant rate: $(c $ACC 'getRate()(uint256)')  base: $(c $ACC 'base()(address)')"
+AUTH=$(rec contract RolesAuthority); VAULT=$(rec contract BoringVault); ACC=$(rec contract Accountant)
+TELLER=$(rec contract Teller); MGR=$(rec contract Manager); QUEUE=$(rec contract BoringQueue); SOLVER=$(rec contract BoringSolver)
+for x in AUTH VAULT ACC TELLER MGR QUEUE SOLVER; do [ -n "${!x}" ] || die "$ENV is not fully deployed yet (no $x in $STATE)"; done
+STRATEGIST=$(rec config strategist); UPDATER=$(rec config rateUpdater); OPERATOR=$(rec config solverOperator)
+PAYOUT=$(rec config payoutAddress); FORMER=$(rec config formerSolverOperators)
+role() { c $AUTH 'doesUserHaveRole(address,uint8)(bool)' $1 $2; }
 pub() { c $AUTH 'isCapabilityPublic(address,bytes4)(bool)' $1 $2; }
-echo "public deposit=$(pub $TELLER 0x0efe6a8b) requestWithdraw=$(pub $QUEUE 0x6bb3b476) cancelWithdraw=$(pub $QUEUE 0x08bf866e)  teller enter=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x39d6ba32) exit=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x18457e61)"
+same() { [ "$(echo "$1" | tr 'A-F' 'a-f')" = "$(echo "$2" | tr 'A-F' 'a-f')" ]; }
+
+echo; echo "=== Checks on Base ($ENV) ==="
+for x in VAULT ACC TELLER MGR QUEUE SOLVER; do a=${!x}; echo "$x $a authority $( same "$(c $a 'authority()(address)')" "$AUTH" && echo ok || echo WRONG)"; done
+echo "vault: $(c $VAULT 'name()(string)') $(c $VAULT 'symbol()(string)') $(c $VAULT 'decimals()(uint8)') decimals, hook $( same "$(c $VAULT 'hook()(address)')" "$TELLER" && echo ok || echo WRONG)"
+echo "accountant rate: $(c $ACC 'getRate()(uint256)')  base: $(c $ACC 'base()(address)')"
+echo "public deposit=$(pub $TELLER 0x0efe6a8b) requestWithdraw=$(pub $QUEUE 0x6bb3b476) withPermit=$(pub $QUEUE 0x581b4920) cancel=$(pub $QUEUE 0x4a2dc5e4) cancelById=$(pub $QUEUE 0x08bf866e) replace=$(pub $QUEUE 0xa5672fd7)  teller enter=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x39d6ba32) exit=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x18457e61)"
 echo "EURC asset: $(c $TELLER 'assetData(address)(bool,bool,uint16)' $EURC | tr '\n' ' ')"
-for x in AUTH VAULT ACC TELLER MGR QUEUE SOLVER; do a=${!x}; echo "$x owner $(c $a 'owner()(address)')"; done
-for s in 0x6B26fAF3AD822695127B29ad242ac4B33D336F42 0xA7Fdc92eDa10eac8d6AfD3037d398929B57303D7; do
-  echo "Safe $s: $(c $s 'getThreshold()(uint256)')-of-$(c $s 'getOwners()(address[])')"
+echo "strategist $STRATEGIST: strategies $(role $STRATEGIST 7)$(same $STRATEGIST $UPDATER || echo ", rate updates $(role $STRATEGIST 11) (want false)")"
+echo "rate updater $UPDATER: rate updates $(role $UPDATER 11)"
+echo "solver operator $OPERATOR: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $OPERATOR $SOLVER 0x5ff8a71f)"
+for f in $FORMER; do echo "former solver operator $f: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $f $SOLVER 0x5ff8a71f) (want false)"; done
+echo "fee recipient: $( same "$(c $ACC 'accountantState()(address,uint96,uint128,uint128,uint96,uint16,uint16,uint64,bool,uint24,uint16,uint16)' | head -1)" "$PAYOUT" && echo "$PAYOUT ok" || echo WRONG)"
+pending=no
+for x in AUTH VAULT ACC TELLER MGR QUEUE SOLVER; do
+  o=$(c ${!x} 'owner()(address)')
+  if same "$o" "$OWNER"; then s="final owner"; elif same "$o" "$DEPLOYER"; then s="deployer (handoff pending)"; pending=yes; else s="UNEXPECTED $o"; fi
+  echo "$x owner: $s"
 done
+SAFE=$(rec safe)
+if [ -n "$SAFE" ]; then
+  got="$(c $OWNER 'getThreshold()(uint256)') $(c $OWNER 'getOwners()(address[])' | tr -d '[],' | tr 'A-F' 'a-f' | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+  echo "owner Safe $OWNER: $( [ "$got" = "$SAFE" ] && echo "signers match the record" || echo "signers DO NOT match the record: $got")"
+fi
 
 echo
 echo "Done. Addresses are in $STATE."
-echo "Next: fix both Safes' signers in Safe{Wallet} on Base, then run"
-echo "  npx hardhat run scripts/MVP/config/transferOwnership.js --network base"
+if [ "$pending" = yes ]; then
+  echo "Next: hand ownership to $OWNER:"
+  echo "  DEPLOYMENT=$ENV npx hardhat run scripts/MVP/config/transferOwnership.js --network base"
+fi

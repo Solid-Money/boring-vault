@@ -1,13 +1,15 @@
 const { ethers } = require('hardhat')
+const deployment = require('./deployment').load()
 
 // ── Config ──────────────────────────────────────────────────────────────────
+// Per-environment values come from the deployment record (DEPLOYMENT=qa or prod).
 // The deployer owns every contract and the RolesAuthority while the config scripts run, so one
-// key signs everything. config/transferOwnership.js hands all of it to the Base Safe at the end.
-const ownerAddress = '0x607B5576B3C5a748C1Fe9d155a94f322E15F4628' // deployer
-const payoutAddress = '0x3B694d634981Ace4B64a27c48bffe19f1447779B' // accountant fee recipient, same as soETH
+// key signs everything. config/transferOwnership.js hands all of it to the record's owner at the end.
+const ownerAddress = deployment.config.deployer
+const payoutAddress = deployment.config.payoutAddress // accountant fee recipient
 
-const vaultTokenName = 'Solid EURC'
-const vaultTokenSymbol = 'soEURC'
+const vaultTokenName = deployment.config.vaultTokenName
+const vaultTokenSymbol = deployment.config.vaultTokenSymbol
 const vaultTokenDecimals = 6 // match EURC
 
 const baseTokenAddress = '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42' // EURC on Base
@@ -18,14 +20,15 @@ const minimumUpdateDelayInSeconds = 1000
 const platformFee = 0
 const performanceFee = 1000
 
-// soEURC is Base-only, so the teller is the plain TellerWithMultiAssetSupport (no bridging).
-// Its nativeWrapper is only used for native ETH deposits, which stay disabled for soEURC.
+// soEUR is Base-only, so the teller is the plain TellerWithMultiAssetSupport (no bridging).
+// Its nativeWrapper is only used for native ETH deposits, which stay disabled for soEUR.
 const nativeWrapperAddress = '0x4200000000000000000000000000000000000006' // WETH on Base
 
 const balancerVault = '0xBA12222222228d8Ba445958a75a0704d566BF2C8' // Balancer V2 Vault on Base
 
 // ── Deploy ──────────────────────────────────────────────────────────────────
 async function main() {
+  await deployment.check(ethers)
   const [deployer] = await ethers.getSigners()
   console.log('Deployer:', deployer.address)
   if (deployer.address.toLowerCase() !== ownerAddress.toLowerCase()) {
@@ -41,6 +44,7 @@ async function main() {
   const authority = await RolesAuthority.deploy(ownerAddress, ethers.constants.AddressZero)
   await authority.deployed()
   console.log('RolesAuthority deployed at:', authority.address)
+  deployment.save('RolesAuthority', authority.address)
   console.log('---')
 
   // 1. BoringVault
@@ -54,6 +58,7 @@ async function main() {
   )
   await vault.deployed()
   console.log(`${vaultTokenName} Vault deployed at:`, vault.address)
+  deployment.save('BoringVault', vault.address)
 
   await (await vault.setAuthority(authority.address, { gasLimit: 100000 })).wait()
   console.log('Vault authority updated')
@@ -78,6 +83,7 @@ async function main() {
   )
   await accountant.deployed()
   console.log('Accountant deployed at:', accountant.address)
+  deployment.save('Accountant', accountant.address)
 
   await (await accountant.setAuthority(authority.address, { gasLimit: 100000 })).wait()
   console.log('Accountant authority updated')
@@ -96,6 +102,7 @@ async function main() {
   )
   await teller.deployed()
   console.log('Teller deployed at:', teller.address)
+  deployment.save('Teller', teller.address)
 
   await (await teller.setAuthority(authority.address, { gasLimit: 100000 })).wait()
   console.log('Teller authority updated')
@@ -109,6 +116,7 @@ async function main() {
   const manager = await Manager.deploy(deployer.address, vault.address, balancerVault)
   await manager.deployed()
   console.log('Manager deployed at:', manager.address)
+  deployment.save('Manager', manager.address)
 
   await (await manager.setAuthority(authority.address, { gasLimit: 100000 })).wait()
   console.log('Manager authority updated')

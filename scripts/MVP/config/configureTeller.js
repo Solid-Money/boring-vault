@@ -1,7 +1,8 @@
 const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const tellerAddress = '0xb02796D0b8e1f39265C48e31c94a48c428266Ddb' // Base: from deployAll.js output
+const tellerAddress = deployment.address('Teller')
 
 // updateAssetData: configure accepted deposit tokens
 // Never list native ETH (0xEeee…EEeE) here: soEURC only takes EURC.
@@ -16,6 +17,7 @@ const depositAssets = [
 
 // ── Execute ─────────────────────────────────────────────────────────────────
 async function main() {
+  await deployment.check(ethers)
   const [deployer] = await ethers.getSigners()
   console.log('Configuring teller at:', tellerAddress)
   console.log('Signer:', deployer.address)

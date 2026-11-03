@@ -1,8 +1,9 @@
 const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
 
 // ==================== DEPLOYED ADDRESSES ====================
-const authorityAddress = '0x7F66AF3C7B7D80d6d4be937dE81cad42C0277eE3' // Base: RolesAuthority, from deployAll.js output
-const boringQueueAddress = '0xf68057c26eaF1F49800EaE86046B2b70Bd8Ded06' // Base: from 05_deployBoringQueue.js output
+const authorityAddress = deployment.address('RolesAuthority')
+const boringQueueAddress = deployment.address('BoringQueue')
 
 // ==================== FUNCTION SELECTORS ====================
 // setSolverRoles.js only makes requestOnChainWithdraw public. The live soUSD queue on Ethereum
@@ -23,6 +24,7 @@ const authorityAbi = [
 ]
 
 async function main() {
+    await deployment.check(ethers)
     const [deployer] = await ethers.getSigners()
     console.log('Deployer address:', deployer.address)
 

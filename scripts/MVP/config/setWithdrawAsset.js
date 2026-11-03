@@ -1,7 +1,8 @@
 const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const boringQueueAddress = '0xf68057c26eaF1F49800EaE86046B2b70Bd8Ded06' // Base: from 05_deployBoringQueue.js output
+const boringQueueAddress = deployment.address('BoringQueue')
 
 // Same parameters as the live soETH queue on Ethereum (withdrawAssets(WETH)).
 const withdrawAsset = '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42' // EURC on Base
@@ -13,6 +14,7 @@ const minimumShares = 100 // raw share units (soEURC has 6 decimals)
 
 // ── Execute ─────────────────────────────────────────────────────────────────
 async function main() {
+  await deployment.check(ethers)
   const [deployer] = await ethers.getSigners()
   console.log('Signer:', deployer.address)
 

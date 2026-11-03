@@ -1,9 +1,11 @@
 const { ethers } = require('hardhat')
+const deployment = require('./deployment').load()
 
-const authorityAddress = '0x7F66AF3C7B7D80d6d4be937dE81cad42C0277eE3' // Base: from deployAll.js output
-const boringQueueWithTrackingAddress = '0xf68057c26eaF1F49800EaE86046B2b70Bd8Ded06' // Base: from 05_deployBoringQueue.js output
+const authorityAddress = deployment.address('RolesAuthority')
+const boringQueueWithTrackingAddress = deployment.address('BoringQueue')
 
 async function main() {
+  await deployment.check(ethers)
   const [deployer] = await ethers.getSigners()
 
   // Deploy Arctic Architecture Lens
@@ -18,6 +20,7 @@ async function main() {
   await boringSolver.deployed()
 
   console.log(`Boring Solver deployed at:`, boringSolver.address)
+  deployment.save('BoringSolver', boringSolver.address)
 }
 
 main()

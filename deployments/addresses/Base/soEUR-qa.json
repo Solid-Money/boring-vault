@@ -1,0 +1,36 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid EUR",
+    "vaultTokenSymbol": "soEUR",
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+    "strategist": "0x78fD5DC01824d707090a76059c87a88FD7944a0E",
+    "rateUpdater": "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+    "solverOperator": "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+    "formerSolverOperators": [],
+    "owner": "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+    "ownerSafe": null
+  },
+  "contracts": {
+    "RolesAuthority": "0x24876f6e2ed96D4Cd1F24f1ae4Fc6B5b57Ad0c46",
+    "BoringVault": "0xd094c7012357096b7DE164dc471630273A6fDa8C",
+    "Accountant": "0x955B7c02754C74e76b2A25A6f50D2C639265CC9D",
+    "Teller": "0x06cCD4774D3649Fdd76C78dac306705DA53De0c9",
+    "Manager": "0xaC52EfAc97D97fF18898d32C2D490A64572453C7",
+    "BoringQueue": "0x60fCf867453aE1D2C3F8F400E44A0d5F9698B693",
+    "BoringSolver": "0x79Aca8bB4A2f66e51dd819C0fB9a52c281d8584b"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities"
+  ]
+}

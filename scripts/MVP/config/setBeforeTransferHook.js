@@ -1,11 +1,13 @@
 const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const vaultAddress = '0x1c6B29c8ac1E12A34D74DdaFCF016246d6aEdfff' // Base: from deployAll.js output
-const tellerAddress = '0xb02796D0b8e1f39265C48e31c94a48c428266Ddb' // Base: from deployAll.js output
+const vaultAddress = deployment.address('BoringVault')
+const tellerAddress = deployment.address('Teller')
 
 // ── Execute ─────────────────────────────────────────────────────────────────
 async function main() {
+  await deployment.check(ethers)
   const [deployer] = await ethers.getSigners()
   console.log('Signer:', deployer.address)
 

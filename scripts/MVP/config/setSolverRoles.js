@@ -1,13 +1,13 @@
 const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
 
 // ==================== DEPLOYED ADDRESSES ====================
-const authorityAddress = '0x7F66AF3C7B7D80d6d4be937dE81cad42C0277eE3' // Base: RolesAuthority, from deployAll.js output
-const boringQueueAddress = '0xf68057c26eaF1F49800EaE86046B2b70Bd8Ded06' // Base: from 05_deployBoringQueue.js output
-const boringSolverAddress = '0x73322B0c0CED7B6155068C22B53DC8954f739468' // Base: from 06_deployBoringSolver.js output
-const tellerAddress = '0xb02796D0b8e1f39265C48e31c94a48c428266Ddb' // Base: Teller, from deployAll.js output
-// soETH's solver Safe. Not deployed on Base yet: recreate it at the same address (and fix its
-// signers) before users can withdraw, since only it can process withdrawal requests.
-const solverSafeAddress = '0xA7Fdc92eDa10eac8d6AfD3037d398929B57303D7'
+const authorityAddress = deployment.address('RolesAuthority')
+const boringQueueAddress = deployment.address('BoringQueue')
+const boringSolverAddress = deployment.address('BoringSolver')
+const tellerAddress = deployment.address('Teller')
+// The solver operator: the only address that can process withdrawal requests.
+const solverSafeAddress = deployment.config.solverOperator
 
 // ==================== ROLE IDs ====================
 const SOLVER_ROLE = 12
@@ -31,6 +31,7 @@ const authorityAbi = [
 ]
 
 async function main() {
+    await deployment.check(ethers)
     const [deployer] = await ethers.getSigners()
     console.log('Deployer address:', deployer.address)
 
