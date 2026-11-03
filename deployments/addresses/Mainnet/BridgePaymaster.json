@@ -1,5 +1,5 @@
 {
   "network": "Ethereum",
   "chainId": 1,
-  "contractAddresses": {"BridgePaymaster":"0xC4F4bb4CD9C2098Dd1Eb11e0055FD0E212c967fc","BridgePaymasterImplementation":"0x1a5C7cc6FE7EDC520090e8871fD903eEda688DA4"}
+  "contractAddresses": {"BridgePaymaster":"0xC4F4bb4CD9C2098Dd1Eb11e0055FD0E212c967fc","BridgePaymasterImplementation":"0x8482E56398265ed783C067A26AdDcD4722eb8276"}
 }

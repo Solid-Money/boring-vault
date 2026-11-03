@@ -1,5 +1,5 @@
 {
   "network": "Base",
   "chainId": 8453,
-  "contractAddresses": {"BridgePaymaster":"0xC4F4bb4CD9C2098Dd1Eb11e0055FD0E212c967fc","BridgePaymasterImplementation":"0x1a5C7cc6FE7EDC520090e8871fD903eEda688DA4"}
+  "contractAddresses": {"BridgePaymaster":"0xC4F4bb4CD9C2098Dd1Eb11e0055FD0E212c967fc","BridgePaymasterImplementation":"0x41ec1C1C849363e934a59B106b3B2CDAFa6d2a39"}
 }
