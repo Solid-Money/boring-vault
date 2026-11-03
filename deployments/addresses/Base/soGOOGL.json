@@ -1,0 +1,52 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid GOOGL",
+    "vaultTokenSymbol": "soGOOGL",
+    "baseAsset": "0xb2000000000000000000002D0BA3164cc74f58B7",
+    "superVault": "0x363600ac7173e8d91bcfee68d711bb93e992c110",
+    "rewardTokens": [
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+    ],
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
+    "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "rateUpdater": "0xBE7cDa9d1F046e90A898d01F686f4176b0d8b33F",
+    "solverOperator": "0xB3C9c452DFD32AAa6Aa70ce64B236A23F1E6b53D",
+    "formerSolverOperators": [],
+    "owner": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3",
+    "ownerSafe": {
+      "owners": [
+        "0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103",
+        "0x2B30BD61C63DA8E528935A8589866D0509c39a50",
+        "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+        "0x63A61a31F087295a2b3fbE6F546913Ccbe8127e8"
+      ],
+      "threshold": 3
+    }
+  },
+  "contracts": {
+    "RolesAuthority": "0x735977c7e7605e0f6D65690517E0BD4A63182D90",
+    "BoringVault": "0x0311d575c843A64c8114a665e75BB9b6b830c1b4",
+    "Accountant": "0x6E01c2560109DaA65106D3Dc27886a71Da94379b",
+    "Teller": "0xC044fb6B71c8f15a7D1e3802237CA919f7F13857",
+    "Manager": "0x4F9D2029FCd54856e9135bd411C2f9FDc7f1e1b5",
+    "BoringQueue": "0xb662Fb1E23A2183d93e442EC43B911D7eAdcF4b1",
+    "BoringSolver": "0xEFf08061F1e4487435f950fb40bC8Ba6b4362B22",
+    "Decoder": "0x2B473f709A89ba6C6687f02233B045447918ce6f"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "setManageRoot"
+  ]
+}

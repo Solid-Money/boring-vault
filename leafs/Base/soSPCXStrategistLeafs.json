@@ -1,0 +1,234 @@
+{
+  "metadata": {
+    "BoringVaultAddress": "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+    "ManagerAddress": "0x6f3415cf91D792aCBaF57feD5494cAa41AC33924",
+    "AccountantAddress": "0x23d5907A726DB400b4CC654aF3ee91Ecbd885663",
+    "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+    "Strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "ManageRoot": "0x81cd1e9da7682db31ec41b8ef25ec6e3e1f6f3257f45d80bccc35c787c6bf41d",
+    "LeafCount": 11,
+    "DigestComposition": [
+      "Bytes20(DECODER_AND_SANITIZER_ADDRESS)",
+      "Bytes20(TARGET_ADDRESS)",
+      "Bytes1(CAN_SEND_VALUE)",
+      "Bytes4(TARGET_FUNCTION_SELECTOR)",
+      "Bytes{N*20}(ADDRESS_ARGUMENT_0,...,ADDRESS_ARGUMENT_N)"
+    ]
+  },
+  "leafs": [
+    {
+      "Description": "Approve the SuperVault to take the stock token",
+      "FunctionSignature": "approve(address,uint256)",
+      "FunctionSelector": "0x095ea7b3",
+      "TargetAddress": "0xb2000000000000000000007b9fcbd005511aCBd5",
+      "AddressArguments": [
+        "0x02b12a394f0a98b80e53d85f6831041932f1b621"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "LeafDigest": "0x3e9c3f8c459572ccfff6f89c0b58f1c7ae9fd85ebda496ab6cd022649018d176",
+      "Proof": [
+        "0x1062389f2da63cbac33e5f7dc2f8c749b2cd442a92e882e5e86f56d33c1d6c01",
+        "0x7d2719cc360c8c2d7e7895623ea924b05253a33f5a32267ec6dc68468bbda859",
+        "0x7929322616ee13a50564fcc8004994bd17b0ca050d048313b27ea1413a6b67a9",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Deposit the stock token into the SuperVault",
+      "FunctionSignature": "deposit(uint256,address)",
+      "FunctionSelector": "0x6e553f65",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0x1062389f2da63cbac33e5f7dc2f8c749b2cd442a92e882e5e86f56d33c1d6c01",
+      "Proof": [
+        "0x3e9c3f8c459572ccfff6f89c0b58f1c7ae9fd85ebda496ab6cd022649018d176",
+        "0x7d2719cc360c8c2d7e7895623ea924b05253a33f5a32267ec6dc68468bbda859",
+        "0x7929322616ee13a50564fcc8004994bd17b0ca050d048313b27ea1413a6b67a9",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Mint SuperVault shares with the stock token",
+      "FunctionSignature": "mint(uint256,address)",
+      "FunctionSelector": "0x94bf804d",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0x50c7c64cfb5a48b7dde8f6c5d0dc34836db3e1b387b5157280738ce402596253",
+      "Proof": [
+        "0x40eff5f00468cf0fa797ed216421857ff2b98a8eecfc3f8057fa9493893a3d8b",
+        "0xa97cb1a8fa44c1f8cf91d037f2c51a67568cc6c3b3ce43231859529d98647752",
+        "0x7929322616ee13a50564fcc8004994bd17b0ca050d048313b27ea1413a6b67a9",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Request to redeem SuperVault shares",
+      "FunctionSignature": "requestRedeem(uint256,address,address)",
+      "FunctionSelector": "0x7d41c86e",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d5948b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0x40eff5f00468cf0fa797ed216421857ff2b98a8eecfc3f8057fa9493893a3d8b",
+      "Proof": [
+        "0x50c7c64cfb5a48b7dde8f6c5d0dc34836db3e1b387b5157280738ce402596253",
+        "0xa97cb1a8fa44c1f8cf91d037f2c51a67568cc6c3b3ce43231859529d98647752",
+        "0x7929322616ee13a50564fcc8004994bd17b0ca050d048313b27ea1413a6b67a9",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Cancel the pending redeem request",
+      "FunctionSignature": "cancelRedeemRequest(uint256,address)",
+      "FunctionSelector": "0x2b9d9c1f",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0x97f6b09d98d1ac00577845e4277d749a8b8553364ccff6899b2268faaca5e038",
+      "Proof": [
+        "0xdc84a4bb19a4995adeaa631430c75154fb6058194b44aca1c8b5c6a7efaf5856",
+        "0x459720a441cf810becf8550c90034a70002af5a63e7cca9256e41ca82810ce10",
+        "0x4cb5c0d0af318875e5b9c2f403b0e4a542c3201f34e8510927f4ab25604b518f",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Take back the shares of a cancelled redeem request",
+      "FunctionSignature": "claimCancelRedeemRequest(uint256,address,address)",
+      "FunctionSelector": "0x00a06d19",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d5948b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0xdc84a4bb19a4995adeaa631430c75154fb6058194b44aca1c8b5c6a7efaf5856",
+      "Proof": [
+        "0x97f6b09d98d1ac00577845e4277d749a8b8553364ccff6899b2268faaca5e038",
+        "0x459720a441cf810becf8550c90034a70002af5a63e7cca9256e41ca82810ce10",
+        "0x4cb5c0d0af318875e5b9c2f403b0e4a542c3201f34e8510927f4ab25604b518f",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Claim a fulfilled redeem request by assets",
+      "FunctionSignature": "withdraw(uint256,address,address)",
+      "FunctionSelector": "0xb460af94",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d5948b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0xd01b3ffdbbd9931e852ff78017bb8acd405518bf7be94530e77b35f356e6d064",
+      "Proof": [
+        "0x3b8b4362e512c8355659930237b80a35016ae2ebb3db2261d95af1606b6987c9",
+        "0xca52eac3c14089f4d68ffbb5bcb751d1c5cf102e11974fed4698d7c432a95f72",
+        "0x4cb5c0d0af318875e5b9c2f403b0e4a542c3201f34e8510927f4ab25604b518f",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Claim a fulfilled redeem request by shares",
+      "FunctionSignature": "redeem(uint256,address,address)",
+      "FunctionSelector": "0xba087652",
+      "TargetAddress": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d5948b6ce342aa649f0fa5c15ee21b01b0dad114d59",
+      "LeafDigest": "0x3b8b4362e512c8355659930237b80a35016ae2ebb3db2261d95af1606b6987c9",
+      "Proof": [
+        "0xd01b3ffdbbd9931e852ff78017bb8acd405518bf7be94530e77b35f356e6d064",
+        "0xca52eac3c14089f4d68ffbb5bcb751d1c5cf102e11974fed4698d7c432a95f72",
+        "0x4cb5c0d0af318875e5b9c2f403b0e4a542c3201f34e8510927f4ab25604b518f",
+        "0x58fc27a3fb35e6f015d7004595d3f3c9c6e50d7266a0a0aedb347ddcd77ce7ac"
+      ]
+    },
+    {
+      "Description": "Claim Merkl rewards in 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "FunctionSignature": "claim(address[],address[],uint256[],bytes32[][])",
+      "FunctionSelector": "0x71ee95c0",
+      "TargetAddress": "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d59833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "LeafDigest": "0xf77da7a551cfa23d4fb088843496a045c2e5501965a37acd12ca8c2c61b7d325",
+      "Proof": [
+        "0x1d238fac2857f603f1482d86f7a5dbe18c21f4705791dd85ea17de92e0ccdd85",
+        "0x52ede9359b222d16537a9cc0fd6c97ab5843ac2d26749091538cadba0d9ae58d",
+        "0x22541bcd339f07cae0e064a70b203e528b177361393c8cbfdae6818f373ee557"
+      ]
+    },
+    {
+      "Description": "Claim Merkl rewards in 0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417",
+      "FunctionSignature": "claim(address[],address[],uint256[],bytes32[][])",
+      "FunctionSelector": "0x71ee95c0",
+      "TargetAddress": "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d592c71f70e2ec720ae061ae7e0316fc9654d94f417",
+      "LeafDigest": "0x1d238fac2857f603f1482d86f7a5dbe18c21f4705791dd85ea17de92e0ccdd85",
+      "Proof": [
+        "0xf77da7a551cfa23d4fb088843496a045c2e5501965a37acd12ca8c2c61b7d325",
+        "0x52ede9359b222d16537a9cc0fd6c97ab5843ac2d26749091538cadba0d9ae58d",
+        "0x22541bcd339f07cae0e064a70b203e528b177361393c8cbfdae6818f373ee557"
+      ]
+    },
+    {
+      "Description": "Claim Merkl rewards in every reward token",
+      "FunctionSignature": "claim(address[],address[],uint256[],bytes32[][])",
+      "FunctionSelector": "0x71ee95c0",
+      "TargetAddress": "0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae",
+      "AddressArguments": [
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+        "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709",
+      "PackedArgumentAddresses": "0x48b6ce342aa649f0fa5c15ee21b01b0dad114d59833589fcd6edb6e08f4c7c32d4f71b54bda0291348b6ce342aa649f0fa5c15ee21b01b0dad114d592c71f70e2ec720ae061ae7e0316fc9654d94f417",
+      "LeafDigest": "0x52ede9359b222d16537a9cc0fd6c97ab5843ac2d26749091538cadba0d9ae58d",
+      "Proof": [
+        "0x862dc61700c16478dbb0331d6d244e8ed2f6c91168a17e8b7446676e4a90010b",
+        "0x22541bcd339f07cae0e064a70b203e528b177361393c8cbfdae6818f373ee557"
+      ]
+    }
+  ]
+}

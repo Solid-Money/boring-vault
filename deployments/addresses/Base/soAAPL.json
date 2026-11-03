@@ -1,0 +1,52 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid AAPL",
+    "vaultTokenSymbol": "soAAPL",
+    "baseAsset": "0xb200000000000000000000C2e324d24d7eEcd1fb",
+    "superVault": "0x301a1ceb684d62833101b373ab6c395349b24033",
+    "rewardTokens": [
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+    ],
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
+    "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "rateUpdater": "0xBE7cDa9d1F046e90A898d01F686f4176b0d8b33F",
+    "solverOperator": "0xB3C9c452DFD32AAa6Aa70ce64B236A23F1E6b53D",
+    "formerSolverOperators": [],
+    "owner": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3",
+    "ownerSafe": {
+      "owners": [
+        "0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103",
+        "0x2B30BD61C63DA8E528935A8589866D0509c39a50",
+        "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+        "0x63A61a31F087295a2b3fbE6F546913Ccbe8127e8"
+      ],
+      "threshold": 3
+    }
+  },
+  "contracts": {
+    "RolesAuthority": "0x987f317d8bF325c404e37B2A6C3F1445f91eB69c",
+    "BoringVault": "0xBfe0BF0097D9AB28928ecaCdA3e33366B36517cd",
+    "Accountant": "0x4680628a36De316773e3DeaA8CdF44561F60F8DF",
+    "Teller": "0xE355Ec3b2BffC0E888cefb7e8397fCA5D04AAF70",
+    "Manager": "0x6911B55691C5C2D49C345Bd6790f6672b1F095B9",
+    "BoringQueue": "0xA764c1Ab9A1De069Fc201A209C306337Ed72f7D9",
+    "BoringSolver": "0x704e7979092344D696e4C6C033B91C7e832881F5",
+    "Decoder": "0x1062a0d3E895e589f0a7f8De8327ba01502658ec"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "setManageRoot"
+  ]
+}

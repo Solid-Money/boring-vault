@@ -1,8 +1,9 @@
 const { ethers } = require('hardhat')
 
 // Addresses
-const oappAddress = '0x220d4667AA06E0Aa39f62c601690848f2e48BC15'; // Replace with your OApp address
-const recLibAddress = '0xB12514e226E50844E4655696c92c0c36B8A53141'; // Replace with your send message library address
+const oappAddress = '0xEaacf4534cCC05CAd929830fAF611d872b291d41'; // Replace with your OApp address
+const recLibAddress = '0xB12514e226E50844E4655696c92c0c36B8A53141'; //FUSE
+// const recLibAddress = '0xc02Ab410f0734EFa3F14628780e6e695156024C2'; // ETH
 const lzEndPointAddress = '0x1a44076050125825900e736c501f859c50fE728c'
 
 // Configuration

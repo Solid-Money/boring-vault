@@ -1,0 +1,45 @@
+const { ethers } = require('hardhat')
+const deployment = require('../deployment').load()
+
+// ── Config ──────────────────────────────────────────────────────────────────
+const boringQueueAddress = deployment.address('BoringQueue')
+
+// Same parameters as the live soETH queue on Ethereum (withdrawAssets(WETH)).
+const withdrawAsset = deployment.config.baseAsset // withdrawals pay out the base asset
+const secondsToMaturity = 120
+const minimumSecondsToDeadline = 259200 // 3 days
+const minDiscount = 1 // bps
+const maxDiscount = 100 // bps
+const minimumShares = 100 // raw share units (6 decimals for soEUR, 8 for the stock vaults)
+
+// ── Execute ─────────────────────────────────────────────────────────────────
+async function main() {
+  await deployment.check(ethers)
+  const [deployer] = await ethers.getSigners()
+  console.log('Signer:', deployer.address)
+
+  const queue = await ethers.getContractAt(
+    'src/base/Roles/BoringQueue/BoringOnChainQueueWithTracking.sol:BoringOnChainQueueWithTracking',
+    boringQueueAddress
+  )
+
+  console.log('Setting withdraw asset on queue:', withdrawAsset)
+  const tx = await queue.updateWithdrawAsset(
+    withdrawAsset,
+    secondsToMaturity,
+    minimumSecondsToDeadline,
+    minDiscount,
+    maxDiscount,
+    minimumShares
+  )
+  await tx.wait()
+  console.log('  tx:', tx.hash)
+  console.log('Withdraw asset configured.')
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })

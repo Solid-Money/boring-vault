@@ -1,0 +1,52 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid SPCX",
+    "vaultTokenSymbol": "soSPCX",
+    "baseAsset": "0xb2000000000000000000007b9fcbd005511aCBd5",
+    "superVault": "0x02b12a394f0a98b80e53d85f6831041932f1b621",
+    "rewardTokens": [
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+    ],
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
+    "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "rateUpdater": "0xBE7cDa9d1F046e90A898d01F686f4176b0d8b33F",
+    "solverOperator": "0xB3C9c452DFD32AAa6Aa70ce64B236A23F1E6b53D",
+    "formerSolverOperators": [],
+    "owner": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3",
+    "ownerSafe": {
+      "owners": [
+        "0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103",
+        "0x2B30BD61C63DA8E528935A8589866D0509c39a50",
+        "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+        "0x63A61a31F087295a2b3fbE6F546913Ccbe8127e8"
+      ],
+      "threshold": 3
+    }
+  },
+  "contracts": {
+    "RolesAuthority": "0xc74E5E3FeBf112170945061Dd8f2f6242d6b5eB0",
+    "BoringVault": "0x48B6ce342AA649f0fA5C15ee21b01B0dAd114d59",
+    "Accountant": "0x23d5907A726DB400b4CC654aF3ee91Ecbd885663",
+    "Teller": "0x56D16294982cf8c94c8286a81c486C0Caa61E5fC",
+    "Manager": "0x6f3415cf91D792aCBaF57feD5494cAa41AC33924",
+    "BoringQueue": "0xA369e74108c4094Ca0270FEd778D58B3Bf5270e8",
+    "BoringSolver": "0x69b14f1A6922c264676E3816c151053DEE05dA7F",
+    "Decoder": "0x9C9A086Bc7eAA4a2D57b96236C1B4E3383efD709"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "setManageRoot"
+  ]
+}
