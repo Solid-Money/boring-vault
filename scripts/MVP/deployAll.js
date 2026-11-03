@@ -2,7 +2,7 @@ const { ethers } = require('hardhat')
 const deployment = require('./deployment').load()
 
 // ── Config ──────────────────────────────────────────────────────────────────
-// Per-environment values come from the deployment record (DEPLOYMENT=qa or prod).
+// Per-vault, per-environment values come from the deployment record (VAULT_SYMBOL, DEPLOYMENT=qa or prod).
 // The deployer owns every contract and the RolesAuthority while the config scripts run, so one
 // key signs everything. config/transferOwnership.js hands all of it to the record's owner at the end.
 const ownerAddress = deployment.config.deployer
@@ -10,18 +10,18 @@ const payoutAddress = deployment.config.payoutAddress // accountant fee recipien
 
 const vaultTokenName = deployment.config.vaultTokenName
 const vaultTokenSymbol = deployment.config.vaultTokenSymbol
-const vaultTokenDecimals = 6 // match EURC
 
-const baseTokenAddress = '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42' // EURC on Base
-const startingExchangeRate = 1e6.toString() // 1 share = 1 EURC, in EURC decimals
+// The token deposits and withdrawals use (EURC for soEUR, the B20 stock token for soAAPL and the
+// like). Shares take its decimals and start at 1 share = 1 base token; main() reads them onchain.
+const baseTokenAddress = deployment.config.baseAsset
 const allowedExchangeRateChangeUpper = 10100 // same band as live soETH
 const allowedExchangeRateChangeLower = 9900
 const minimumUpdateDelayInSeconds = 1000
 const platformFee = 0
 const performanceFee = 1000
 
-// soEUR is Base-only, so the teller is the plain TellerWithMultiAssetSupport (no bridging).
-// Its nativeWrapper is only used for native ETH deposits, which stay disabled for soEUR.
+// These vaults are Base-only, so the teller is the plain TellerWithMultiAssetSupport (no bridging).
+// Its nativeWrapper is only used for native ETH deposits, which stay disabled.
 const nativeWrapperAddress = '0x4200000000000000000000000000000000000006' // WETH on Base
 
 const balancerVault = '0xBA12222222228d8Ba445958a75a0704d566BF2C8' // Balancer V2 Vault on Base
@@ -34,6 +34,15 @@ async function main() {
   if (deployer.address.toLowerCase() !== ownerAddress.toLowerCase()) {
     throw new Error(`Signer ${deployer.address} is not ownerAddress ${ownerAddress}; set PRIVATE_KEY to the deployer key`)
   }
+  if (!baseTokenAddress) throw new Error(`No baseAsset in ${deployment.file}`)
+  const baseToken = new ethers.Contract(
+    baseTokenAddress,
+    ['function decimals() view returns (uint8)', 'function symbol() view returns (string)'],
+    deployer
+  )
+  const vaultTokenDecimals = await baseToken.decimals()
+  const startingExchangeRate = ethers.BigNumber.from(10).pow(vaultTokenDecimals).toString()
+  console.log(`Base asset: ${await baseToken.symbol()} ${baseTokenAddress} (${vaultTokenDecimals} decimals)`)
   console.log('---')
 
   // 0. RolesAuthority

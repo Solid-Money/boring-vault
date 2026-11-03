@@ -5,12 +5,12 @@ const deployment = require('../deployment').load()
 const boringQueueAddress = deployment.address('BoringQueue')
 
 // Same parameters as the live soETH queue on Ethereum (withdrawAssets(WETH)).
-const withdrawAsset = '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42' // EURC on Base
+const withdrawAsset = deployment.config.baseAsset // withdrawals pay out the base asset
 const secondsToMaturity = 120
 const minimumSecondsToDeadline = 259200 // 3 days
 const minDiscount = 1 // bps
 const maxDiscount = 100 // bps
-const minimumShares = 100 // raw share units (soEURC has 6 decimals)
+const minimumShares = 100 // raw share units (6 decimals for soEUR, 8 for the stock vaults)
 
 // ── Execute ─────────────────────────────────────────────────────────────────
 async function main() {

@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Deploys and configures soEUR on Base for one environment, qa or prod: deploy, configure, verify.
-# Each environment's settings and deployed addresses live in its own record file (see
-# deployment.js), so a QA run can never touch PROD. Stops at the first error; rerunning skips every
-# step already done. It never hands over ownership: once the checks pass, run
-#   DEPLOYMENT=<qa|prod> npx hardhat run scripts/MVP/config/transferOwnership.js --network base
+# Deploys and configures one vault on Base (VAULT_SYMBOL, soEUR when unset) for one environment, qa or
+# prod: deploy, configure, verify. Each vault and environment has its own record file (see
+# deployment.js), so a QA run can never touch PROD and one vault's run never touches another's.
+# Stops at the first error; rerunning skips every step already done. A record with a superVault (the
+# stock vaults) also gets its strategy: a decoder and the strategist's manage root. It never hands
+# over ownership: once the checks pass, run
+#   VAULT_SYMBOL=<vault> DEPLOYMENT=<qa|prod> npx hardhat run scripts/MVP/config/transferOwnership.js --network base
 #
 # Usage, from the repo root:
-#   bash scripts/MVP/deploy-base.sh qa              deploy and configure QA
-#   bash scripts/MVP/deploy-base.sh prod --check    read-only checks of PROD; sends nothing
+#   bash scripts/MVP/deploy-base.sh qa                           deploy and configure soEUR QA
+#   VAULT_SYMBOL=soNVDA bash scripts/MVP/deploy-base.sh prod            deploy and configure soNVDA PROD
+#   VAULT_SYMBOL=soNVDA bash scripts/MVP/deploy-base.sh prod --check    read-only checks; sends nothing
 # Needs PRIVATE_KEY (the record's deployer key) in .env. BASE_RPC_URL comes from .env if set, else
 # the public https://mainnet.base.org.
 set -euo pipefail
@@ -19,8 +22,7 @@ export DEPLOYMENT=$ENV
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 MVP=$REPO/scripts/MVP
-LOG=${LOG:-$REPO/deploy-base-$ENV.log}
-EURC=0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42
+LOG=${LOG:-$REPO/deploy-base-${VAULT_SYMBOL:+$VAULT_SYMBOL-}$ENV.log}
 cd "$REPO"
 STATE=$(node -e "console.log(require('./scripts/MVP/deployment').load().file)")
 
@@ -68,8 +70,11 @@ run() {  # run one hardhat script; output goes to the screen and the log
 
 # ── Preflight ───────────────────────────────────────────────────────────────
 DEPLOYER=$(rec config deployer); OWNER=$(rec config owner)
+SYMBOL=$(rec config vaultTokenSymbol); BASE=$(rec config baseAsset); SUPERVAULT=$(rec config superVault)
+[ -n "$BASE" ] || die "no baseAsset in $STATE"
 CHAIN=$(cast chain-id -r "$RPC" 2>/dev/null || true)
 [ "$CHAIN" = "8453" ] || die "the RPC is not Base (chain id '${CHAIN}', expected 8453)"
+echo "Vault:       $SYMBOL (base asset $(c $BASE 'symbol()(string)') $BASE)"
 echo "Environment: $ENV"
 echo "Network:     Base (8453)"
 echo "Record:      $STATE"
@@ -79,10 +84,10 @@ echo "Final owner: $OWNER"
 if [ "$MODE" != "--check" ]; then
   echo "Log:         $LOG"
   if [ "${YES:-}" != "1" ]; then
-    read -r -p "This sends real transactions on Base for $ENV. Type '$ENV' to continue: " answer
+    read -r -p "This sends real transactions on Base for $SYMBOL $ENV. Type '$ENV' to continue: " answer
     [ "$answer" = "$ENV" ] || die "not confirmed"
   fi
-  echo "=== soEUR $ENV run $(date -u +%FT%TZ) ===" >> "$LOG"
+  echo "=== $SYMBOL $ENV run $(date -u +%FT%TZ) ===" >> "$LOG"
 
   # ── 1. Core contracts ─────────────────────────────────────────────────────
   if [ -z "$(rec isdone deployAll)" ]; then
@@ -103,6 +108,15 @@ if [ "$MODE" != "--check" ]; then
       rec done "$s"
     fi
   done
+
+  # ── 10–11. Strategy: decoder and the strategist's manage root (stock vaults) ─
+  if [ -n "$SUPERVAULT" ]; then
+    [ -n "$(rec contract Decoder)" ] || run 07_deployDecoder.js || die "07_deployDecoder.js failed"
+    if [ -z "$(rec isdone setManageRoot)" ]; then
+      run config/setManageRoot.js || die "config/setManageRoot.js failed. Rerunning this script resumes from it."
+      rec done setManageRoot
+    fi
+  fi
 fi
 
 # ── Verify (read-only) ──────────────────────────────────────────────────────
@@ -120,9 +134,16 @@ for x in VAULT ACC TELLER MGR QUEUE SOLVER; do a=${!x}; echo "$x $a authority $(
 echo "vault: $(c $VAULT 'name()(string)') $(c $VAULT 'symbol()(string)') $(c $VAULT 'decimals()(uint8)') decimals, hook $( same "$(c $VAULT 'hook()(address)')" "$TELLER" && echo ok || echo WRONG)"
 echo "accountant rate: $(c $ACC 'getRate()(uint256)')  base: $(c $ACC 'base()(address)')"
 echo "public deposit=$(pub $TELLER 0x0efe6a8b) requestWithdraw=$(pub $QUEUE 0x6bb3b476) withPermit=$(pub $QUEUE 0x581b4920) cancel=$(pub $QUEUE 0x4a2dc5e4) cancelById=$(pub $QUEUE 0x08bf866e) replace=$(pub $QUEUE 0xa5672fd7)  teller enter=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x39d6ba32) exit=$(c $AUTH 'canCall(address,address,bytes4)(bool)' $TELLER $VAULT 0x18457e61)"
-echo "EURC asset: $(c $TELLER 'assetData(address)(bool,bool,uint16)' $EURC | tr '\n' ' ')"
+echo "base asset $(c $BASE 'symbol()(string)'): $(c $TELLER 'assetData(address)(bool,bool,uint16)' $BASE | tr '\n' ' ')"
 echo "strategist $STRATEGIST: strategies $(role $STRATEGIST 7)$(same $STRATEGIST $UPDATER || echo ", rate updates $(role $STRATEGIST 11) (want false)")"
 echo "rate updater $UPDATER: rate updates $(role $UPDATER 11)"
+if [ -n "$SUPERVAULT" ]; then
+  DECODER=$(rec contract Decoder)
+  TREE=$(node -e "console.log(require('./scripts/MVP/strategy/leafs').treeFilePath(require('./scripts/MVP/deployment').load()))")
+  WANT=$(python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]))["metadata"]["ManageRoot"])' "$TREE" 2>/dev/null || true)
+  GOT=$(c $MGR 'manageRoot(address)(bytes32)' $STRATEGIST)
+  echo "strategy: SuperVault $SUPERVAULT ($(c $SUPERVAULT 'symbol()(string)')), decoder ${DECODER:-MISSING}, manage root $( [ -n "$WANT" ] && [ "$GOT" = "$WANT" ] && echo "$GOT matches $(basename "$TREE")" || echo "$GOT DOES NOT MATCH ${TREE}")"
+fi
 echo "solver operator $OPERATOR: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $OPERATOR $SOLVER 0x5ff8a71f)"
 for f in $FORMER; do echo "former solver operator $f: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $f $SOLVER 0x5ff8a71f) (want false)"; done
 echo "fee recipient: $( same "$(c $ACC 'accountantState()(address,uint96,uint128,uint128,uint96,uint16,uint16,uint64,bool,uint24,uint16,uint16)' | head -1)" "$PAYOUT" && echo "$PAYOUT ok" || echo WRONG)"
@@ -142,5 +163,5 @@ echo
 echo "Done. Addresses are in $STATE."
 if [ "$pending" = yes ]; then
   echo "Next: hand ownership to $OWNER:"
-  echo "  DEPLOYMENT=$ENV npx hardhat run scripts/MVP/config/transferOwnership.js --network base"
+  echo "  ${VAULT_SYMBOL:+VAULT_SYMBOL=$VAULT_SYMBOL }DEPLOYMENT=$ENV npx hardhat run scripts/MVP/config/transferOwnership.js --network base"
 fi

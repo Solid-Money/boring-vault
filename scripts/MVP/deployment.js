@@ -1,19 +1,20 @@
 const fs = require('fs')
 const path = require('path')
 
-// Each environment's settings and deployed addresses live in one record file. Every MVP script
-// reads the record named by DEPLOYMENT (qa or prod), so a run can only ever touch that environment.
+// Each vault's settings and deployed addresses live in one record file per environment. Every MVP
+// script reads the record named by VAULT_SYMBOL (soEUR when unset) and DEPLOYMENT (qa or prod):
+// PROD is deployments/addresses/Base/<VAULT_SYMBOL>.json and QA is <VAULT_SYMBOL>-qa.json, so a run
+// can only ever touch that one vault in that one environment.
 // DEPLOYMENT_FILE points at any other record instead (the fork dry run uses a scratch copy).
-const RECORDS = {
-  prod: 'deployments/addresses/Base/soEUR.json',
-  qa: 'deployments/addresses/Base/soEUR-qa.json',
-}
-
 function recordPath() {
   if (process.env.DEPLOYMENT_FILE) return path.resolve(process.env.DEPLOYMENT_FILE)
-  const file = RECORDS[process.env.DEPLOYMENT]
-  if (!file) throw new Error('Set DEPLOYMENT=qa or DEPLOYMENT=prod')
-  return path.join(__dirname, '..', '..', file)
+  const env = process.env.DEPLOYMENT
+  if (env !== 'qa' && env !== 'prod') throw new Error('Set DEPLOYMENT=qa or DEPLOYMENT=prod')
+  const vault = process.env.VAULT_SYMBOL || 'soEUR'
+  if (!/^so[A-Z]+$/.test(vault)) throw new Error(`VAULT_SYMBOL must be a vault symbol such as soEUR or soNVDA, not ${vault}`)
+  const file = path.join(__dirname, '..', '..', 'deployments', 'addresses', 'Base', `${vault}${env === 'qa' ? '-qa' : ''}.json`)
+  if (!fs.existsSync(file)) throw new Error(`${vault} has no ${env} record at ${file}`)
+  return file
 }
 
 function load() {

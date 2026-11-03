@@ -1,0 +1,52 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid TSLA",
+    "vaultTokenSymbol": "soTSLA",
+    "baseAsset": "0xb2000000000000000000001e800a7f5189430cD0",
+    "superVault": "0xaf0edf09ec7f9357292f6bc6445a09aa84a31fa7",
+    "rewardTokens": [
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+    ],
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
+    "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "rateUpdater": "0xBE7cDa9d1F046e90A898d01F686f4176b0d8b33F",
+    "solverOperator": "0xB3C9c452DFD32AAa6Aa70ce64B236A23F1E6b53D",
+    "formerSolverOperators": [],
+    "owner": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3",
+    "ownerSafe": {
+      "owners": [
+        "0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103",
+        "0x2B30BD61C63DA8E528935A8589866D0509c39a50",
+        "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+        "0x63A61a31F087295a2b3fbE6F546913Ccbe8127e8"
+      ],
+      "threshold": 3
+    }
+  },
+  "contracts": {
+    "RolesAuthority": "0x5dd4234b341473473Fe87330905a2fF6E6A54FEA",
+    "BoringVault": "0xA684417Baad4ba0EFE9657081F972f278e8fefB5",
+    "Accountant": "0xD2Ad55c55489f55dd68dd2bFC6cA721BBFab6AC8",
+    "Teller": "0x4D86058FB72945EC34ae1A3dAC257811fd0f2D48",
+    "Manager": "0x6B71fa1A0AdFbCef2E16Fb5eefDcB4a1F0d10646",
+    "BoringQueue": "0x1C883c80BE5b9BdE5F18f80c7fc264BC875CE704",
+    "BoringSolver": "0xcDd37556F97Db8230dE02b936C6842d42622Dfe2",
+    "Decoder": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "setManageRoot"
+  ]
+}

@@ -5,10 +5,10 @@ const deployment = require('../deployment').load()
 const tellerAddress = deployment.address('Teller')
 
 // updateAssetData: configure accepted deposit tokens
-// Never list native ETH (0xEeee…EEeE) here: soEURC only takes EURC.
+// Never list native ETH (0xEeee…EEeE) here: each vault only takes its base asset.
 const depositAssets = [
   {
-    asset: '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42', // EURC on Base
+    asset: deployment.config.baseAsset, // EURC for soEUR, the stock token for soAAPL and the like
     allowDeposits: true,
     allowWithdraws: true,
     sharePremium: 0,

@@ -4,6 +4,7 @@
   "config": {
     "vaultTokenName": "Solid EUR",
     "vaultTokenSymbol": "soEUR",
+    "baseAsset": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
     "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
     "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
     "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",

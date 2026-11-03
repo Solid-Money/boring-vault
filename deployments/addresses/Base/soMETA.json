@@ -1,0 +1,52 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "config": {
+    "vaultTokenName": "Solid META",
+    "vaultTokenSymbol": "soMETA",
+    "baseAsset": "0xb2000000000000000000008bC8786B856E61707C",
+    "superVault": "0xc63374bf46d7a9654a96b14a3dc363c92b26d5a3",
+    "rewardTokens": [
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417"
+    ],
+    "deployer": "0x607B5576B3C5a748C1Fe9d155a94f322E15F4628",
+    "payoutAddress": "0x6c404c244e1aD2E1CE525492EbBd4a9C12E458aa",
+    "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+    "rateUpdater": "0xBE7cDa9d1F046e90A898d01F686f4176b0d8b33F",
+    "solverOperator": "0xB3C9c452DFD32AAa6Aa70ce64B236A23F1E6b53D",
+    "formerSolverOperators": [],
+    "owner": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3",
+    "ownerSafe": {
+      "owners": [
+        "0x26F9A59F0F0e92e8a8d6f835d57657a3a3b51103",
+        "0x2B30BD61C63DA8E528935A8589866D0509c39a50",
+        "0x3B694d634981Ace4B64a27c48bffe19f1447779B",
+        "0x63A61a31F087295a2b3fbE6F546913Ccbe8127e8"
+      ],
+      "threshold": 3
+    }
+  },
+  "contracts": {
+    "RolesAuthority": "0xb40Ab27d78800a112cce6dbCA139ebd343c9E8D2",
+    "BoringVault": "0x79df65b0Db55F044C1AA6d223E9759EF87830e1F",
+    "Accountant": "0x3768165FCe98d5cc03dd46a636eF4b986a15E762",
+    "Teller": "0xe4c6573A4ad90faA579ddD8541864AB5BfC410D6",
+    "Manager": "0xec293085D4DfFAe19E90D46a1C24ecA7cdF45D04",
+    "BoringQueue": "0xaA23C7f72DB49402d835Ad7C6908ba1aD4C91066",
+    "BoringSolver": "0xE0498018C3e80B84ABBF8219C97EABd6c4cDcAFe",
+    "Decoder": "0x11d8669A20a469a94bDA97f55580e9D7C0ae2a17"
+  },
+  "done": [
+    "deployAllStarted",
+    "deployAll",
+    "setRolesConfig",
+    "setSolverRoles",
+    "setQueuePublicCapabilities",
+    "setBeforeTransferHook",
+    "configureTeller",
+    "setWithdrawAsset",
+    "setAuthorities",
+    "setManageRoot"
+  ]
+}
