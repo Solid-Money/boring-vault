@@ -45,7 +45,7 @@ abstract contract BridgePaymasterToFuseBase is Script {
 
     struct Network {
         string name;
-        /// @dev deployments/addresses/<dir>/BridgePaymaster.json
+        /// @dev The folder under deployments/addresses/ that holds this chain's address file.
         string dir;
         Pool[] pools;
         /// @dev One whole token in the pools' local decimals.
@@ -100,8 +100,14 @@ abstract contract BridgePaymasterToFuseBase is Script {
         return 10_000 * c.unit;
     }
 
-    function _addressFile(Network memory c) internal pure returns (string memory) {
-        return string.concat("deployments/addresses/", c.dir, "/BridgePaymaster.json");
+    /**
+     * @dev deployments/addresses/<dir>/BridgePaymaster.json, or BridgePaymaster-<PAYMASTER_LABEL>.json
+     *      for a second set beside the production one, such as QA's.
+     */
+    function _addressFile(Network memory c) internal view returns (string memory) {
+        string memory label = vm.envOr("PAYMASTER_LABEL", string(""));
+        string memory suffix = bytes(label).length == 0 ? "" : string.concat("-", label);
+        return string.concat("deployments/addresses/", c.dir, "/BridgePaymaster", suffix, ".json");
     }
 
     /// @dev BRIDGE_PAYMASTER if set, else the address DeployBridgePaymasterToFuse recorded for this chain.
@@ -279,6 +285,9 @@ abstract contract BridgePaymasterToFuseBase is Script {
  *        FEE_RECIPIENT         where the fee taken in USDC / USDT goes
  *        DAILY_FEE_BUDGET_WEI  native fee bridgeSend may front per UTC day, in wei
  *        FUNDING_WEI           optional: native to send from the deployer (default 0)
+ *        IMPLEMENTATION        optional: an implementation already deployed on this chain to put behind
+ *                              the proxy, instead of deploying a new one
+ *        PAYMASTER_LABEL       optional: records a second set, such as QA's, in its own address file
  *
  *      Dry run (deploys nothing):
  *        forge script script/fuse/BridgePaymasterToFuse.s.sol:DeployBridgePaymasterToFuse \
@@ -295,16 +304,15 @@ contract DeployBridgePaymasterToFuse is BridgePaymasterToFuseBase {
         uint256 dailyFeeBudget = vm.envUint("DAILY_FEE_BUDGET_WEI");
         uint256 funding = vm.envOr("FUNDING_WEI", uint256(0));
 
+        address implementation = vm.envOr("IMPLEMENTATION", address(0));
+
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
 
-        BridgePaymaster implementation = new BridgePaymaster();
+        if (implementation == address(0)) implementation = address(new BridgePaymaster());
+        require(implementation.code.length != 0, "IMPLEMENTATION has no code on this chain");
         BridgePaymaster pm = BridgePaymaster(
-            payable(
-                address(
-                    new ERC1967Proxy(address(implementation), abi.encodeCall(BridgePaymaster.initialize, (deployer)))
-                )
-            )
+            payable(address(new ERC1967Proxy(implementation, abi.encodeCall(BridgePaymaster.initialize, (deployer)))))
         );
         pm.initializeV2(voucherSigner, feeRecipient, dailyFeeBudget);
 
@@ -321,7 +329,7 @@ contract DeployBridgePaymasterToFuse is BridgePaymasterToFuseBase {
 
         require(pm.owner() == deployer, "owner is not the deployer");
         require(
-            address(uint160(uint256(vm.load(address(pm), IMPLEMENTATION_SLOT)))) == address(implementation),
+            address(uint160(uint256(vm.load(address(pm), IMPLEMENTATION_SLOT)))) == implementation,
             "proxy does not point at the implementation"
         );
         require(pm.voucherSigner() == voucherSigner, "voucher signer");
@@ -345,7 +353,7 @@ contract DeployBridgePaymasterToFuse is BridgePaymasterToFuseBase {
                     ',\n  "contractAddresses": {"BridgePaymaster":"',
                     vm.toString(address(pm)),
                     '","BridgePaymasterImplementation":"',
-                    vm.toString(address(implementation)),
+                    vm.toString(implementation),
                     '"}\n}\n'
                 )
             );

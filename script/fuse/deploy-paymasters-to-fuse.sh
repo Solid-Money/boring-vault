@@ -8,6 +8,7 @@
 #   script/fuse/deploy-paymasters-to-fuse.sh --broadcast         deploy, fund, then verify
 #   script/fuse/deploy-paymasters-to-fuse.sh --broadcast base    only the chains named
 #   script/fuse/deploy-paymasters-to-fuse.sh --verify            verify what is already deployed
+#   script/fuse/deploy-paymasters-to-fuse.sh --lifi              open each recorded one for LI.FI swaps
 #   script/fuse/deploy-paymasters-to-fuse.sh --transfer          hand each to its Safe
 #
 # Verification runs after every chain is deployed and a failure there only warns, so an explorer
@@ -22,6 +23,10 @@
 #   BASE_DAILY_FEE_BUDGET_WEI, BNB_..., ETHEREUM_...  native fee fronted per UTC day [see cfg]
 #   BASE_FUNDING_WEI, BNB_..., ETHEREUM_...           native sent to the paymaster on deploy [see cfg]
 #   NEW_OWNER_BASE, NEW_OWNER_BNB, NEW_OWNER_ETHEREUM the Safe each is handed to by --transfer
+#   PAYMASTER_LABEL     a second set beside production's, such as QA's: recorded in
+#                       BridgePaymaster-<label>.json instead of BridgePaymaster.json            [none]
+#   BASE_IMPLEMENTATION, BNB_..., ETHEREUM_...        an implementation already on that chain to put
+#                                                     behind the proxy instead of deploying one [none]
 #
 # Foundry asks for the keystore password once per chain.
 
@@ -63,6 +68,9 @@ cfg() {
         ethereum:coin)    echo "ETH" ;;
         ethereum:dir)     echo "Mainnet" ;;
         ethereum:chainid) echo 1 ;;
+        base:impl)        echo "${BASE_IMPLEMENTATION:-}" ;;
+        bnb:impl)         echo "${BNB_IMPLEMENTATION:-}" ;;
+        ethereum:impl)    echo "${ETHEREUM_IMPLEMENTATION:-}" ;;
         *) echo "unknown setting $1:$2" >&2; exit 1 ;;
     esac
 }
@@ -79,6 +87,7 @@ for arg in "$@"; do
         --broadcast) MODE=broadcast ;;
         --verify)    MODE=verify ;;
         --transfer)  MODE=transfer ;;
+        --lifi)      MODE=lifi ;;
         base|bnb|ethereum) CHAINS+=("$arg") ;;
         -h|--help) usage ;;
         *) echo "unknown argument: $arg" >&2; usage ;;
@@ -88,7 +97,20 @@ done
 
 ether() { cast from-wei "$1"; }
 
-address_file() { echo "deployments/addresses/$(cfg "$1" dir)/BridgePaymaster.json"; }
+address_file() { echo "deployments/addresses/$(cfg "$1" dir)/BridgePaymaster${PAYMASTER_LABEL:+-$PAYMASTER_LABEL}.json"; }
+
+# One address from a recorded address file: BridgePaymaster or BridgePaymasterImplementation.
+recorded() {
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contractAddresses"][sys.argv[2]])' "$1" "$2"
+}
+
+# The env each chain's deploy runs with: its daily limit, its funding, and the implementation to
+# reuse when one is given.
+deploy_env() {
+    local chain=$1 funding=$2 impl
+    impl=$(cfg "$chain" impl)
+    echo "DAILY_FEE_BUDGET_WEI=$(cfg "$chain" budget) FUNDING_WEI=$funding${impl:+ IMPLEMENTATION=$impl}"
+}
 
 # Verifies a chain's recorded implementation and proxy. Warns rather than fails, so one explorer
 # refusing never stops the others.
@@ -99,8 +121,8 @@ verify_chain() {
         echo "$chain: nothing recorded in $file - skipping"
         return 0
     fi
-    impl=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contractAddresses"]["BridgePaymasterImplementation"])' "$file")
-    proxy=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["contractAddresses"]["BridgePaymaster"])' "$file")
+    impl=$(recorded "$file" BridgePaymasterImplementation)
+    proxy=$(recorded "$file" BridgePaymaster)
     echo "===== $chain: verify implementation $impl and proxy $proxy"
     forge verify-contract "$impl" src/fuse/BridgePaymaster.sol:BridgePaymaster \
         --chain "$(cfg "$chain" chainid)" --rpc-url "$(cfg "$chain" rpc)" \
@@ -142,7 +164,8 @@ fi
 if [ "$MODE" = dry ]; then
     for chain in "${CHAINS[@]}"; do
         echo "===== $chain (dry run)"
-        DAILY_FEE_BUDGET_WEI=$(cfg "$chain" budget) FUNDING_WEI=0 \
+        # shellcheck disable=SC2046 # deploy_env is NAME=value words
+        env $(deploy_env "$chain" 0) \
             forge script "$SCRIPT:DeployBridgePaymasterToFuse" --rpc-url "$(cfg "$chain" rpc)" 2>&1 |
             sed -n '/== Logs ==/,/Next:/p'
     done
@@ -167,6 +190,23 @@ if [ "$MODE" = transfer ]; then
         echo "===== $chain: transfer to $(cfg "$chain" owner)"
         NEW_OWNER=$(cfg "$chain" owner) \
             forge script "$SCRIPT:TransferBridgePaymasterToFuseOwnership" \
+            --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast
+    done
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------------------------
+# --lifi: open each recorded paymaster for LI.FI swaps into Fuse through UpgradePaymasterLifiCall,
+# keeping the implementation it already runs. The deployer must still own it.
+# ---------------------------------------------------------------------------------------------
+if [ "$MODE" = lifi ]; then
+    for chain in "${CHAINS[@]}"; do
+        file=$(address_file "$chain")
+        [ -f "$file" ] || { echo "$chain: nothing recorded in $file" >&2; exit 1; }
+        echo "===== $chain: open $(recorded "$file" BridgePaymaster) for LI.FI"
+        BRIDGE_PAYMASTER=$(recorded "$file" BridgePaymaster) \
+            IMPLEMENTATION=$(recorded "$file" BridgePaymasterImplementation) \
+            forge script script/fuse/UpgradePaymasterLifiCall.s.sol:UpgradePaymasterLifiCall \
             --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast
     done
     exit 0
@@ -215,7 +255,8 @@ for chain in "${CHAINS[@]}"; do
     # The Solidity step records the addresses there, and Foundry drops the whole broadcast if
     # that write fails - so the folder has to exist first (deployments/addresses/BNB is new).
     mkdir -p "$(dirname "$(address_file "$chain")")"
-    DAILY_FEE_BUDGET_WEI=$(cfg "$chain" budget) FUNDING_WEI=$(cfg "$chain" funding) \
+    # shellcheck disable=SC2046 # deploy_env is NAME=value words
+    env $(deploy_env "$chain" "$(cfg "$chain" funding)") \
         forge script "$SCRIPT:DeployBridgePaymasterToFuse" \
         --rpc-url "$(cfg "$chain" rpc)" --account "$ACCOUNT" --sender "$DEPLOYER" --broadcast
 done
@@ -228,5 +269,6 @@ if [ -n "${ETHERSCAN_API_KEY:-}" ]; then
 fi
 
 echo
-echo "Deployed on ${CHAINS[*]}. Addresses are in deployments/addresses/*/BridgePaymaster.json - commit them."
+echo "Deployed on ${CHAINS[*]}. Addresses are in deployments/addresses/*/$(basename "$(address_file base)") - commit them."
+echo "Open them for LI.FI swaps: $0 --lifi ${CHAINS[*]}"
 echo "Once tested, hand them over: NEW_OWNER_<CHAIN>=<safe> $0 --transfer ${CHAINS[*]}"

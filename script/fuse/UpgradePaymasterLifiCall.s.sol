@@ -13,7 +13,8 @@ import {BridgePaymaster} from "src/fuse/BridgePaymaster.sol";
  * @dev The chain is picked from the RPC: Fuse's paymaster sends to the other three, theirs send to
  *      Fuse. Broadcast by the proxy's owner, it deploys the implementation and sends every call;
  *      broadcast by anyone else, it deploys the implementation and prints the owner's calls to make.
- *      `IMPLEMENTATION` reuses one already deployed instead.
+ *      `IMPLEMENTATION` reuses one already deployed instead, and `BRIDGE_PAYMASTER` targets a proxy
+ *      other than the production one on that chain, such as QA's.
  *
  *      forge script script/fuse/UpgradePaymasterLifiCall.s.sol --rpc-url base \
  *        --account <owner> --broadcast --verify
@@ -88,15 +89,21 @@ contract UpgradePaymasterLifiCall is Script {
             destinations = new uint32[](3);
             (destinations[0], destinations[1], destinations[2]) = (ETHEREUM_EID, BASE_EID, BNB_EID);
             // Today ~157-220 FUSE a send.
-            return (BridgePaymaster(payable(FUSE_PAYMASTER)), destinations, 1_000 ether);
+            return (_paymasterOr(FUSE_PAYMASTER), destinations, 1_000 ether);
         }
         destinations = new uint32[](1);
         destinations[0] = FUSE_EID;
         // Today ~0.00054 ETH and ~0.0018 BNB a send.
         if (block.chainid == 1 || block.chainid == 8453) {
-            return (BridgePaymaster(payable(TO_FUSE_PAYMASTER)), destinations, 0.003 ether);
+            return (_paymasterOr(TO_FUSE_PAYMASTER), destinations, 0.003 ether);
         }
-        if (block.chainid == 56) return (BridgePaymaster(payable(TO_FUSE_PAYMASTER)), destinations, 0.01 ether);
+        if (block.chainid == 56) return (_paymasterOr(TO_FUSE_PAYMASTER), destinations, 0.01 ether);
         revert("Unsupported chain");
+    }
+
+    function _paymasterOr(address production) internal view returns (BridgePaymaster) {
+        address paymaster = vm.envOr("BRIDGE_PAYMASTER", production);
+        require(paymaster.code.length > 0, "no BridgePaymaster at that address on this chain");
+        return BridgePaymaster(payable(paymaster));
     }
 }
