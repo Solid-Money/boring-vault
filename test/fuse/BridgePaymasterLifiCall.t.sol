@@ -33,11 +33,19 @@ contract MockLifiDiamond {
     bool public fail;
     uint256 public lastValue;
     uint256 public lastAllowance;
+    address public otherLeftover;
+    uint256 public otherLeftoverAmount;
 
     function configure(uint256 tokens, uint256 native, bool shouldFail) external {
         leftoverTokens = tokens;
         leftoverNative = native;
         fail = shouldFail;
+    }
+
+    /// @dev Also hand back `amount` of `token`, as LI.FI does with a later swap's unspent input.
+    function configureOtherLeftover(address token, uint256 amount) external {
+        otherLeftover = token;
+        otherLeftoverAmount = amount;
     }
 
     function swapAndStartBridgeTokensViaStargate(
@@ -66,6 +74,7 @@ contract MockLifiDiamond {
             IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
             if (leftoverTokens > 0) IERC20(asset).safeTransfer(msg.sender, leftoverTokens);
         }
+        if (otherLeftoverAmount > 0) IERC20(otherLeftover).safeTransfer(msg.sender, otherLeftoverAmount);
         if (leftoverNative > 0) {
             (bool ok,) = msg.sender.call{value: leftoverNative}("");
             require(ok, "LiFi: refund");
@@ -250,6 +259,61 @@ contract BridgePaymasterLifiCallTest is Test {
     function test_realLifiOptions_pass() public {
         // The compose and receive gas options LI.FI sends carry no native.
         _assertCalls(_route(address(uni), 10 ether));
+    }
+
+    // ================================= SOURCE SWAPS =================================
+
+    function test_multiSwap_takesTheFirstSwapsInputAndRefundsTheOthers() public {
+        // UNI -> WETH -> USDC. The caller's coin is the first swap's input; the second swap spends
+        // that swap's WETH, so the paymaster pulls only UNI. WETH LI.FI hands back goes to the
+        // caller, but not WETH the paymaster already held.
+        MockToken weth = new MockToken("WETH");
+        weth.mint(address(diamond), 0.5 ether);
+        weth.mint(address(PAYMASTER), 2 ether);
+        diamond.configureOtherLeftover(address(weth), 0.5 ether);
+        bytes memory data = _encodeSwaps(_route(address(uni), 10 ether), _uniWethUsdc(weth));
+        (BridgePaymaster.LifiVoucher memory v, bytes memory sig) = _voucher(address(uni), 10 ether, data);
+
+        vm.startPrank(user);
+        uni.approve(address(PAYMASTER), 10 ether);
+        PAYMASTER.lifiCall(v, data, sig);
+        vm.stopPrank();
+
+        assertEq(uni.balanceOf(user), 990 ether);
+        assertEq(uni.balanceOf(address(diamond)), 10 ether);
+        assertEq(weth.balanceOf(user), 0.5 ether);
+        assertEq(weth.balanceOf(address(PAYMASTER)), 2 ether);
+        assertEq(weth.allowance(address(PAYMASTER), address(diamond)), 0);
+        assertEq(diamond.lastValue(), FEE);
+    }
+
+    function test_rejects_multiSwapVoucherForALaterSwapsInput() public {
+        // LI.FI takes the first swap's coin from the paymaster, so a voucher for the second's
+        // would have the paymaster pay with a coin the caller never gave it.
+        MockToken weth = new MockToken("WETH");
+        weth.mint(user, 3 ether);
+        bytes memory data = _encodeSwaps(_route(address(uni), 10 ether), _uniWethUsdc(weth));
+        (BridgePaymaster.LifiVoucher memory v, bytes memory sig) = _voucher(address(weth), 3 ether, data);
+
+        vm.startPrank(user);
+        weth.approve(address(PAYMASTER), 3 ether);
+        vm.expectRevert(BridgePaymaster.InputMismatch.selector);
+        PAYMASTER.lifiCall(v, data, sig);
+        vm.stopPrank();
+    }
+
+    function test_rejects_swapCallWithNoSwaps() public {
+        // The swap function with no swaps has no input to hold to the voucher. Without its own
+        // check it would fall back to the bridged coin, so the voucher here names exactly that.
+        bytes memory data = _encodeSwaps(_route(address(uni), 10 ether), new BridgePaymaster.LifiSwapData[](0));
+        (BridgePaymaster.LifiVoucher memory v, bytes memory sig) = _voucher(address(usdc), 10 ether, data);
+        usdc.mint(user, 10 ether);
+
+        vm.startPrank(user);
+        usdc.approve(address(PAYMASTER), 10 ether);
+        vm.expectRevert(BridgePaymaster.InputMismatch.selector);
+        PAYMASTER.lifiCall(v, data, sig);
+        vm.stopPrank();
     }
 
     // ================================= REFUNDS =================================
@@ -581,6 +645,17 @@ contract BridgePaymasterLifiCallTest is Test {
     }
 
     function _encode(Route memory r) internal view returns (bytes memory) {
+        BridgePaymaster.LifiSwapData[] memory swapData = new BridgePaymaster.LifiSwapData[](1);
+        swapData[0] = _swap(r.input, r.amount, address(usdc));
+        return _encodeSwaps(r, swapData);
+    }
+
+    /// @dev `r` with these source swaps; the bridge-only function takes none.
+    function _encodeSwaps(Route memory r, BridgePaymaster.LifiSwapData[] memory swapData)
+        internal
+        view
+        returns (bytes memory)
+    {
         bool swaps = r.selector != 0x14d53077;
         BridgePaymaster.LifiBridgeData memory bridgeData = BridgePaymaster.LifiBridgeData({
             transactionId: bytes32(uint256(0x1f1)),
@@ -609,17 +684,31 @@ contract BridgePaymasterLifiCallTest is Test {
             refundAddress: r.refundAddress
         });
         if (!swaps) return abi.encodeWithSelector(r.selector, bridgeData, stargateData);
-        BridgePaymaster.LifiSwapData[] memory swapData = new BridgePaymaster.LifiSwapData[](1);
-        swapData[0] = BridgePaymaster.LifiSwapData({
+        return abi.encodeWithSelector(r.selector, bridgeData, swapData, stargateData);
+    }
+
+    function _swap(address input, uint256 amount, address output)
+        internal
+        view
+        returns (BridgePaymaster.LifiSwapData memory)
+    {
+        return BridgePaymaster.LifiSwapData({
             callTo: dex,
             approveTo: dex,
-            sendingAssetId: r.input,
-            receivingAssetId: address(usdc),
-            fromAmount: r.amount,
+            sendingAssetId: input,
+            receivingAssetId: output,
+            fromAmount: amount,
             callData: hex"",
             requiresDeposit: true
         });
-        return abi.encodeWithSelector(r.selector, bridgeData, swapData, stargateData);
+    }
+
+    /// @dev 10 UNI to WETH, then 3 WETH to USDC out of that swap's output.
+    function _uniWethUsdc(MockToken weth) internal view returns (BridgePaymaster.LifiSwapData[] memory swaps) {
+        swaps = new BridgePaymaster.LifiSwapData[](2);
+        swaps[0] = _swap(address(uni), 10 ether, address(weth));
+        swaps[1] = _swap(address(weth), 3 ether, address(usdc));
+        swaps[1].requiresDeposit = false;
     }
 
     function _voucher(address token, uint256 amount, bytes memory data)
