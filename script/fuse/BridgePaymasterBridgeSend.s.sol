@@ -89,6 +89,20 @@ abstract contract BridgePaymasterFuseBase is Script {
         t[4] = Target("Stargate USDT OFT", USDT_OFT, BridgePaymaster.TargetKind.STARGATE_OFT, MIN_SEND);
     }
 
+    /**
+     * @dev The targets above leave out, which deployments/safe-batches/fuse-paymaster-targets.json
+     *      registers on the OLD paymaster all the same. That batch has not run, so none of them is set
+     *      there today, but the drain deregisters them too in case it runs first.
+     */
+    function _oldOnlyTargets() internal pure returns (Target[] memory t) {
+        t = new Target[](3);
+        t[0] = Target("staging teller 0xcBA3", 0xcBA3D8DC1DdE5fbD4c04cBbD5624Dc79D300963d, BridgePaymaster.TargetKind.TELLER, 0);
+        t[1] = Target("staging teller 0x39D0", 0x39D0F3EdCD14A9995393Bfee990F6719469874B6, BridgePaymaster.TargetKind.TELLER, 0);
+        t[2] = Target(
+            "fastWithdrawManager", 0x0bA17eab7B6B2353eA4731c37A2cBA2a5AA4Ea1b, BridgePaymaster.TargetKind.FAST_WITHDRAW_MANAGER, 0
+        );
+    }
+
     /// @dev Destinations per OFT. Base has no standard USDT, so USDT never goes there.
     function _routes(address oft) internal pure returns (uint32[] memory eids) {
         if (oft == USDC_OFT) {
@@ -410,7 +424,8 @@ contract TransferBridgePaymasterOwnership is BridgePaymasterFuseBase {
 
 /**
  * @notice Step 4. Writes the Safe batch that retires the OLD paymaster: deregisters its three targets
- *         (closing its gas-drop hole for good) and moves its whole FUSE balance to the new paymaster.
+ *         and the three the targets batch would add (closing its gas-drop hole for good), and moves
+ *         its whole FUSE balance to the new paymaster.
  * @dev Run it only after the app and backend point at the new paymaster - the old flows stop working
  *      the moment this executes. Refuses unless the new paymaster is already owned by the Safe and
  *      fully configured, so the FUSE never lands in a contract an EOA controls.
@@ -431,25 +446,31 @@ contract DrainOldPaymaster is BridgePaymasterFuseBase {
         console2.log("old paymaster balance wei:", oldBalance);
         console2.log("new paymaster balance wei:", newBalance);
 
+        // Deregistered whether or not they are set, so the batch still holds if the targets batch
+        // runs between now and its execution; setting NONE again is harmless.
         Target[] memory targets = _targets();
-        OwnerCall[] memory calls = new OwnerCall[](4);
-        uint256 n;
+        Target[] memory oldOnly = _oldOnlyTargets();
+        Target[] memory retired = new Target[](targets.length + oldOnly.length);
+        uint256 r;
         for (uint256 i; i < targets.length; i++) {
-            if (targets[i].kind == BridgePaymaster.TargetKind.STARGATE_OFT) continue;
-            calls[n++] = OwnerCall(
-                string.concat("old: setTarget(", targets[i].name, ", NONE)"),
-                abi.encodeCall(BridgePaymaster.setTarget, (targets[i].target, BridgePaymaster.TargetKind.NONE, 0))
-            );
+            if (targets[i].kind != BridgePaymaster.TargetKind.STARGATE_OFT) retired[r++] = targets[i];
         }
-        calls[n++] = OwnerCall("old: rescueNative(new paymaster)", abi.encodeCall(BridgePaymaster.rescueNative, (address(pm))));
-        assembly {
-            mstore(calls, n)
+        for (uint256 i; i < oldOnly.length; i++) {
+            retired[r++] = oldOnly[i];
         }
 
+        OwnerCall[] memory calls = new OwnerCall[](r + 1);
+        for (uint256 i; i < r; i++) {
+            calls[i] = OwnerCall(
+                string.concat("old: setTarget(", retired[i].name, ", NONE)"),
+                abi.encodeCall(BridgePaymaster.setTarget, (retired[i].target, BridgePaymaster.TargetKind.NONE, 0))
+            );
+        }
+        calls[r] = OwnerCall("old: rescueNative(new paymaster)", abi.encodeCall(BridgePaymaster.rescueNative, (address(pm))));
+
         _simulateAs(oldOwner, address(OLD_PAYMASTER), calls);
-        for (uint256 i; i < targets.length; i++) {
-            if (targets[i].kind == BridgePaymaster.TargetKind.STARGATE_OFT) continue;
-            require(OLD_PAYMASTER.targetKind(targets[i].target) == BridgePaymaster.TargetKind.NONE, "old target still set");
+        for (uint256 i; i < r; i++) {
+            require(OLD_PAYMASTER.targetKind(retired[i].target) == BridgePaymaster.TargetKind.NONE, "old target still set");
         }
         require(address(OLD_PAYMASTER).balance == 0, "old paymaster not emptied");
         require(address(pm).balance == newBalance + oldBalance, "FUSE did not arrive at the new paymaster");

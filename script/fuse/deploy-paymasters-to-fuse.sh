@@ -129,13 +129,23 @@ verify_chain() {
         --etherscan-api-key "$ETHERSCAN_API_KEY" --watch ||
         echo "  -> could not verify the implementation on $chain; re-run with --verify $chain later" >&2
     # The proxy's constructor arguments, from Foundry's record of the deploy. Guessing them instead
-    # needs an explorer API call Etherscan's free plan refuses on some chains.
+    # needs an explorer API call Etherscan's free plan refuses on some chains. Every run of the
+    # script on a chain replaces run-latest.json, so after --transfer or --lifi only an older
+    # run-<timestamp>.json still holds the deploy; search them all. A fresh clone has none
+    # (broadcast/ is gitignored), which falls through to the warning below.
     local args
-    args=$(python3 - "broadcast/BridgePaymasterToFuse.s.sol/$(cfg "$chain" chainid)/run-latest.json" "$proxy" <<'PY'
+    args=$(python3 - "$proxy" "broadcast/BridgePaymasterToFuse.s.sol/$(cfg "$chain" chainid)"/run-*.json <<'PY' || true
 import json, sys
-for t in json.load(open(sys.argv[1]))["transactions"]:
-    if t.get("transactionType") == "CREATE" and t["contractAddress"].lower() == sys.argv[2].lower():
-        print(" ".join(t["arguments"]))
+proxy = sys.argv[1].lower()
+for path in sys.argv[2:]:
+    try:
+        txs = json.load(open(path))["transactions"]
+    except (OSError, ValueError, KeyError):
+        continue
+    for t in txs:
+        if t.get("transactionType") == "CREATE" and (t.get("contractAddress") or "").lower() == proxy:
+            print(" ".join(t["arguments"]))
+            sys.exit(0)
 PY
     )
     [ -n "$args" ] || { echo "  -> no deploy record for the proxy on $chain; cannot verify it" >&2; return 0; }
