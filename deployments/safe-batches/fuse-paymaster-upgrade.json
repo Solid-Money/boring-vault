@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "chainId": "122",
+  "createdAt": 1789032624523,
+  "meta": {
+    "name": "BridgePaymaster upgrade (fuse)",
+    "description": "upgradeToAndCall(0x20C34F27De4428E3C48989C6D0a64fdb1f0B006F, 0x) on 0xE046FC894Ec020501BA32fcA814a69B49c9Dac10",
+    "txBuilderVersion": "1.16.5"
+  },
+  "transactions": [
+    {
+      "to": "0xE046FC894Ec020501BA32fcA814a69B49c9Dac10",
+      "value": "0",
+      "data": "0x4f1ef28600000000000000000000000020c34f27de4428e3c48989c6d0a64fdb1f0b006f00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}

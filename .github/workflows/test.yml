@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   FOUNDRY_PROFILE: ci
 
@@ -19,7 +22,9 @@ jobs:
     env:
       MAINNET_RPC_URL: https://mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
       ARBITRUM_RPC_URL: https://arbitrum-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
-      BASE_RPC_URL: https://base-mainnet.g.alchemy.com/v2/${{ secrets.ALCHEMY_API_KEY }}
+      # Without the ALCHEMY_API_KEY secret (unset here, and never passed to forks' PRs) this would be
+      # a keyless URL every Base fork is refused by; fall back to the public node instead.
+      BASE_RPC_URL: ${{ secrets.ALCHEMY_API_KEY && format('https://base-mainnet.g.alchemy.com/v2/{0}', secrets.ALCHEMY_API_KEY) || 'https://base-rpc.publicnode.com' }}
       AVALANCHE_RPC_URL: https://avalanche-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
       OPTIMISM_RPC_URL: https://optimism-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
       LINEA_RPC_URL: https://linea-mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}
@@ -34,6 +39,11 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+
+      # remappings.txt maps @layerzerolabs/oapp-evm-v2/ into node_modules, which the checkout
+      # does not have. Only the Solidity sources are needed, so no install scripts run.
+      - name: Install npm dependencies
+        run: npm ci --ignore-scripts
 
       - name: Run Forge build
         run: |
