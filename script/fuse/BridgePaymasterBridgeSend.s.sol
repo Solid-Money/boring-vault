@@ -68,9 +68,11 @@ abstract contract BridgePaymasterFuseBase is Script {
 
     /**
      * @dev Every target the new paymaster sponsors. The first three are the ones registered on the old
-     *      paymaster today, so the new one can take over every live flow. Their floors are still 0, as
-     *      on the old one - a product call, see the product spec's limits; changing one here and
-     *      re-running ConfigureBridgePaymaster applies it.
+     *      paymaster today, so the new one can take over every live flow. The old one has no floors on
+     *      them; the new one has the floors set on it at 0x8D53…306b: 0.1 soUSD, 0.0001 soETH, and 0.1
+     *      for the card manager (USDC.e for a card deposit, vault shares for a swap-and-deposit). A
+     *      floor is a product call, see the product spec's limits; changing one here and re-running
+     *      ConfigureBridgePaymaster applies it.
      *
      *      Not carried over, because they were never registered on the old proxy either: the staging
      *      tellers (0xcBA3…963d, 0x39D0…74B6) and the fastWithdrawManager (0x0bA1…Ea1b), so
@@ -82,9 +84,9 @@ abstract contract BridgePaymasterFuseBase is Script {
      */
     function _targets() internal pure returns (Target[] memory t) {
         t = new Target[](5);
-        t[0] = Target("teller (soUSD, prod)", 0x220d4667AA06E0Aa39f62c601690848f2e48BC15, BridgePaymaster.TargetKind.TELLER, 0);
-        t[1] = Target("soEthTeller (prod)", 0xEaacf4534cCC05CAd929830fAF611d872b291d41, BridgePaymaster.TargetKind.TELLER, 0);
-        t[2] = Target("cardDepositManager", CARD_DEPOSIT_MANAGER, BridgePaymaster.TargetKind.CARD_DEPOSIT_MANAGER, 0);
+        t[0] = Target("teller (soUSD, prod)", 0x220d4667AA06E0Aa39f62c601690848f2e48BC15, BridgePaymaster.TargetKind.TELLER, 0.1e6);
+        t[1] = Target("soEthTeller (prod)", 0xEaacf4534cCC05CAd929830fAF611d872b291d41, BridgePaymaster.TargetKind.TELLER, 0.0001e18);
+        t[2] = Target("cardDepositManager", CARD_DEPOSIT_MANAGER, BridgePaymaster.TargetKind.CARD_DEPOSIT_MANAGER, 0.1e6);
         t[3] = Target("Stargate USDC.e OFT", USDC_OFT, BridgePaymaster.TargetKind.STARGATE_OFT, MIN_SEND);
         t[4] = Target("Stargate USDT OFT", USDT_OFT, BridgePaymaster.TargetKind.STARGATE_OFT, MIN_SEND);
     }

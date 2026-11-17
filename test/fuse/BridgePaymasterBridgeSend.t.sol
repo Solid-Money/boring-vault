@@ -373,7 +373,7 @@ contract BridgePaymasterBridgeSendTest is Test {
 
         vm.startPrank(deployer);
         PAYMASTER.initializeV2(signer, feeRecipient, DAILY_BUDGET);
-        PAYMASTER.setTarget(CARD_DEPOSIT_MANAGER, BridgePaymaster.TargetKind.CARD_DEPOSIT_MANAGER, 0);
+        PAYMASTER.setTarget(CARD_DEPOSIT_MANAGER, BridgePaymaster.TargetKind.CARD_DEPOSIT_MANAGER, 0.1e6);
         PAYMASTER.setTarget(USDC_OFT, BridgePaymaster.TargetKind.STARGATE_OFT, MIN_AMOUNT);
         PAYMASTER.setTarget(USDT_OFT, BridgePaymaster.TargetKind.STARGATE_OFT, MIN_AMOUNT);
         PAYMASTER.setMaxSponsoredAmount(USDC_OFT, MAX_AMOUNT);
