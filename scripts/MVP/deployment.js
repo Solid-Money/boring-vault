@@ -30,6 +30,10 @@ function load() {
       if (!address) throw new Error(`${name} is not deployed in ${file}`)
       return address
     },
+    // The address of a contract only some vaults have, or undefined.
+    optionalAddress(name) {
+      return record.contracts[name]
+    },
     // Records a contract as soon as it is deployed, so a run that fails later never loses it.
     save(name, address) {
       const fresh = read()

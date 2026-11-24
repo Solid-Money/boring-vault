@@ -1,0 +1,213 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1795535258083,
+  "meta": {
+    "name": "Stock vaults: let the strategist compound Merkl rewards",
+    "description": "Sets each stock vault's strategist manage root to one that adds the reward conversion: redeem sUP to UP, and swap USDC and UP into the stock on KyberSwap. Every leaf of the current root stays.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3"
+  },
+  "transactions": [
+    {
+      "to": "0x6911B55691C5C2D49C345Bd6790f6672b1F095B9",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0xcfae3a7aab160d7b95faec97a426be6c24459878d337cd29133561d4ed029c8f"
+      }
+    },
+    {
+      "to": "0xB724b852aaF44Bee0aAB952f6061BD04A7c66f4c",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x0e842104a418340d232970dc2cf3775b7890ea6dc88bbe375f0eadc33cf154d0"
+      }
+    },
+    {
+      "to": "0x44Aa72315174b27897eb785b26B416f8c4901aFD",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x0fb99e5fc881664396ad991d93a55bd6654811e093eae3b473e13fe2afb2b58c"
+      }
+    },
+    {
+      "to": "0x41042cf1247578a31E9139D6996D36150B38b317",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x972f736ba7da401bb6819fe9aeb2e086ecb5b4d7bdd8ead3c04e36e00bf0923f"
+      }
+    },
+    {
+      "to": "0xec293085D4DfFAe19E90D46a1C24ecA7cdF45D04",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x1549681dea10d797e89df2d8f9e8c75832aed8528cd9765b19dcc1780da96156"
+      }
+    },
+    {
+      "to": "0x6B71fa1A0AdFbCef2E16Fb5eefDcB4a1F0d10646",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x86f3b6a7b9b4ecda4c6dd657d9d44a4679e25cf0d205cf8f5ace63661ed3c272"
+      }
+    },
+    {
+      "to": "0x4F9D2029FCd54856e9135bd411C2f9FDc7f1e1b5",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x8d273d321cfc7353f13c373ef84117e5765e02adc740a4a683da5e54e7ab5db9"
+      }
+    },
+    {
+      "to": "0x6f3415cf91D792aCBaF57feD5494cAa41AC33924",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "strategist",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_manageRoot",
+            "type": "bytes32"
+          }
+        ],
+        "name": "setManageRoot",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
+        "_manageRoot": "0x27ed9f46d7f41fe391a7ba33e5943ce7b90f7c20cc0aa308790fb674c9c1f196"
+      }
+    }
+  ]
+}

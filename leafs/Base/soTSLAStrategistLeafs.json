@@ -4,9 +4,10 @@
     "ManagerAddress": "0x6B71fa1A0AdFbCef2E16Fb5eefDcB4a1F0d10646",
     "AccountantAddress": "0xD2Ad55c55489f55dd68dd2bFC6cA721BBFab6AC8",
     "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+    "SwapDecoderAndSanitizerAddress": "0xb33c8F0b0816fd147FCF896C594a3ef408845e2C",
     "Strategist": "0x6f3334EC6355eD6f70100Cd1Cd6736505cd0F9b5",
-    "ManageRoot": "0xc122b6555cfd36c601fc47c3ee1ee6056c942d5203f03f81c9d05c4fa8c99a8e",
-    "LeafCount": 11,
+    "ManageRoot": "0x86f3b6a7b9b4ecda4c6dd657d9d44a4679e25cf0d205cf8f5ace63661ed3c272",
+    "LeafCount": 19,
     "DigestComposition": [
       "Bytes20(DECODER_AND_SANITIZER_ADDRESS)",
       "Bytes20(TARGET_ADDRESS)",
@@ -32,7 +33,8 @@
         "0x0c0627e256e86ba552ab68d1f8f0bffbc23682d6b976172fdfd3698f8c12fd20",
         "0xaea3bc78306c35d198f766d96680c63f3a82ce465ff5fe60b8a966f88ffffb1d",
         "0xed341160c5aacd515c0f3a58a019441c0bbecc710ca789e1bd8a43ff654a7eda",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -51,7 +53,8 @@
         "0xac88f1bc48e9cb08773cd55ce87d1d5da4b834d17e4aa4267c0f4b508e5ae419",
         "0xaea3bc78306c35d198f766d96680c63f3a82ce465ff5fe60b8a966f88ffffb1d",
         "0xed341160c5aacd515c0f3a58a019441c0bbecc710ca789e1bd8a43ff654a7eda",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -70,7 +73,8 @@
         "0x2ca69f6406720219893cc739ba6f4ffb6f285c1cd0e4b14698e058baf3b29e22",
         "0x9031823a0d18e48c73f3d6f4b78a923c0646c2da6ec779e4697365b15eb66849",
         "0xed341160c5aacd515c0f3a58a019441c0bbecc710ca789e1bd8a43ff654a7eda",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -90,7 +94,8 @@
         "0xb843775eb9f06067fc9afab98858d7fe15cafc0a3098573e8ca814378a96ef01",
         "0x9031823a0d18e48c73f3d6f4b78a923c0646c2da6ec779e4697365b15eb66849",
         "0xed341160c5aacd515c0f3a58a019441c0bbecc710ca789e1bd8a43ff654a7eda",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -109,7 +114,8 @@
         "0x8508946e9cbd035edb197412591af8d2fb2ba47decc06062ed50c55bc3241f3b",
         "0x2040d3765c5e93b804a83d7f19b04695df21fd683eceb453aeb1c5b32c080f90",
         "0x3185853722f61da2912a4b1c87c4f7fe9432e15b8c10224ae34e9285950744f9",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -129,7 +135,8 @@
         "0x759b3c7bacc0b96ad5e7be32c18d3eb1604227289b0066bb27c4a0d14bb39cb0",
         "0x2040d3765c5e93b804a83d7f19b04695df21fd683eceb453aeb1c5b32c080f90",
         "0x3185853722f61da2912a4b1c87c4f7fe9432e15b8c10224ae34e9285950744f9",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -149,7 +156,8 @@
         "0xf4baef93db368c46f3350c28a560a2c8f251d6aa584fd10385967221cfb42756",
         "0xa684e9ed592f68d20f2b2470b5efec3bf8124c1a47793d9e1cc4ba3f8cb9465a",
         "0x3185853722f61da2912a4b1c87c4f7fe9432e15b8c10224ae34e9285950744f9",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -169,7 +177,8 @@
         "0x335649307aa21f95b6fb8c5eee6d0e18edcf95c42ca996c783fa4645d08d6f94",
         "0xa684e9ed592f68d20f2b2470b5efec3bf8124c1a47793d9e1cc4ba3f8cb9465a",
         "0x3185853722f61da2912a4b1c87c4f7fe9432e15b8c10224ae34e9285950744f9",
-        "0xe4d9f03ff2845c86185d6709a245c132484d615d7d6ccd390ee8897ee98ed000"
+        "0x88d508bd1dffa53da2c5a562af88945da93194eb40b5f1c99e9f5d85928cdacc",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -187,8 +196,10 @@
       "LeafDigest": "0x373b3dfe522e9f3fc1ea29367b83a2ac7936489e991c66186ad633f286d8e69b",
       "Proof": [
         "0x300853cf989299f36cb7aa0cfc9bec735a494368a66f69398601d3225909395c",
-        "0x834879a7cd178519619b06e7212861de86f004c84c564145a49fb0232a6a8a67",
-        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad"
+        "0x889e25d5be6c92878ce19f4f798cdb73f0ea07eb61c97797095ce61fc036c926",
+        "0xcf184e4e8b3b43a797582887306752eb9bafd33cda5b4c497df90f462cdf6363",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -206,8 +217,10 @@
       "LeafDigest": "0x300853cf989299f36cb7aa0cfc9bec735a494368a66f69398601d3225909395c",
       "Proof": [
         "0x373b3dfe522e9f3fc1ea29367b83a2ac7936489e991c66186ad633f286d8e69b",
-        "0x834879a7cd178519619b06e7212861de86f004c84c564145a49fb0232a6a8a67",
-        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad"
+        "0x889e25d5be6c92878ce19f4f798cdb73f0ea07eb61c97797095ce61fc036c926",
+        "0xcf184e4e8b3b43a797582887306752eb9bafd33cda5b4c497df90f462cdf6363",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
       ]
     },
     {
@@ -226,8 +239,197 @@
       "PackedArgumentAddresses": "0xa684417baad4ba0efe9657081f972f278e8fefb5833589fcd6edb6e08f4c7c32d4f71b54bda02913a684417baad4ba0efe9657081f972f278e8fefb52c71f70e2ec720ae061ae7e0316fc9654d94f417",
       "LeafDigest": "0x834879a7cd178519619b06e7212861de86f004c84c564145a49fb0232a6a8a67",
       "Proof": [
+        "0xe981cb85ba1168f11d7fae6f9dc7bc44baa1b09d2dfe37dc6cc15149bd456388",
         "0x8c9ef88fe81e4a62a7585882c086802cfebfcc14f7465b514d2075a45cd3b017",
-        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad"
+        "0xcf184e4e8b3b43a797582887306752eb9bafd33cda5b4c497df90f462cdf6363",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Request to redeem sUP for UP",
+      "FunctionSignature": "requestRedeem(uint256,address,address)",
+      "FunctionSelector": "0x7d41c86e",
+      "TargetAddress": "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417",
+      "AddressArguments": [
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5",
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0xa684417baad4ba0efe9657081f972f278e8fefb5a684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0xe981cb85ba1168f11d7fae6f9dc7bc44baa1b09d2dfe37dc6cc15149bd456388",
+      "Proof": [
+        "0x834879a7cd178519619b06e7212861de86f004c84c564145a49fb0232a6a8a67",
+        "0x8c9ef88fe81e4a62a7585882c086802cfebfcc14f7465b514d2075a45cd3b017",
+        "0xcf184e4e8b3b43a797582887306752eb9bafd33cda5b4c497df90f462cdf6363",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Claim the UP of a fulfilled sUP redeem",
+      "FunctionSignature": "withdraw(uint256,address,address)",
+      "FunctionSelector": "0xb460af94",
+      "TargetAddress": "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417",
+      "AddressArguments": [
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5",
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0xa684417baad4ba0efe9657081f972f278e8fefb5a684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0xb4bd89a02e371ea25a92c9700708f19d7fc11e6c17868a520b6d1cd6b4573610",
+      "Proof": [
+        "0xef354ca3184ab6b96dc8a06ff9e93af2fc58507cc3df9dc85c0ee0e018394aac",
+        "0x20500c8bc17993f8c533e32d153e1cfa2e441015eb8358e7087e8674231be828",
+        "0x6690a4ab6954053cae36eed6f00f5ec9ac9ce54ca9ebee0f7e318573c7eee658",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Cancel the pending sUP redeem",
+      "FunctionSignature": "cancelRedeemRequest(uint256,address)",
+      "FunctionSelector": "0x2b9d9c1f",
+      "TargetAddress": "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417",
+      "AddressArguments": [
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0xa684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0xef354ca3184ab6b96dc8a06ff9e93af2fc58507cc3df9dc85c0ee0e018394aac",
+      "Proof": [
+        "0xb4bd89a02e371ea25a92c9700708f19d7fc11e6c17868a520b6d1cd6b4573610",
+        "0x20500c8bc17993f8c533e32d153e1cfa2e441015eb8358e7087e8674231be828",
+        "0x6690a4ab6954053cae36eed6f00f5ec9ac9ce54ca9ebee0f7e318573c7eee658",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Take back the sUP of a cancelled redeem",
+      "FunctionSignature": "claimCancelRedeemRequest(uint256,address,address)",
+      "FunctionSelector": "0x00a06d19",
+      "TargetAddress": "0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417",
+      "AddressArguments": [
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5",
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0xa684417baad4ba0efe9657081f972f278e8fefb5a684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0x9523fee2b3880e33b6ce2f3e3d8b5f399885429c9ea2572c4a2c52f7ef0a7e5d",
+      "Proof": [
+        "0x80a7bde192dff16f25ebd3244f6c1c053a2491f12ec13249cc49f7c19a0335ac",
+        "0x07836ff81390cfc2ec33a9273a15b88b65d2a40a1f268fc277fcae76adba7987",
+        "0x6690a4ab6954053cae36eed6f00f5ec9ac9ce54ca9ebee0f7e318573c7eee658",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Approve KyberSwap to take USDC",
+      "FunctionSignature": "approve(address,uint256)",
+      "FunctionSelector": "0x095ea7b3",
+      "TargetAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "AddressArguments": [
+        "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+      "LeafDigest": "0x80a7bde192dff16f25ebd3244f6c1c053a2491f12ec13249cc49f7c19a0335ac",
+      "Proof": [
+        "0x9523fee2b3880e33b6ce2f3e3d8b5f399885429c9ea2572c4a2c52f7ef0a7e5d",
+        "0x07836ff81390cfc2ec33a9273a15b88b65d2a40a1f268fc277fcae76adba7987",
+        "0x6690a4ab6954053cae36eed6f00f5ec9ac9ce54ca9ebee0f7e318573c7eee658",
+        "0x37bd7158d15c785ea66ea67a111734ced22ffe418144f3b9c290f8e42c357dad",
+        "0x770261bcf3fc18477f4378e4550b73f54653c20132767b4c02cc3455cb7ab577"
+      ]
+    },
+    {
+      "Description": "Approve KyberSwap to take UP",
+      "FunctionSignature": "approve(address,uint256)",
+      "FunctionSelector": "0x095ea7b3",
+      "TargetAddress": "0x5b2193fDc451C1f847bE09CA9d13A4Bf60f8c86B",
+      "AddressArguments": [
+        "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0x7128962D59A7DfbA121A34177d1A5ef6241015F5",
+      "PackedArgumentAddresses": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+      "LeafDigest": "0xc59e4ef707dafb67d9aa2577bb729117a88bcf27a1354a9c49cd921aa1833f12",
+      "Proof": [
+        "0x875467873c765dfb9f431285601c8bf1a6dbddc2ed730f38c4c4f2a660cfaf85",
+        "0x763df550c3ce579cc1e44afd3b6d0e2d3935127d0ad53f3223cf0858c72bbf60",
+        "0x82cb7cff2351925fd31196b977f0d78a8464a47cb8f5ced5c10feaca819dd25e"
+      ]
+    },
+    {
+      "Description": "Swap USDC into the stock token on KyberSwap",
+      "FunctionSignature": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+      "FunctionSelector": "0xe21fd0e9",
+      "TargetAddress": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "AddressArguments": [
+        "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+        "0x0000000000000000000000000000000000000000",
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "0xb2000000000000000000001e800a7f5189430cD0",
+        [
+          "0x8F10B468b06c6FD214B65F87778827F7D113f996"
+        ],
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "AddressArgumentTypes": [
+        "address",
+        "address",
+        "address",
+        "address",
+        "address[]",
+        "address"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0xb33c8F0b0816fd147FCF896C594a3ef408845e2C",
+      "PackedArgumentAddresses": "0x8f10b468b06c6fd214b65f87778827f7d113f9960000000000000000000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913b2000000000000000000001e800a7f5189430cd00000000000000000000000008f10b468b06c6fd214b65f87778827f7d113f996a684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0x875467873c765dfb9f431285601c8bf1a6dbddc2ed730f38c4c4f2a660cfaf85",
+      "Proof": [
+        "0xc59e4ef707dafb67d9aa2577bb729117a88bcf27a1354a9c49cd921aa1833f12",
+        "0x763df550c3ce579cc1e44afd3b6d0e2d3935127d0ad53f3223cf0858c72bbf60",
+        "0x82cb7cff2351925fd31196b977f0d78a8464a47cb8f5ced5c10feaca819dd25e"
+      ]
+    },
+    {
+      "Description": "Swap UP into the stock token on KyberSwap",
+      "FunctionSignature": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+      "FunctionSelector": "0xe21fd0e9",
+      "TargetAddress": "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5",
+      "AddressArguments": [
+        "0x8F10B468b06c6FD214B65F87778827F7D113f996",
+        "0x0000000000000000000000000000000000000000",
+        "0x5b2193fDc451C1f847bE09CA9d13A4Bf60f8c86B",
+        "0xb2000000000000000000001e800a7f5189430cD0",
+        [
+          "0x8F10B468b06c6FD214B65F87778827F7D113f996"
+        ],
+        "0xA684417Baad4ba0EFE9657081F972f278e8fefB5"
+      ],
+      "AddressArgumentTypes": [
+        "address",
+        "address",
+        "address",
+        "address",
+        "address[]",
+        "address"
+      ],
+      "CanSendValue": false,
+      "DecoderAndSanitizerAddress": "0xb33c8F0b0816fd147FCF896C594a3ef408845e2C",
+      "PackedArgumentAddresses": "0x8f10b468b06c6fd214b65f87778827f7d113f99600000000000000000000000000000000000000005b2193fdc451c1f847be09ca9d13a4bf60f8c86bb2000000000000000000001e800a7f5189430cd00000000000000000000000008f10b468b06c6fd214b65f87778827f7d113f996a684417baad4ba0efe9657081f972f278e8fefb5",
+      "LeafDigest": "0x763df550c3ce579cc1e44afd3b6d0e2d3935127d0ad53f3223cf0858c72bbf60",
+      "Proof": [
+        "0xea100aedc8ea2d80e3497af68366bf24105fd3cf015b529e2c343891c0bccd72",
+        "0x82cb7cff2351925fd31196b977f0d78a8464a47cb8f5ced5c10feaca819dd25e"
       ]
     }
   ]

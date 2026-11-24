@@ -9,6 +9,21 @@ const { utils } = require('ethers')
 
 const MERKL_DISTRIBUTOR = '0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae' // Merkl Distributor on Base
 
+// Turning the Merkl rewards into more of the stock. USDC swaps straight into the stock. sUP is
+// Superform's UP SuperVault, the same ERC-7540 contract as the stock SuperVaults: it is redeemed
+// to UP first (selling sUP itself on a DEX loses most of its value), then UP swaps into the stock.
+// Swaps go through KyberSwap's MetaAggregationRouterV2. On Base every route it builds has the
+// executor as call target and as the one source receiver, no approve target, and the vault as
+// receiver; the swap leaf pins all of those, so a route of any other shape fails the proof.
+const REWARD_CONVERSION = {
+  usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  upVault: '0x2c71f70e2Ec720AE061Ae7E0316fC9654d94f417', // sUP
+  up: '0x5b2193fDc451C1f847bE09CA9d13A4Bf60f8c86B',
+  kyberRouter: '0x6131B5fae19EA4f9D964eAc0408E4408b66337b5',
+  kyberExecutor: '0x8F10B468b06c6FD214B65F87778827F7D113f996',
+}
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
 const DIGEST_COMPOSITION = [
   'Bytes20(DECODER_AND_SANITIZER_ADDRESS)',
   'Bytes20(TARGET_ADDRESS)',
@@ -17,15 +32,23 @@ const DIGEST_COMPOSITION = [
   'Bytes{N*20}(ADDRESS_ARGUMENT_0,...,ADDRESS_ARGUMENT_N)',
 ]
 
-function leaf(decoder, description, target, signature, addressArguments) {
+// The decoder returns its addresses abi.encodePacked, so the leaf packs them the same way. Most
+// arguments are single addresses; an address[] (the swap's source receivers) packs each element
+// into a full 32-byte word, which is why `types` can say so.
+function packArguments(addressArguments, types = addressArguments.map(() => 'address')) {
+  return utils.solidityPack(types, addressArguments)
+}
+
+function leaf(decoder, description, target, signature, addressArguments, types) {
   const selector = utils.id(signature).slice(0, 10)
-  const packed = utils.solidityPack(addressArguments.map(() => 'address'), addressArguments)
+  const packed = packArguments(addressArguments, types)
   return {
     Description: description,
     FunctionSignature: signature,
     FunctionSelector: selector,
     TargetAddress: target,
     AddressArguments: addressArguments,
+    ...(types && { AddressArgumentTypes: types }),
     CanSendValue: false,
     DecoderAndSanitizerAddress: decoder,
     PackedArgumentAddresses: packed,
@@ -36,8 +59,38 @@ function leaf(decoder, description, target, signature, addressArguments) {
   }
 }
 
-// config: the vault record's config (baseAsset, superVault, rewardTokens).
-function stockLeafs({ boringVault, decoder, config }) {
+const KYBER_SWAP =
+  'swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))'
+// What KyberswapRouterDecoderAndSanitizer.swap returns: callTarget, approveTarget, srcToken,
+// dstToken, srcReceivers, dstReceiver.
+const KYBER_SWAP_TYPES = ['address', 'address', 'address', 'address', 'address[]', 'address']
+
+function kyberSwapArguments(from, to, boringVault) {
+  const { kyberExecutor } = REWARD_CONVERSION
+  return [kyberExecutor, ZERO_ADDRESS, from, to, [kyberExecutor], boringVault]
+}
+
+// The reward conversion: redeem sUP to UP, then swap USDC and UP into the stock. Appended after
+// the strategy leafs, so the tree a vault had before keeps every leaf it had.
+function rewardConversionLeafs({ boringVault, decoder, swapDecoder, baseAsset }) {
+  const bv = boringVault
+  const { usdc, upVault, up, kyberRouter } = REWARD_CONVERSION
+  return [
+    leaf(decoder, 'Request to redeem sUP for UP', upVault, 'requestRedeem(uint256,address,address)', [bv, bv]),
+    leaf(decoder, 'Claim the UP of a fulfilled sUP redeem', upVault, 'withdraw(uint256,address,address)', [bv, bv]),
+    leaf(decoder, 'Cancel the pending sUP redeem', upVault, 'cancelRedeemRequest(uint256,address)', [bv]),
+    leaf(decoder, 'Take back the sUP of a cancelled redeem', upVault, 'claimCancelRedeemRequest(uint256,address,address)', [bv, bv]),
+    leaf(decoder, 'Approve KyberSwap to take USDC', usdc, 'approve(address,uint256)', [kyberRouter]),
+    leaf(decoder, 'Approve KyberSwap to take UP', up, 'approve(address,uint256)', [kyberRouter]),
+    leaf(swapDecoder, 'Swap USDC into the stock token on KyberSwap', kyberRouter, KYBER_SWAP, kyberSwapArguments(usdc, baseAsset, bv), KYBER_SWAP_TYPES),
+    leaf(swapDecoder, 'Swap UP into the stock token on KyberSwap', kyberRouter, KYBER_SWAP, kyberSwapArguments(up, baseAsset, bv), KYBER_SWAP_TYPES),
+  ]
+}
+
+// config: the vault record's config (baseAsset, superVault, rewardTokens). swapDecoder, the
+// vault's KyberswapRouterDecoderAndSanitizer, adds the reward conversion; without it the tree is
+// the strategy alone, as first deployed.
+function stockLeafs({ boringVault, decoder, swapDecoder, config }) {
   const { baseAsset, superVault, rewardTokens } = config
   if (!baseAsset || !superVault || !rewardTokens) throw new Error('The record needs baseAsset, superVault and rewardTokens')
   const bv = boringVault
@@ -59,6 +112,7 @@ function stockLeafs({ boringVault, decoder, config }) {
   if (rewardTokens.length > 1) {
     leafs.push(leaf(decoder, 'Claim Merkl rewards in every reward token', MERKL_DISTRIBUTOR, claim, rewardTokens.flatMap((t) => [bv, t])))
   }
+  if (swapDecoder) leafs.push(...rewardConversionLeafs({ boringVault: bv, decoder, swapDecoder, baseAsset }))
   return leafs
 }
 
@@ -73,13 +127,14 @@ function buildTree(leafs) {
 }
 
 // The file the strategist works from: every leaf with its proof, plus the addresses they bind to.
-function treeFile({ deployment, decoder, leafs, root }) {
+function treeFile({ deployment, decoder, swapDecoder, leafs, root }) {
   return {
     metadata: {
       BoringVaultAddress: deployment.address('BoringVault'),
       ManagerAddress: deployment.address('Manager'),
       AccountantAddress: deployment.address('Accountant'),
       DecoderAndSanitizerAddress: decoder,
+      ...(swapDecoder && { SwapDecoderAndSanitizerAddress: swapDecoder }),
       Strategist: deployment.config.strategist,
       ManageRoot: root,
       LeafCount: leafs.length,
@@ -96,8 +151,8 @@ function treeFilePath(deployment) {
   return path.join(__dirname, '..', '..', '..', 'leafs', 'Base', `${deployment.config.vaultTokenSymbol}StrategistLeafs.json`)
 }
 
-function findLeaf(leafs, target, signature, addressArguments) {
-  const want = utils.solidityPack(addressArguments.map(() => 'address'), addressArguments).toLowerCase()
+function findLeaf(leafs, target, signature, addressArguments, types) {
+  const want = packArguments(addressArguments, types).toLowerCase()
   const found = leafs.find(
     (l) =>
       l.TargetAddress.toLowerCase() === target.toLowerCase() &&
@@ -108,4 +163,15 @@ function findLeaf(leafs, target, signature, addressArguments) {
   return found
 }
 
-module.exports = { MERKL_DISTRIBUTOR, stockLeafs, buildTree, treeFile, treeFilePath, findLeaf }
+module.exports = {
+  MERKL_DISTRIBUTOR,
+  REWARD_CONVERSION,
+  KYBER_SWAP,
+  KYBER_SWAP_TYPES,
+  kyberSwapArguments,
+  stockLeafs,
+  buildTree,
+  treeFile,
+  treeFilePath,
+  findLeaf,
+}
