@@ -109,9 +109,11 @@ if [ "$MODE" != "--check" ]; then
     fi
   done
 
-  # ── 10–11. Strategy: decoder and the strategist's manage root (stock vaults) ─
+  # ── 10–11. Strategy: decoders and the strategist's manage root (stock vaults) ─
+  # SWAP_DECODER=<address> reuses the shared swap decoder instead of deploying another.
   if [ -n "$SUPERVAULT" ]; then
     [ -n "$(rec contract Decoder)" ] || run 07_deployDecoder.js || die "07_deployDecoder.js failed"
+    [ -n "$(rec contract SwapDecoder)" ] || run 08_deploySwapDecoder.js || die "08_deploySwapDecoder.js failed"
     if [ -z "$(rec isdone setManageRoot)" ]; then
       run config/setManageRoot.js || die "config/setManageRoot.js failed. Rerunning this script resumes from it."
       rec done setManageRoot
@@ -142,7 +144,7 @@ if [ -n "$SUPERVAULT" ]; then
   TREE=$(node -e "console.log(require('./scripts/MVP/strategy/leafs').treeFilePath(require('./scripts/MVP/deployment').load()))")
   WANT=$(python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]))["metadata"]["ManageRoot"])' "$TREE" 2>/dev/null || true)
   GOT=$(c $MGR 'manageRoot(address)(bytes32)' $STRATEGIST)
-  echo "strategy: SuperVault $SUPERVAULT ($(c $SUPERVAULT 'symbol()(string)')), decoder ${DECODER:-MISSING}, manage root $( [ -n "$WANT" ] && [ "$GOT" = "$WANT" ] && echo "$GOT matches $(basename "$TREE")" || echo "$GOT DOES NOT MATCH ${TREE}")"
+  echo "strategy: SuperVault $SUPERVAULT ($(c $SUPERVAULT 'symbol()(string)')), decoder ${DECODER:-MISSING}, swap decoder $(rec contract SwapDecoder || true), manage root $( [ -n "$WANT" ] && [ "$GOT" = "$WANT" ] && echo "$GOT matches $(basename "$TREE")" || echo "$GOT DOES NOT MATCH ${TREE}")"
 fi
 echo "solver operator $OPERATOR: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $OPERATOR $SOLVER 0x5ff8a71f)"
 for f in $FORMER; do echo "former solver operator $f: can process withdrawals $(c $AUTH 'canCall(address,address,bytes4)(bool)' $f $SOLVER 0x5ff8a71f) (want false)"; done

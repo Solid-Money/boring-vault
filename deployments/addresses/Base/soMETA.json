@@ -35,7 +35,8 @@
     "Manager": "0xec293085D4DfFAe19E90D46a1C24ecA7cdF45D04",
     "BoringQueue": "0xaA23C7f72DB49402d835Ad7C6908ba1aD4C91066",
     "BoringSolver": "0xE0498018C3e80B84ABBF8219C97EABd6c4cDcAFe",
-    "Decoder": "0x11d8669A20a469a94bDA97f55580e9D7C0ae2a17"
+    "Decoder": "0x11d8669A20a469a94bDA97f55580e9D7C0ae2a17",
+    "SwapDecoder": "0xb33c8F0b0816fd147FCF896C594a3ef408845e2C"
   },
   "done": [
     "deployAllStarted",

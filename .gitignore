@@ -24,3 +24,6 @@ artifacts
 CLAUDE.md
 
 
+
+# Fork dry-run scratch records (scripts/MVP/dryrun-*.sh)
+.dryrun/
