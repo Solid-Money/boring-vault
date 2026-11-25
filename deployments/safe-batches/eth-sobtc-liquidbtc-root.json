@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "createdAt": 1795634759000,
+  "meta": {
+    "name": "Ethereum soBTC: strategist root with ether.fi Liquid BTC",
+    "description": "Manager 0xebEF setManageRoot(strategist 0x6f33, 0x53cdbf03980a5890fc33fdcc0b4e0564f31fd1bff529f3b371048a4f7e38789a): adds WBTC deposits into liquidBTC and its two-hop exit (liquidBTC -> eBTC -> WBTC), decoder 0xfE96197cB0d6d9f16c2623D67B2E357a43d96aBb.",
+    "txBuilderVersion": "1.16.5",
+    "createdFromSafeAddress": "0x6B26fAF3AD822695127B29ad242ac4B33D336F42"
+  },
+  "transactions": [
+    {"to": "0xebEFf15530CDC851A6Ce49F925B609402c4e4554", "value": "0", "data": "0x21801a990000000000000000000000006f3334ec6355ed6f70100cd1cd6736505cd0f9b553cdbf03980a5890fc33fdcc0b4e0564f31fd1bff529f3b371048a4f7e38789a", "contractMethod": null, "contractInputsValues": null}
+  ]
+}
