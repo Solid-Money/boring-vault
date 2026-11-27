@@ -1,0 +1,30 @@
+{
+  "root": "0x0241fc0ffb501f73db653e967f9d59ec8b6f3d56f05d380960297f143bf53fb6",
+  "decoder": "0x134F60B6DAfad149D1a7579e6fd6384736bc8d5d",
+  "vault": "0x9b0e0EFA48C00eBEeA845AeA197F0bB71529D235",
+  "proofs": {
+    "approveAccountant": [
+      "0x3e7b4024d77d9ffd17ee2e78abda6b9b4c51b9b22ce92ed1c81170a33fb8b46b",
+      "0xea2c3b50d58a33587e49d01d6c8f69bffaf436f6a6aa2ef8bd0c890008807d77",
+      "0x07e2f8079f61a693a2199878506bc37f55da7c1d56730a529ccbe3c52bf5e90e"
+    ],
+    "claimFees": [
+      "0x7eb19a3c3f4c31fc704d12cbb260c98c1131abfacd38ffbb5f9ccc1d70ab1891",
+      "0xea2c3b50d58a33587e49d01d6c8f69bffaf436f6a6aa2ef8bd0c890008807d77",
+      "0x07e2f8079f61a693a2199878506bc37f55da7c1d56730a529ccbe3c52bf5e90e"
+    ],
+    "withdrawWETH": [
+      "0x8e58fa8381be51d6b03113e7b7b45c9baa2004d646eeca50c18a954d4d775ba3",
+      "0x5d7b3b5418c138a2cec9182327ecbd1bffc367be6592ff724effe92b86495366",
+      "0x07e2f8079f61a693a2199878506bc37f55da7c1d56730a529ccbe3c52bf5e90e"
+    ],
+    "depositWETH": [
+      "0xac8c86449237d987ae111db9d5aa10dd7b4a75f3a6307e9c4a707f9188ad1014",
+      "0x5d7b3b5418c138a2cec9182327ecbd1bffc367be6592ff724effe92b86495366",
+      "0x07e2f8079f61a693a2199878506bc37f55da7c1d56730a529ccbe3c52bf5e90e"
+    ],
+    "stargateSend": [
+      "0x0a594ed9d2a16c0add8cd40cb602dd16688b682399e2e01f7f168188e62401be"
+    ]
+  }
+}

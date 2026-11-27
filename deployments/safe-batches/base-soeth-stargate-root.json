@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1795761127000,
+  "meta": {
+    "name": "Base soETH: strategist root with the Stargate bridge to Ethereum",
+    "description": "Manager 0x755B setManageRoot(strategist 0x6f33, 0x0241fc0ffb501f73db653e967f9d59ec8b6f3d56f05d380960297f143bf53fb6): unwrap WETH and send it over Stargate's native ETH pool to the Ethereum soETH vault, wrap native, claim fees. Decoder 0x134F60B6DAfad149D1a7579e6fd6384736bc8d5d.",
+    "txBuilderVersion": "1.16.5",
+    "createdFromSafeAddress": "0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3"
+  },
+  "transactions": [
+    {"to": "0x755B05025a369f314E64D2a41d652CC2C648a4C8", "value": "0", "data": "0x21801a990000000000000000000000006f3334ec6355ed6f70100cd1cd6736505cd0f9b50241fc0ffb501f73db653e967f9d59ec8b6f3d56f05d380960297f143bf53fb6", "contractMethod": null, "contractInputsValues": null}
+  ]
+}
