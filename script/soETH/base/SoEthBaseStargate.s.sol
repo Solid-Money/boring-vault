@@ -58,7 +58,8 @@ interface IWETH {
 contract SoEthBaseStargate is Script {
     bytes32 internal constant SALT = keccak256("solid.soETH.base.SolidSoETHDecoderAndSanitizer.v1");
     // Where SALT and this build of the decoder land; solid-backend's
-    // soETHDecoderAndSanitizer[BASE] defaults to it.
+    // soETHDecoderAndSanitizer[BASE] defaults to it. Deployed Nov 27 2026 in tx
+    // 0xb2b9bd4ca101cd3b4dab3e6d973d01d34be71e753634a9a9743af42dd24260d9.
     address internal constant DECODER = 0x134F60B6DAfad149D1a7579e6fd6384736bc8d5d;
 
     address internal constant SAFE = 0x5Eb1864D49ba5CeACc79CA861C20FcB922b5Eff3;
